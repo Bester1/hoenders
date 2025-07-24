@@ -40,7 +40,7 @@ const productMapping = {
     'Heuning 500ml R70': 'SUIWER HEUNING'
 };
 
-// Updated pricing based on April 2025 Braaikuikens cost prices
+// Updated pricing based on March 2025 Braaikuikens cost prices (EXACT from supplier)
 let pricing = {
     'HEEL HOENDER': { cost: 67, selling: 95, packaging: 'VAKUUM VERPAK' },
     'PLAT HOENDER (FLATTY\'S)': { cost: 79, selling: 115, packaging: 'VAKUUM VERPAK' },
