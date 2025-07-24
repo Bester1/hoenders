@@ -40,26 +40,26 @@ const productMapping = {
     'Heuning 500ml R70': 'SUIWER HEUNING'
 };
 
-// Updated pricing based on March 2025 Braaikuikens cost prices (EXACT from supplier)
+// Updated pricing based on March 2025 Braaikuikens SELLING prices (EXACT from supplier price list)
 let pricing = {
-    'HEEL HOENDER': { cost: 67, selling: 95, packaging: 'VAKUUM VERPAK' },
-    'PLAT HOENDER (FLATTY\'S)': { cost: 79, selling: 115, packaging: 'VAKUUM VERPAK' },
-    'BRAAIPAKKE': { cost: 74, selling: 105, packaging: '1 heel hoender opgesnye VAKUUM VERPAK' },
-    'HEEL HALWE HOENDERS': { cost: 68, selling: 95, packaging: '1 heel hoender deurgesny' },
-    'BORSSTUKKE MET BEEN EN VEL': { cost: 73, selling: 110, packaging: '4 IN PAK OF 2 IN PAK MELD KEUSE IN BESTELLING' },
-    'VLERKIES': { cost: 90, selling: 125, packaging: '8 IN PAK NIE ALTYD BESKIKBAAR' },
-    'BOUDE EN DYE': { cost: 81, selling: 115, packaging: '2 boude en 2 dye in pak' },
-    'GUNS Boud en dy aanmekaar': { cost: 81, selling: 115, packaging: '3 IN PAK' },
-    'LEWER': { cost: 31, selling: 50, packaging: 'In 500g bakkies verpak' },
-    'NEKKIES': { cost: 30, selling: 45, packaging: 'In 1 kg sakkies verpak NIE ALTYD BESKIKBAAR' },
-    'FILETTE (sonder vel)': { cost: 100, selling: 140, packaging: '4 fillets per pak' },
-    'STRIPS': { cost: 100, selling: 140, packaging: '±500g per pak' },
-    'ONTBEENDE HOENDER': { cost: 125, selling: 170, packaging: 'Vacuum verpak' },
-    'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 193, selling: 260, packaging: 'Opsie 1: Vye, feta, cheddar sweet chilly; Opsie 2: Peppadew, mozzarella, cheddar, pynappel' },
-    'INGELEGDE GROEN VYE': { cost: 75, selling: 95, packaging: '375ml potjie', unit: 'per potjie' },
-    'HOENDER PATTIES': { cost: 120, selling: 160, packaging: '4 IN PAK(120-140GR)' },
-    'HOENDER KAASWORS': { cost: 148, selling: 190, packaging: '500gr VACUUM VERPAK' },
-    'SUIWER HEUNING': { cost: 70, selling: 90, packaging: '500gr POTJIE', unit: 'per potjie' }
+    'HEEL HOENDER': { cost: 67.00, selling: 67.00, packaging: 'VAKUUM VERPAK' },
+    'PLAT HOENDER (FLATTY\'S)': { cost: 79.00, selling: 79.00, packaging: 'VAKUUM VERPAK' },
+    'BRAAIPAKKE': { cost: 74.00, selling: 74.00, packaging: '1 Heel hoender opgesnye VACUUM VERPAK' },
+    'HEEL HALWE HOENDERS': { cost: 68.00, selling: 68.00, packaging: '1 Heel hoender deurgesny' },
+    'BORSSTUKKE MET BEEN EN VEL': { cost: 73.00, selling: 73.00, packaging: '4 IN PAK OF 2 IN PAK MELD KEUSE IN BESTELLING' },
+    'VLERKIES': { cost: 90.00, selling: 90.00, packaging: '8 IN PAK NIE ALTYD BESKIKBAAR' },
+    'BOUDE EN DYE': { cost: 81.00, selling: 81.00, packaging: '2 boude en 2 dye in pak' },
+    'GUNS Boud en dy aanmekaar': { cost: 81.00, selling: 81.00, packaging: '3 IN PAK' },
+    'LEWER': { cost: 31.00, selling: 31.00, packaging: 'In 500 g bakkies verpak' },
+    'NEKKIES': { cost: 30.00, selling: 30.00, packaging: 'In 1 kg sakkies verpak NIE ALTYD BESKIKBAAR' },
+    'FILETTE (sonder vel)': { cost: 100.00, selling: 100.00, packaging: '4 fillets per pak' },
+    'STRIPS': { cost: 100.00, selling: 100.00, packaging: '± 500g per pak' },
+    'ONTBEENDE HOENDER': { cost: 125.00, selling: 125.00, packaging: 'Vacuum verpak' },
+    'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 193.00, selling: 193.00, packaging: 'Opsie 1: Vye, feta, cheddar sweet chilly - Beskikbaar solank vye in voorraad is. Opsie 2: Peppadew, mozzarella, cheddar, pynappel.' },
+    'INGELEGDE GROEN VYE': { cost: 75, selling: 75, packaging: '375ml potjie', unit: 'per potjie' },
+    'HOENDER PATTIES': { cost: 120.00, selling: 120.00, packaging: '4 IN PAK(120-140GR)' },
+    'HOENDER KAASWORS': { cost: 148.00, selling: 148.00, packaging: '500gr VACUUM VERPAK' },
+    'SUIWER HEUNING': { cost: 70, selling: 70, packaging: '500gr POTJIE', unit: 'per potjie' }
 };
 
 // Supabase Configuration
