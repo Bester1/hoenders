@@ -62,6 +62,12 @@ let pricing = {
     'SUIWER HEUNING': { cost: 70, selling: 90, packaging: '500gr POTJIE', unit: 'per potjie' }
 };
 
+// Supabase Configuration
+const SUPABASE_URL = 'https://ukdmlzuxgnjucwidsygj.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w';
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // Gmail API Configuration
 const GMAIL_API_KEY = 'YOUR_GMAIL_API_KEY'; // You'll need to get this from Google Cloud Console
 const GMAIL_CLIENT_ID = 'YOUR_GMAIL_CLIENT_ID';
@@ -75,6 +81,7 @@ let isGmailInitialized = false;
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
+    initializeDatabase();
     loadStoredData();
     updateDashboard();
     loadPricingTable();
@@ -99,6 +106,244 @@ function initializeApp() {
 
     // Initialize Gmail API
     initializeGmailAPI();
+}
+
+// Database Functions
+async function initializeDatabase() {
+    try {
+        console.log('Initializing Supabase connection...');
+        
+        // Test the connection
+        const { data, error } = await supabaseClient
+            .from('imports')
+            .select('count', { count: 'exact', head: true });
+        
+        if (error && error.code === '42P01') {
+            // Tables don't exist, show setup message
+            console.log('Database tables need to be created.');
+            showDatabaseSetupModal();
+        } else if (error) {
+            console.error('Database connection error:', error);
+            addActivity('Database connection failed - using local storage');
+        } else {
+            console.log('Supabase connected successfully');
+            addActivity('Connected to Supabase database');
+            
+            // Try to migrate existing localStorage data
+            await migrateToDatabase();
+        }
+    } catch (error) {
+        console.error('Database initialization error:', error);
+        addActivity('Database initialization failed - using local storage');
+    }
+}
+
+async function saveToDatabase() {
+    try {
+        // Save imports
+        for (const [importId, importData] of Object.entries(imports)) {
+            const { error: importError } = await supabaseClient
+                .from('imports')
+                .upsert({
+                    id: importId,
+                    name: importData.name,
+                    date: importData.date,
+                    orders: importData.orders,
+                    invoices: importData.invoices
+                });
+            
+            if (importError) {
+                console.error('Error saving import:', importError);
+                return false;
+            }
+        }
+        
+        // Save settings
+        const { error: settingsError } = await supabaseClient
+            .from('settings')
+            .upsert({
+                id: 'main',
+                current_import_id: currentImportId,
+                pricing: pricing,
+                gmail_config: gmailConfig,
+                email_queue: emailQueue,
+                analysis_history: analysisHistory
+            });
+        
+        if (settingsError) {
+            console.error('Error saving settings:', settingsError);
+            return false;
+        }
+        
+        console.log('Data saved to Supabase successfully');
+        return true;
+    } catch (error) {
+        console.error('Database save error:', error);
+        return false;
+    }
+}
+
+async function loadFromDatabase() {
+    try {
+        // Load imports
+        const { data: importsData, error: importsError } = await supabaseClient
+            .from('imports')
+            .select('*');
+        
+        if (importsError) {
+            console.error('Error loading imports:', importsError);
+            return false;
+        }
+        
+        // Convert array to object
+        imports = {};
+        if (importsData) {
+            importsData.forEach(importData => {
+                imports[importData.id] = importData;
+            });
+        }
+        
+        // Load settings
+        const { data: settingsData, error: settingsError } = await supabaseClient
+            .from('settings')
+            .select('*')
+            .eq('id', 'main')
+            .single();
+        
+        if (settingsError && settingsError.code !== 'PGRST116') {
+            console.error('Error loading settings:', settingsError);
+            return false;
+        }
+        
+        if (settingsData) {
+            currentImportId = settingsData.current_import_id;
+            pricing = settingsData.pricing || pricing;
+            gmailConfig = settingsData.gmail_config || {};
+            emailQueue = settingsData.email_queue || [];
+            analysisHistory = settingsData.analysis_history || [];
+        }
+        
+        console.log('Data loaded from Supabase successfully');
+        return true;
+    } catch (error) {
+        console.error('Database load error:', error);
+        return false;
+    }
+}
+
+function showDatabaseSetupModal() {
+    const setupHTML = `
+        <div class="database-setup-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🗄️ Database Setup Required</h3>
+                </div>
+                <div class="modal-body">
+                    <p>Your Supabase database needs to be set up with the following tables:</p>
+                    <h4>Required SQL Commands:</h4>
+                    <textarea readonly style="width: 100%; height: 300px; font-family: monospace; font-size: 12px;">
+-- Create imports table
+CREATE TABLE imports (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    date TIMESTAMP WITH TIME ZONE NOT NULL,
+    orders JSONB DEFAULT '[]'::jsonb,
+    invoices JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create settings table
+CREATE TABLE settings (
+    id TEXT PRIMARY KEY,
+    current_import_id TEXT,
+    pricing JSONB DEFAULT '{}'::jsonb,
+    gmail_config JSONB DEFAULT '{}'::jsonb,
+    email_queue JSONB DEFAULT '[]'::jsonb,
+    analysis_history JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE imports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+
+-- Create policies (allow all operations for now)
+CREATE POLICY "Allow all operations on imports" ON imports FOR ALL USING (true);
+CREATE POLICY "Allow all operations on settings" ON settings FOR ALL USING (true);
+                    </textarea>
+                    <p><strong>Instructions:</strong></p>
+                    <ol>
+                        <li>Copy the SQL commands above</li>
+                        <li>Go to your Supabase dashboard → SQL Editor</li>
+                        <li>Paste and run the commands</li>
+                        <li>Refresh this page</li>
+                    </ol>
+                    <div style="margin-top: 20px;">
+                        <button onclick="closeModal()" class="btn-primary">I'll set this up later</button>
+                        <button onclick="window.open('https://supabase.com/dashboard', '_blank')" class="btn-secondary">Open Supabase Dashboard</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    showModal(setupHTML);
+}
+
+// Migration function to move data from localStorage to Supabase
+async function migrateToDatabase() {
+    try {
+        // Check if there's data in localStorage
+        const storedImports = localStorage.getItem('groChickenImports');
+        if (!storedImports) return false;
+        
+        console.log('Migrating data from localStorage to Supabase...');
+        
+        // Load all localStorage data
+        const localImports = JSON.parse(storedImports);
+        const localCurrentImportId = localStorage.getItem('groChickenCurrentImportId');
+        const localInvoices = JSON.parse(localStorage.getItem('groChickenInvoices') || '[]');
+        const localEmailQueue = JSON.parse(localStorage.getItem('groChickenEmailQueue') || '[]');
+        const localPricing = JSON.parse(localStorage.getItem('groChickenPricing') || '{}');
+        const localGmailConfig = JSON.parse(localStorage.getItem('groChickenGmailConfig') || '{}');
+        const localAnalysisHistory = JSON.parse(localStorage.getItem('groChickenAnalysisHistory') || '[]');
+        
+        // Set global variables
+        imports = localImports;
+        currentImportId = localCurrentImportId;
+        invoices = localInvoices;
+        emailQueue = localEmailQueue;
+        if (Object.keys(localPricing).length > 0) pricing = localPricing;
+        gmailConfig = localGmailConfig;
+        analysisHistory = localAnalysisHistory;
+        
+        // Save to database
+        const success = await saveToDatabase();
+        
+        if (success) {
+            console.log('Data migration completed successfully');
+            addActivity('Data migrated to Supabase database');
+            
+            // Optionally clear localStorage after successful migration
+            // You can uncomment these lines if you want to clean up localStorage
+            // localStorage.removeItem('groChickenImports');
+            // localStorage.removeItem('groChickenCurrentImportId');
+            // localStorage.removeItem('groChickenInvoices');
+            // localStorage.removeItem('groChickenEmailQueue');
+            // localStorage.removeItem('groChickenPricing');
+            // localStorage.removeItem('groChickenGmailConfig');
+            // localStorage.removeItem('groChickenAnalysisHistory');
+            
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('Migration error:', error);
+        return false;
+    }
 }
 
 // Gmail API Functions
@@ -671,33 +916,47 @@ function showSection(sectionId) {
     document.getElementById('page-title').textContent = titles[sectionId] || 'Dashboard';
 }
 
-// Storage functions
-function saveToStorage() {
-    localStorage.setItem('groChickenImports', JSON.stringify(imports));
-    localStorage.setItem('groChickenCurrentImportId', currentImportId || '');
-    localStorage.setItem('groChickenInvoices', JSON.stringify(invoices));
-    localStorage.setItem('groChickenEmailQueue', JSON.stringify(emailQueue));
-    localStorage.setItem('groChickenPricing', JSON.stringify(pricing));
-    localStorage.setItem('groChickenGmailConfig', JSON.stringify(gmailConfig));
-    localStorage.setItem('groChickenAnalysisHistory', JSON.stringify(analysisHistory));
+// Storage functions - Now with Supabase integration
+async function saveToStorage() {
+    // Try to save to database first
+    const databaseSaved = await saveToDatabase();
+    
+    if (!databaseSaved) {
+        // Fallback to localStorage if database fails
+        console.log('Falling back to localStorage');
+        localStorage.setItem('groChickenImports', JSON.stringify(imports));
+        localStorage.setItem('groChickenCurrentImportId', currentImportId || '');
+        localStorage.setItem('groChickenInvoices', JSON.stringify(invoices));
+        localStorage.setItem('groChickenEmailQueue', JSON.stringify(emailQueue));
+        localStorage.setItem('groChickenPricing', JSON.stringify(pricing));
+        localStorage.setItem('groChickenGmailConfig', JSON.stringify(gmailConfig));
+        localStorage.setItem('groChickenAnalysisHistory', JSON.stringify(analysisHistory));
+    }
 }
 
-function loadStoredData() {
-    const storedImports = localStorage.getItem('groChickenImports');
-    const storedCurrentImportId = localStorage.getItem('groChickenCurrentImportId');
-    const storedInvoices = localStorage.getItem('groChickenInvoices');
-    const storedEmailQueue = localStorage.getItem('groChickenEmailQueue');
-    const storedPricing = localStorage.getItem('groChickenPricing');
-    const storedGmailConfig = localStorage.getItem('groChickenGmailConfig');
-    const storedAnalysisHistory = localStorage.getItem('groChickenAnalysisHistory');
+async function loadStoredData() {
+    // Try to load from database first
+    const databaseLoaded = await loadFromDatabase();
     
-    if (storedImports) imports = JSON.parse(storedImports);
-    if (storedCurrentImportId) currentImportId = storedCurrentImportId;
-    if (storedInvoices) invoices = JSON.parse(storedInvoices);
-    if (storedEmailQueue) emailQueue = JSON.parse(storedEmailQueue);
-    if (storedPricing) pricing = JSON.parse(storedPricing);
-    if (storedGmailConfig) gmailConfig = JSON.parse(storedGmailConfig);
-    if (storedAnalysisHistory) analysisHistory = JSON.parse(storedAnalysisHistory);
+    if (!databaseLoaded) {
+        // Fallback to localStorage if database fails
+        console.log('Falling back to localStorage');
+        const storedImports = localStorage.getItem('groChickenImports');
+        const storedCurrentImportId = localStorage.getItem('groChickenCurrentImportId');
+        const storedInvoices = localStorage.getItem('groChickenInvoices');
+        const storedEmailQueue = localStorage.getItem('groChickenEmailQueue');
+        const storedPricing = localStorage.getItem('groChickenPricing');
+        const storedGmailConfig = localStorage.getItem('groChickenGmailConfig');
+        const storedAnalysisHistory = localStorage.getItem('groChickenAnalysisHistory');
+        
+        if (storedImports) imports = JSON.parse(storedImports);
+        if (storedCurrentImportId) currentImportId = storedCurrentImportId;
+        if (storedInvoices) invoices = JSON.parse(storedInvoices);
+        if (storedEmailQueue) emailQueue = JSON.parse(storedEmailQueue);
+        if (storedPricing) pricing = JSON.parse(storedPricing);
+        if (storedGmailConfig) gmailConfig = JSON.parse(storedGmailConfig);
+        if (storedAnalysisHistory) analysisHistory = JSON.parse(storedAnalysisHistory);
+    }
     
     updateOrdersTable();
     updateInvoicesDisplay();
