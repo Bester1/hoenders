@@ -40,26 +40,26 @@ const productMapping = {
     'Heuning 500ml R70': 'SUIWER HEUNING'
 };
 
-// Updated pricing based on March 2025 Braaikuikens rate card
+// Updated pricing based on April 2025 Braaikuikens cost prices
 let pricing = {
-    'HEEL HOENDER': { cost: 67, selling: 95, margin: 42, packaging: 'VAKUUM VERPAK' },
-    'PLAT HOENDER (FLATTY\'S)': { cost: 79, selling: 115, margin: 46, packaging: 'VAKUUM VERPAK' },
-    'BRAAIPAKKE': { cost: 74, selling: 105, margin: 42, packaging: '1 heel hoender opgesnye VAKUUM VERPAK' },
-    'HEEL HALWE HOENDERS': { cost: 68, selling: 95, margin: 40, packaging: '1 heel hoender deurgesny' },
-    'BORSSTUKKE MET BEEN EN VEL': { cost: 73, selling: 110, margin: 51, packaging: '4 IN PAK OF 2 IN PAK MELD KEUSE IN BESTELLING' },
-    'VLERKIES': { cost: 90, selling: 125, margin: 39, packaging: '8 IN PAK NIE ALTYD BESKIKBAAR' },
-    'BOUDE EN DYE': { cost: 81, selling: 115, margin: 42, packaging: '2 boude en 2 dye in pak' },
-    'GUNS Boud en dy aanmekaar': { cost: 81, selling: 115, margin: 42, packaging: '3 IN PAK' },
-    'LEWER': { cost: 31, selling: 50, margin: 61, packaging: 'In 500g bakkies verpak' },
-    'NEKKIES': { cost: 30, selling: 45, margin: 50, packaging: 'In 1 kg sakkies verpak NIE ALTYD BESKIKBAAR' },
-    'FILETTE (sonder vel)': { cost: 100, selling: 140, margin: 40, packaging: '4 fillets per pak' },
-    'STRIPS': { cost: 100, selling: 140, margin: 40, packaging: '±500g per pak' },
-    'ONTBEENDE HOENDER': { cost: 125, selling: 170, margin: 36, packaging: 'Vacuum verpak' },
-    'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 193, selling: 260, margin: 35, packaging: 'Opsie 1: Vye, feta, cheddar sweet chilly; Opsie 2: Peppadew, mozzarella, cheddar, pynappel' },
-    'INGELEGDE GROEN VYE': { cost: 75, selling: 95, margin: 27, packaging: '375ml potjie', unit: 'per potjie' },
-    'HOENDER PATTIES': { cost: 120, selling: 160, margin: 33, packaging: '4 IN PAK(120-140GR)' },
-    'HOENDER KAASWORS': { cost: 148, selling: 190, margin: 28, packaging: '500gr VACUUM VERPAK' },
-    'SUIWER HEUNING': { cost: 70, selling: 90, margin: 29, packaging: '500gr POTJIE', unit: 'per potjie' }
+    'HEEL HOENDER': { cost: 67, selling: 95, packaging: 'VAKUUM VERPAK' },
+    'PLAT HOENDER (FLATTY\'S)': { cost: 79, selling: 115, packaging: 'VAKUUM VERPAK' },
+    'BRAAIPAKKE': { cost: 74, selling: 105, packaging: '1 heel hoender opgesnye VAKUUM VERPAK' },
+    'HEEL HALWE HOENDERS': { cost: 68, selling: 95, packaging: '1 heel hoender deurgesny' },
+    'BORSSTUKKE MET BEEN EN VEL': { cost: 73, selling: 110, packaging: '4 IN PAK OF 2 IN PAK MELD KEUSE IN BESTELLING' },
+    'VLERKIES': { cost: 90, selling: 125, packaging: '8 IN PAK NIE ALTYD BESKIKBAAR' },
+    'BOUDE EN DYE': { cost: 81, selling: 115, packaging: '2 boude en 2 dye in pak' },
+    'GUNS Boud en dy aanmekaar': { cost: 81, selling: 115, packaging: '3 IN PAK' },
+    'LEWER': { cost: 31, selling: 50, packaging: 'In 500g bakkies verpak' },
+    'NEKKIES': { cost: 30, selling: 45, packaging: 'In 1 kg sakkies verpak NIE ALTYD BESKIKBAAR' },
+    'FILETTE (sonder vel)': { cost: 100, selling: 140, packaging: '4 fillets per pak' },
+    'STRIPS': { cost: 100, selling: 140, packaging: '±500g per pak' },
+    'ONTBEENDE HOENDER': { cost: 125, selling: 170, packaging: 'Vacuum verpak' },
+    'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 193, selling: 260, packaging: 'Opsie 1: Vye, feta, cheddar sweet chilly; Opsie 2: Peppadew, mozzarella, cheddar, pynappel' },
+    'INGELEGDE GROEN VYE': { cost: 75, selling: 95, packaging: '375ml potjie', unit: 'per potjie' },
+    'HOENDER PATTIES': { cost: 120, selling: 160, packaging: '4 IN PAK(120-140GR)' },
+    'HOENDER KAASWORS': { cost: 148, selling: 190, packaging: '500gr VACUUM VERPAK' },
+    'SUIWER HEUNING': { cost: 70, selling: 90, packaging: '500gr POTJIE', unit: 'per potjie' }
 };
 
 // Gmail API Configuration
@@ -574,18 +574,21 @@ function updateInvoicesDisplay(importId = null) {
 function loadPricingTable() {
     const tableBody = document.getElementById('pricingTableBody');
     
-    const pricingHTML = Object.entries(pricing).map(([product, prices]) => `
-        <tr>
-            <td>${product}</td>
-            <td>R${prices.cost}</td>
-            <td>R${prices.selling}</td>
-            <td>${prices.margin}%</td>
-            <td>
-                <button onclick="editProduct('${product}')" class="btn-small btn-secondary">Edit</button>
-                <button onclick="deleteProduct('${product}')" class="btn-small btn-danger">Delete</button>
-            </td>
-        </tr>
-    `).join('');
+    const pricingHTML = Object.entries(pricing).map(([product, prices]) => {
+        const margin = Math.round(((prices.selling - prices.cost) / prices.cost) * 100);
+        return `
+            <tr>
+                <td>${product}</td>
+                <td>R${prices.cost}</td>
+                <td>R${prices.selling}</td>
+                <td>${margin}%</td>
+                <td>
+                    <button onclick="editProduct('${product}')" class="btn-small btn-secondary">Edit</button>
+                    <button onclick="deleteProduct('${product}')" class="btn-small btn-danger">Delete</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
     
     tableBody.innerHTML = pricingHTML;
 }
@@ -596,6 +599,7 @@ function addNewProduct() {
     
     const cost = parseFloat(prompt('Enter cost price:'));
     const selling = parseFloat(prompt('Enter selling price:'));
+    const packaging = prompt('Enter packaging details:') || 'Standard packaging';
     
     if (isNaN(cost) || isNaN(selling)) {
         alert('Please enter valid prices.');
@@ -605,7 +609,7 @@ function addNewProduct() {
     pricing[product] = {
         cost: cost,
         selling: selling,
-        margin: ((selling - cost) / cost * 100).toFixed(0)
+        packaging: packaging
     };
     
     loadPricingTable();
@@ -1313,14 +1317,16 @@ function downloadInvoice(invoiceId) {
 }
 
 function editProduct(product) {
-    const newCost = parseFloat(prompt(`Enter new cost price for ${product}:`, pricing[product].cost));
-    const newSelling = parseFloat(prompt(`Enter new selling price for ${product}:`, pricing[product].selling));
+    const currentProduct = pricing[product];
+    const newCost = parseFloat(prompt(`Enter new cost price for ${product}:`, currentProduct.cost));
+    const newSelling = parseFloat(prompt(`Enter new selling price for ${product}:`, currentProduct.selling));
+    const newPackaging = prompt(`Enter packaging details for ${product}:`, currentProduct.packaging);
     
     if (!isNaN(newCost) && !isNaN(newSelling)) {
         pricing[product] = {
             cost: newCost,
             selling: newSelling,
-            margin: ((newSelling - newCost) / newCost * 100).toFixed(0)
+            packaging: newPackaging || currentProduct.packaging
         };
         loadPricingTable();
         saveToStorage();
@@ -1624,14 +1630,17 @@ function loadCurrentRatesTable() {
     const tableBody = document.getElementById('currentRatesTable');
     if (!tableBody) return;
     
-    const ratesHTML = Object.entries(pricing).map(([product, rates]) => `
-        <tr>
-            <td>${product}</td>
-            <td>R${rates.cost}</td>
-            <td>R${rates.selling}</td>
-            <td>${rates.margin}%</td>
-        </tr>
-    `).join('');
+    const ratesHTML = Object.entries(pricing).map(([product, rates]) => {
+        const margin = Math.round(((rates.selling - rates.cost) / rates.cost) * 100);
+        return `
+            <tr>
+                <td>${product}</td>
+                <td>R${rates.cost}</td>
+                <td>R${rates.selling}</td>
+                <td>${margin}%</td>
+            </tr>
+        `;
+    }).join('');
     
     tableBody.innerHTML = ratesHTML;
 }
