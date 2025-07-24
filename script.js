@@ -62,9 +62,6 @@ let pricing = {
     'SUIWER HEUNING': { cost: 70, selling: 90, margin: 29, packaging: '500gr POTJIE', unit: 'per potjie' }
 };
 
-// Analysis history
-let analysisHistory = [];
-
 // Gmail API Configuration
 const GMAIL_API_KEY = 'YOUR_GMAIL_API_KEY'; // You'll need to get this from Google Cloud Console
 const GMAIL_CLIENT_ID = 'YOUR_GMAIL_CLIENT_ID';
@@ -618,10 +615,11 @@ function addNewProduct() {
 
 // Dashboard functions
 function updateDashboard() {
-    document.getElementById('totalOrders').textContent = orders.length;
-    document.getElementById('totalRevenue').textContent = 'R' + orders.reduce((sum, order) => sum + (order.total || 0), 0).toFixed(2);
+    const currentOrders = getCurrentOrders();
+    document.getElementById('totalOrders').textContent = currentOrders.length;
+    document.getElementById('totalRevenue').textContent = 'R' + currentOrders.reduce((sum, order) => sum + (order.total || 0), 0).toFixed(2);
     document.getElementById('emailsSent').textContent = emailQueue.filter(e => e.status === 'sent').length;
-    document.getElementById('pendingOrders').textContent = orders.filter(o => o.status === 'pending').length;
+    document.getElementById('pendingOrders').textContent = currentOrders.filter(o => o.status === 'pending').length;
 }
 
 function addActivity(message) {
@@ -1156,7 +1154,8 @@ function clearCSVUpload() {
 
 // Order and invoice detail functions
 function viewOrderDetails(orderId) {
-    const order = orders.find(o => o.orderId === orderId);
+    const currentOrders = getCurrentOrders();
+    const order = currentOrders.find(o => o.orderId === orderId);
     if (!order || !order.products) return;
     
     const detailsHTML = `
