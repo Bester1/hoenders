@@ -296,19 +296,19 @@ CREATE POLICY "Allow all operations on settings" ON settings FOR ALL USING (true
 async function migrateToDatabase() {
     try {
         // Check if there's data in localStorage
-        const storedImports = localStorage.getItem('groChickenImports');
+        const storedImports = localStorage.getItem('plaasHoendersImports');
         if (!storedImports) return false;
         
         console.log('Migrating data from localStorage to Supabase...');
         
         // Load all localStorage data
         const localImports = JSON.parse(storedImports);
-        const localCurrentImportId = localStorage.getItem('groChickenCurrentImportId');
-        const localInvoices = JSON.parse(localStorage.getItem('groChickenInvoices') || '[]');
-        const localEmailQueue = JSON.parse(localStorage.getItem('groChickenEmailQueue') || '[]');
-        const localPricing = JSON.parse(localStorage.getItem('groChickenPricing') || '{}');
-        const localGmailConfig = JSON.parse(localStorage.getItem('groChickenGmailConfig') || '{}');
-        const localAnalysisHistory = JSON.parse(localStorage.getItem('groChickenAnalysisHistory') || '[]');
+        const localCurrentImportId = localStorage.getItem('plaasHoendersCurrentImportId');
+        const localInvoices = JSON.parse(localStorage.getItem('plaasHoendersInvoices') || '[]');
+        const localEmailQueue = JSON.parse(localStorage.getItem('plaasHoendersEmailQueue') || '[]');
+        const localPricing = JSON.parse(localStorage.getItem('plaasHoendersPricing') || '{}');
+        const localGmailConfig = JSON.parse(localStorage.getItem('plaasHoendersGmailConfig') || '{}');
+        const localAnalysisHistory = JSON.parse(localStorage.getItem('plaasHoendersAnalysisHistory') || '[]');
         
         // Set global variables
         imports = localImports;
@@ -328,13 +328,13 @@ async function migrateToDatabase() {
             
             // Optionally clear localStorage after successful migration
             // You can uncomment these lines if you want to clean up localStorage
-            // localStorage.removeItem('groChickenImports');
-            // localStorage.removeItem('groChickenCurrentImportId');
-            // localStorage.removeItem('groChickenInvoices');
-            // localStorage.removeItem('groChickenEmailQueue');
-            // localStorage.removeItem('groChickenPricing');
-            // localStorage.removeItem('groChickenGmailConfig');
-            // localStorage.removeItem('groChickenAnalysisHistory');
+            // localStorage.removeItem('plaasHoendersImports');
+            // localStorage.removeItem('plaasHoendersCurrentImportId');
+            // localStorage.removeItem('plaasHoendersInvoices');
+            // localStorage.removeItem('plaasHoendersEmailQueue');
+            // localStorage.removeItem('plaasHoendersPricing');
+            // localStorage.removeItem('plaasHoendersGmailConfig');
+            // localStorage.removeItem('plaasHoendersAnalysisHistory');
             
             return true;
         }
@@ -556,8 +556,8 @@ async function testEmail() {
     try {
         await sendEmailViaGmail(
             testEmail,
-            'Test Email from Gro Chicken Admin',
-            '<h2>Test Email</h2><p>This is a test email from your Gro Chicken admin panel. Gmail integration is working correctly!</p>'
+            'Test Email from Plaas Hoenders Admin',
+            '<h2>Test Email</h2><p>This is a test email from your Plaas Hoenders admin panel. Gmail integration is working correctly!</p>'
         );
         alert('Test email sent successfully!');
         addActivity(`Test email sent to ${testEmail}`);
@@ -924,13 +924,13 @@ async function saveToStorage() {
     if (!databaseSaved) {
         // Fallback to localStorage if database fails
         console.log('Falling back to localStorage');
-        localStorage.setItem('groChickenImports', JSON.stringify(imports));
-        localStorage.setItem('groChickenCurrentImportId', currentImportId || '');
-        localStorage.setItem('groChickenInvoices', JSON.stringify(invoices));
-        localStorage.setItem('groChickenEmailQueue', JSON.stringify(emailQueue));
-        localStorage.setItem('groChickenPricing', JSON.stringify(pricing));
-        localStorage.setItem('groChickenGmailConfig', JSON.stringify(gmailConfig));
-        localStorage.setItem('groChickenAnalysisHistory', JSON.stringify(analysisHistory));
+        localStorage.setItem('plaasHoendersImports', JSON.stringify(imports));
+        localStorage.setItem('plaasHoendersCurrentImportId', currentImportId || '');
+        localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
+        localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
+        localStorage.setItem('plaasHoendersPricing', JSON.stringify(pricing));
+        localStorage.setItem('plaasHoendersGmailConfig', JSON.stringify(gmailConfig));
+        localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
     }
 }
 
@@ -941,13 +941,13 @@ async function loadStoredData() {
     if (!databaseLoaded) {
         // Fallback to localStorage if database fails
         console.log('Falling back to localStorage');
-        const storedImports = localStorage.getItem('groChickenImports');
-        const storedCurrentImportId = localStorage.getItem('groChickenCurrentImportId');
-        const storedInvoices = localStorage.getItem('groChickenInvoices');
-        const storedEmailQueue = localStorage.getItem('groChickenEmailQueue');
-        const storedPricing = localStorage.getItem('groChickenPricing');
-        const storedGmailConfig = localStorage.getItem('groChickenGmailConfig');
-        const storedAnalysisHistory = localStorage.getItem('groChickenAnalysisHistory');
+        const storedImports = localStorage.getItem('plaasHoendersImports');
+        const storedCurrentImportId = localStorage.getItem('plaasHoendersCurrentImportId');
+        const storedInvoices = localStorage.getItem('plaasHoendersInvoices');
+        const storedEmailQueue = localStorage.getItem('plaasHoendersEmailQueue');
+        const storedPricing = localStorage.getItem('plaasHoendersPricing');
+        const storedGmailConfig = localStorage.getItem('plaasHoendersGmailConfig');
+        const storedAnalysisHistory = localStorage.getItem('plaasHoendersAnalysisHistory');
         
         if (storedImports) imports = JSON.parse(storedImports);
         if (storedCurrentImportId) currentImportId = storedCurrentImportId;
@@ -979,7 +979,7 @@ function saveSettings() {
         branchCode: document.getElementById('branchCode').value
     };
     
-    localStorage.setItem('groChickenSettings', JSON.stringify(settings));
+    localStorage.setItem('plaasHoendersSettings', JSON.stringify(settings));
     addActivity('Settings saved successfully');
     alert('Settings saved successfully!');
 }
@@ -1001,7 +1001,7 @@ function saveEmailTemplate() {
         body: document.getElementById('emailTemplate').value
     };
     
-    localStorage.setItem('groChickenEmailTemplate', JSON.stringify(template));
+    localStorage.setItem('plaasHoendersEmailTemplate', JSON.stringify(template));
     addActivity('Email template updated');
     alert('Email template saved!');
 }
@@ -1486,7 +1486,7 @@ function previewInvoice(invoiceId) {
                 <div class="modal-body">
                     <div class="invoice-preview">
                         <div class="invoice-header-section">
-                            <h2>🐔 Gro Chicken Invoice</h2>
+                            <h2>🐔 Plaas Hoenders Invoice</h2>
                             <div class="invoice-meta">
                                 <p><strong>Invoice ID:</strong> ${invoice.invoiceId}</p>
                                 <p><strong>Date:</strong> ${invoice.date}</p>

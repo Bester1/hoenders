@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gro Chicken Orders - Admin Dashboard</title>
+    <title>Plaas Hoenders Orders - Admin Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -12,7 +12,7 @@
         <!-- Sidebar Navigation -->
         <nav class="sidebar">
             <div class="logo">
-                <h2>🐔 Gro Admin</h2>
+                <h2>🐔 Plaas Hoenders Admin</h2>
             </div>
             <ul class="nav-menu">
                 <li><a href="#dashboard" class="nav-link active"><i class="fas fa-chart-line"></i> Dashboard</a></li>
@@ -238,13 +238,13 @@
                         <h3>Email Template</h3>
                         <div class="form-group">
                             <label>Subject Template:</label>
-                            <input type="text" id="emailSubject" value="Invoice for your Gro Chicken order - Order #{orderNumber}">
+                            <input type="text" id="emailSubject" value="Invoice for your Plaas Hoenders order - Order #{orderNumber}">
                         </div>
                         <div class="form-group">
                             <label>Email Body:</label>
                             <textarea id="emailTemplate" rows="10">Dear {customerName},
 
-Thank you for your order with Gro Chicken!
+Thank you for your order with Plaas Hoenders!
 
 Please find attached your invoice for order #{orderNumber}.
 
@@ -258,7 +258,7 @@ Payment can be made via bank transfer. Banking details are included in the attac
 If you have any questions, please don't hesitate to contact us.
 
 Best regards,
-Gro Chicken Team</textarea>
+Plaas Hoenders Team</textarea>
                         </div>
                         <button onclick="saveEmailTemplate()" class="btn-secondary">Save Template</button>
                     </div>
@@ -383,11 +383,11 @@ Gro Chicken Team</textarea>
                         <h3>Business Information</h3>
                         <div class="form-group">
                             <label>Business Name:</label>
-                            <input type="text" id="businessName" value="Gro Chicken">
+                            <input type="text" id="businessName" value="Plaas Hoenders">
                         </div>
                         <div class="form-group">
                             <label>Contact Email:</label>
-                            <input type="email" id="businessEmail" placeholder="contact@grochicken.com">
+                            <input type="email" id="businessEmail" placeholder="contact@plaashoenders.com">
                         </div>
                         <div class="form-group">
                             <label>Phone Number:</label>
@@ -407,7 +407,7 @@ Gro Chicken Team</textarea>
                         </div>
                         <div class="form-group">
                             <label>Account Holder:</label>
-                            <input type="text" id="accountHolder" placeholder="Gro Chicken (Pty) Ltd">
+                            <input type="text" id="accountHolder" placeholder="Plaas Hoenders (Pty) Ltd">
                         </div>
                         <div class="form-group">
                             <label>Account Number:</label>

@@ -1,4 +1,4 @@
-# 🐔 Gro Chicken Orders - Admin Dashboard
+# 🐔 Plaas Hoenders Orders - Admin Dashboard
 
 A comprehensive web-based admin panel for managing chicken meat orders, generating invoices, and sending automated emails to customers.
 
