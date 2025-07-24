@@ -378,24 +378,45 @@ function updateOrdersTable() {
         return;
     }
     
-    const tableHTML = orders.map(order => `
-        <tr class="order-row">
-            <td>${order.orderId}</td>
-            <td>${order.date}</td>
-            <td>${order.name}</td>
-            <td>${order.email}</td>
-            <td>${order.phone}</td>
-            <td>${order.address || 'N/A'}</td>
-            <td>${order.product}</td>
-            <td>${order.quantity}</td>
-            <td>R${order.total}</td>
-            <td><span class="status status-${order.status}">${order.status.toUpperCase()}</span></td>
-            <td>
-                <button onclick="generateInvoice('${order.orderId}')" class="btn-small btn-primary">Invoice</button>
-                <button onclick="addToEmailQueue(${JSON.stringify(order).replace(/"/g, '&quot;')})" class="btn-small btn-secondary">Queue Email</button>
-            </td>
-        </tr>
-    `).join('');
+    const tableHTML = orders.map(order => {
+        // Handle both old single-product and new multi-product orders
+        let productDisplay, quantityDisplay;
+        
+        if (order.products && order.products.length > 0) {
+            // New multi-product format
+            if (order.products.length === 1) {
+                productDisplay = order.products[0].product;
+                quantityDisplay = order.products[0].quantity;
+            } else {
+                productDisplay = `${order.products.length} items`;
+                quantityDisplay = order.products.reduce((sum, p) => sum + p.quantity, 0);
+            }
+        } else {
+            // Old single-product format
+            productDisplay = order.product || 'N/A';
+            quantityDisplay = order.quantity || 0;
+        }
+        
+        return `
+            <tr class="order-row">
+                <td>${order.orderId}</td>
+                <td>${order.date}</td>
+                <td>${order.name}</td>
+                <td>${order.email}</td>
+                <td>${order.phone}</td>
+                <td>${order.address || 'N/A'}</td>
+                <td>${productDisplay}</td>
+                <td>${quantityDisplay}</td>
+                <td>R${order.total.toFixed(2)}</td>
+                <td><span class="status status-${order.status}">${order.status.toUpperCase()}</span></td>
+                <td>
+                    <button onclick="generateInvoice('${order.orderId}')" class="btn-small btn-primary">Invoice</button>
+                    <button onclick="addToEmailQueue(${JSON.stringify(order).replace(/"/g, '&quot;')})" class="btn-small btn-secondary">Queue Email</button>
+                    ${order.products && order.products.length > 1 ? `<button onclick="viewOrderDetails('${order.orderId}')" class="btn-small btn-secondary">Details</button>` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
     
     tableBody.innerHTML = tableHTML;
 }
@@ -405,21 +426,43 @@ function generateInvoice(orderId) {
     const order = orders.find(o => o.orderId === orderId);
     if (!order) return;
     
+    // Handle both old single-product and new multi-product orders
+    let invoiceItems = [];
+    let subtotal = 0;
+    
+    if (order.products && order.products.length > 0) {
+        // New multi-product format
+        invoiceItems = order.products.map(product => ({
+            product: product.product,
+            quantity: product.quantity,
+            unitPrice: product.unitPrice,
+            total: product.total,
+            specialInstructions: product.specialInstructions
+        }));
+        subtotal = order.total;
+    } else {
+        // Old single-product format
+        invoiceItems = [{
+            product: order.product,
+            quantity: order.quantity,
+            unitPrice: order.unitPrice,
+            total: order.total
+        }];
+        subtotal = order.total;
+    }
+    
     const invoice = {
         invoiceId: 'INV-' + Date.now(),
         orderId: order.orderId,
         date: new Date().toISOString().split('T')[0],
         customerName: order.name,
         customerEmail: order.email,
-        items: [{
-            product: order.product,
-            quantity: order.quantity,
-            unitPrice: order.unitPrice,
-            total: order.total
-        }],
-        subtotal: order.total,
-        tax: order.total * 0.15, // 15% VAT
-        total: order.total * 1.15,
+        customerPhone: order.phone,
+        customerAddress: order.address,
+        items: invoiceItems,
+        subtotal: subtotal,
+        tax: subtotal * 0.15, // 15% VAT
+        total: subtotal * 1.15,
         status: 'generated'
     };
     
@@ -431,7 +474,7 @@ function generateInvoice(orderId) {
     updateDashboard();
     saveToStorage();
     
-    addActivity(`Invoice ${invoice.invoiceId} generated for ${order.name}`);
+    addActivity(`Invoice ${invoice.invoiceId} generated for ${order.name} (${invoiceItems.length} items)`);
     
     // Add to email queue
     addToEmailQueue(order);
@@ -456,23 +499,35 @@ function updateInvoicesDisplay() {
         return;
     }
     
-    const invoicesHTML = invoices.map(invoice => `
-        <div class="invoice-card">
-            <div class="invoice-header">
-                <h4>${invoice.invoiceId}</h4>
-                <span class="status status-${invoice.status}">${invoice.status.toUpperCase()}</span>
+    const invoicesHTML = invoices.map(invoice => {
+        const itemsCount = invoice.items ? invoice.items.length : 1;
+        const itemsSummary = invoice.items && invoice.items.length > 1 
+            ? `${itemsCount} items` 
+            : invoice.items && invoice.items[0] 
+                ? invoice.items[0].product 
+                : 'Items';
+        
+        return `
+            <div class="invoice-card">
+                <div class="invoice-header">
+                    <h4>${invoice.invoiceId}</h4>
+                    <span class="status status-${invoice.status}">${invoice.status.toUpperCase()}</span>
+                </div>
+                <div class="invoice-details">
+                    <p><strong>Customer:</strong> ${invoice.customerName}</p>
+                    <p><strong>Date:</strong> ${invoice.date}</p>
+                    <p><strong>Items:</strong> ${itemsSummary}</p>
+                    <p><strong>Subtotal:</strong> R${invoice.subtotal.toFixed(2)}</p>
+                    <p><strong>VAT (15%):</strong> R${invoice.tax.toFixed(2)}</p>
+                    <p><strong>Total:</strong> R${invoice.total.toFixed(2)}</p>
+                </div>
+                <div class="invoice-actions">
+                    <button onclick="previewInvoice('${invoice.invoiceId}')" class="btn-small btn-primary">Preview</button>
+                    <button onclick="downloadInvoice('${invoice.invoiceId}')" class="btn-small btn-secondary">Download PDF</button>
+                </div>
             </div>
-            <div class="invoice-details">
-                <p><strong>Customer:</strong> ${invoice.customerName}</p>
-                <p><strong>Date:</strong> ${invoice.date}</p>
-                <p><strong>Total:</strong> R${invoice.total.toFixed(2)}</p>
-            </div>
-            <div class="invoice-actions">
-                <button onclick="downloadInvoice('${invoice.invoiceId}')" class="btn-small btn-primary">Download PDF</button>
-                <button onclick="previewInvoice('${invoice.invoiceId}')" class="btn-small btn-secondary">Preview</button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
     
     container.innerHTML = invoicesHTML;
 }
@@ -759,8 +814,10 @@ function processCSVFile() {
                 return;
             }
             
-            // Process each product column
-            let orderCount = 0;
+            // Collect all products for this customer
+            const customerProducts = [];
+            let totalOrderValue = 0;
+            
             csvHeaders.forEach((header, colIndex) => {
                 // Skip non-product columns
                 if (colIndex <= addressIndex) return;
@@ -769,28 +826,38 @@ function processCSVFile() {
                 if (quantity && !isNaN(parseInt(quantity))) {
                     const mappedProduct = productMapping[header];
                     if (mappedProduct && pricing[mappedProduct]) {
-                        const order = {
-                            orderId: 'ORD-' + Date.now() + '-' + rowIndex + '-' + orderCount++,
-                            date: new Date().toISOString().split('T')[0],
-                            name: name,
-                            email: email,
-                            phone: phone,
-                            address: address,
+                        const productPricing = pricing[mappedProduct];
+                        const itemTotal = productPricing.selling * parseInt(quantity);
+                        
+                        customerProducts.push({
                             product: mappedProduct,
                             quantity: parseInt(quantity),
-                            specialInstructions: extractSpecialInstructions(row[colIndex]),
-                            status: 'pending'
-                        };
+                            unitPrice: productPricing.selling,
+                            total: itemTotal,
+                            specialInstructions: extractSpecialInstructions(row[colIndex])
+                        });
                         
-                        // Calculate pricing
-                        const productPricing = pricing[order.product];
-                        order.unitPrice = productPricing.selling;
-                        order.total = order.unitPrice * order.quantity;
-                        
-                        newOrders.push(order);
+                        totalOrderValue += itemTotal;
                     }
                 }
             });
+            
+            // Create one order per customer with all their products
+            if (customerProducts.length > 0) {
+                const order = {
+                    orderId: 'ORD-' + Date.now() + '-' + rowIndex,
+                    date: new Date().toISOString().split('T')[0],
+                    name: name,
+                    email: email,
+                    phone: phone,
+                    address: address,
+                    products: customerProducts,
+                    total: totalOrderValue,
+                    status: 'pending'
+                };
+                
+                newOrders.push(order);
+            }
         });
         
         if (newOrders.length === 0) {
@@ -853,13 +920,163 @@ function clearCSVUpload() {
     csvHeaders = [];
 }
 
-// Placeholder functions for additional features
-function downloadInvoice(invoiceId) {
-    alert('PDF generation feature will be implemented. Invoice ID: ' + invoiceId);
+// Order and invoice detail functions
+function viewOrderDetails(orderId) {
+    const order = orders.find(o => o.orderId === orderId);
+    if (!order || !order.products) return;
+    
+    const detailsHTML = `
+        <div class="order-details-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Order Details - ${order.orderId}</h3>
+                    <button onclick="closeModal()" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="customer-info">
+                        <h4>Customer Information</h4>
+                        <p><strong>Name:</strong> ${order.name}</p>
+                        <p><strong>Email:</strong> ${order.email}</p>
+                        <p><strong>Phone:</strong> ${order.phone}</p>
+                        <p><strong>Address:</strong> ${order.address}</p>
+                    </div>
+                    <div class="order-items">
+                        <h4>Ordered Items</h4>
+                        <table class="details-table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Quantity</th>
+                                    <th>Unit Price</th>
+                                    <th>Total</th>
+                                    <th>Special Instructions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${order.products.map(product => `
+                                    <tr>
+                                        <td>${product.product}</td>
+                                        <td>${product.quantity}</td>
+                                        <td>R${product.unitPrice}</td>
+                                        <td>R${product.total.toFixed(2)}</td>
+                                        <td>${product.specialInstructions || '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        <div class="order-total">
+                            <strong>Order Total: R${order.total.toFixed(2)}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    showModal(detailsHTML);
 }
 
 function previewInvoice(invoiceId) {
-    alert('Invoice preview feature will be implemented. Invoice ID: ' + invoiceId);
+    const invoice = invoices.find(i => i.invoiceId === invoiceId);
+    if (!invoice) return;
+    
+    const previewHTML = `
+        <div class="invoice-preview-modal">
+            <div class="modal-content large">
+                <div class="modal-header">
+                    <h3>Invoice Preview - ${invoice.invoiceId}</h3>
+                    <button onclick="closeModal()" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="invoice-preview">
+                        <div class="invoice-header-section">
+                            <h2>🐔 Gro Chicken Invoice</h2>
+                            <div class="invoice-meta">
+                                <p><strong>Invoice ID:</strong> ${invoice.invoiceId}</p>
+                                <p><strong>Date:</strong> ${invoice.date}</p>
+                                <p><strong>Order ID:</strong> ${invoice.orderId}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="customer-section">
+                            <h4>Bill To:</h4>
+                            <p><strong>${invoice.customerName}</strong></p>
+                            <p>${invoice.customerEmail}</p>
+                            <p>${invoice.customerPhone}</p>
+                            <p>${invoice.customerAddress}</p>
+                        </div>
+                        
+                        <div class="items-section">
+                            <table class="invoice-items-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Quantity</th>
+                                        <th>Unit Price</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${invoice.items.map(item => `
+                                        <tr>
+                                            <td>${item.product}</td>
+                                            <td>${item.quantity}</td>
+                                            <td>R${item.unitPrice.toFixed(2)}</td>
+                                            <td>R${item.total.toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="totals-section">
+                            <div class="totals-table">
+                                <div class="total-row">
+                                    <span>Subtotal:</span>
+                                    <span>R${invoice.subtotal.toFixed(2)}</span>
+                                </div>
+                                <div class="total-row">
+                                    <span>VAT (15%):</span>
+                                    <span>R${invoice.tax.toFixed(2)}</span>
+                                </div>
+                                <div class="total-row final">
+                                    <span><strong>Total:</strong></span>
+                                    <span><strong>R${invoice.total.toFixed(2)}</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    showModal(previewHTML);
+}
+
+function showModal(content) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = content;
+    document.body.appendChild(modal);
+    
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+}
+
+function closeModal() {
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function downloadInvoice(invoiceId) {
+    alert('PDF generation feature will be implemented. Invoice ID: ' + invoiceId);
 }
 
 function editProduct(product) {
