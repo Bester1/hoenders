@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gro Chicken Orders - Admin Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>🐔 Gro Admin</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#dashboard" class="nav-link active"><i class="fas fa-chart-line"></i> Dashboard</a></li>
+                <li><a href="#orders" class="nav-link"><i class="fas fa-shopping-cart"></i> Orders</a></li>
+                <li><a href="#invoices" class="nav-link"><i class="fas fa-file-invoice"></i> Invoices</a></li>
+                <li><a href="#emails" class="nav-link"><i class="fas fa-envelope"></i> Email Center</a></li>
+                <li><a href="#pricing" class="nav-link"><i class="fas fa-tags"></i> Pricing</a></li>
+                <li><a href="#pdf-analysis" class="nav-link"><i class="fas fa-robot"></i> AI PDF Analysis</a></li>
+                <li><a href="#settings" class="nav-link"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <h1 id="page-title">Dashboard</h1>
+                <div class="user-info">
+                    <span>Welcome, Admin</span>
+                    <div class="gmail-status" id="gmailStatus">
+                        <i class="fas fa-envelope"></i>
+                        <span id="gmailStatusText">Gmail Disconnected</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content-section active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-info">
+                            <h3>Total Orders</h3>
+                            <p class="stat-number" id="totalOrders">0</p>
+                            <span class="stat-change">+0 today</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-info">
+                            <h3>Revenue</h3>
+                            <p class="stat-number" id="totalRevenue">R0</p>
+                            <span class="stat-change">+R0 today</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📧</div>
+                        <div class="stat-info">
+                            <h3>Emails Sent</h3>
+                            <p class="stat-number" id="emailsSent">0</p>
+                            <span class="stat-change">+0 today</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏳</div>
+                        <div class="stat-info">
+                            <h3>Pending</h3>
+                            <p class="stat-number" id="pendingOrders">0</p>
+                            <span class="stat-change">Orders to process</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <h3>Recent Activity</h3>
+                        <div id="recentActivity" class="activity-list">
+                            <p>No recent activity</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <h3>Quick Actions</h3>
+                        <div class="quick-actions">
+                            <button class="action-btn" onclick="showSection('orders')">
+                                <i class="fas fa-plus"></i> Process New Orders
+                            </button>
+                            <button class="action-btn" onclick="showSection('emails')">
+                                <i class="fas fa-paper-plane"></i> Send Emails
+                            </button>
+                            <button class="action-btn" onclick="exportData()">
+                                <i class="fas fa-download"></i> Export Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Orders Section -->
+            <section id="orders" class="content-section">
+                <div class="section-header">
+                    <h2>Order Management</h2>
+                    <button class="btn-primary" onclick="importOrders()">
+                        <i class="fas fa-upload"></i> Import from Google Sheets
+                    </button>
+                </div>
+                
+                <div class="import-area">
+                    <textarea id="orderData" placeholder="Paste your Google Sheets data here (CSV format with headers: Name, Email, Phone, Product, Quantity, Special Instructions)..." rows="8"></textarea>
+                    <button onclick="processOrders()" class="btn-primary">Process Orders</button>
+                </div>
+
+                <div class="orders-table-container">
+                    <table id="ordersTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Date</th>
+                                <th>Customer</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Product</th>
+                                <th>Quantity</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersTableBody">
+                            <tr>
+                                <td colspan="10" class="no-data">No orders loaded</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Invoices Section -->
+            <section id="invoices" class="content-section">
+                <div class="section-header">
+                    <h2>Invoice Management</h2>
+                    <button class="btn-primary" onclick="generateAllInvoices()">
+                        <i class="fas fa-file-pdf"></i> Generate All Invoices
+                    </button>
+                </div>
+
+                <div class="invoices-grid" id="invoicesGrid">
+                    <p class="no-data">No invoices generated yet</p>
+                </div>
+            </section>
+
+            <!-- Email Center Section -->
+            <section id="emails" class="content-section">
+                <div class="section-header">
+                    <h2>Email Center</h2>
+                    <div class="email-actions">
+                        <button class="btn-primary" onclick="connectGmail()">
+                            <i class="fab fa-google"></i> Connect Gmail
+                        </button>
+                        <button class="btn-secondary" onclick="testEmail()">
+                            <i class="fas fa-paper-plane"></i> Send Test Email
+                        </button>
+                    </div>
+                </div>
+
+                <div class="email-grid">
+                    <div class="email-card">
+                        <h3>Gmail Configuration</h3>
+                        <div class="form-group">
+                            <label>Gmail Address:</label>
+                            <input type="email" id="gmailAddress" placeholder="your-email@gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label>App Password:</label>
+                            <input type="password" id="gmailPassword" placeholder="Generated app password">
+                            <small>Generate an app password in your Google Account settings</small>
+                        </div>
+                        <button onclick="saveGmailConfig()" class="btn-primary">Save Configuration</button>
+                    </div>
+
+                    <div class="email-card">
+                        <h3>Email Template</h3>
+                        <div class="form-group">
+                            <label>Subject Template:</label>
+                            <input type="text" id="emailSubject" value="Invoice for your Gro Chicken order - Order #{orderNumber}">
+                        </div>
+                        <div class="form-group">
+                            <label>Email Body:</label>
+                            <textarea id="emailTemplate" rows="10">Dear {customerName},
+
+Thank you for your order with Gro Chicken!
+
+Please find attached your invoice for order #{orderNumber}.
+
+Order Details:
+- Product: {productName}
+- Quantity: {quantity}
+- Total: R{total}
+
+Payment can be made via bank transfer. Banking details are included in the attached invoice.
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+Gro Chicken Team</textarea>
+                        </div>
+                        <button onclick="saveEmailTemplate()" class="btn-secondary">Save Template</button>
+                    </div>
+                </div>
+
+                <div class="email-queue">
+                    <h3>Email Queue</h3>
+                    <div id="emailQueue" class="queue-list">
+                        <p class="no-data">No emails in queue</p>
+                    </div>
+                    <button onclick="sendQueuedEmails()" class="btn-primary">
+                        <i class="fas fa-paper-plane"></i> Send All Queued Emails
+                    </button>
+                </div>
+            </section>
+
+            <!-- Pricing Section -->
+            <section id="pricing" class="content-section">
+                <div class="section-header">
+                    <h2>Pricing Management</h2>
+                    <button class="btn-primary" onclick="addNewProduct()">
+                        <i class="fas fa-plus"></i> Add Product
+                    </button>
+                </div>
+
+                <div class="pricing-table-container">
+                    <table id="pricingTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Cost Price</th>
+                                <th>Selling Price</th>
+                                <th>Margin</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pricingTableBody">
+                            <!-- Default pricing will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- AI PDF Analysis Section -->
+            <section id="pdf-analysis" class="content-section">
+                <div class="section-header">
+                    <h2>AI PDF Analysis</h2>
+                    <div class="analysis-actions">
+                        <button class="btn-secondary" onclick="clearAnalysisHistory()">
+                            <i class="fas fa-trash"></i> Clear History
+                        </button>
+                    </div>
+                </div>
+
+                <div class="analysis-grid">
+                    <div class="upload-card">
+                        <h3>Upload Butchery Invoice PDF</h3>
+                        <div class="upload-area" id="pdfUploadArea">
+                            <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;" onchange="handlePDFUpload(event)">
+                            <div class="upload-placeholder" onclick="document.getElementById('pdfFileInput').click()">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Click to upload PDF or drag & drop</p>
+                                <small>Supported format: PDF only</small>
+                            </div>
+                        </div>
+                        
+                        <div class="upload-info">
+                            <h4>What the AI will check:</h4>
+                            <ul>
+                                <li>✅ Pricing accuracy against your rate card</li>
+                                <li>✅ Product descriptions match items</li>
+                                <li>✅ Quantity calculations</li>
+                                <li>✅ Missing or extra items</li>
+                                <li>✅ Packaging specifications</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="current-rates-card">
+                        <h3>Current Rate Card (March 2025)</h3>
+                        <div class="rates-table-container">
+                            <table class="rates-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Your Cost (R/kg)</th>
+                                        <th>Selling Price (R/kg)</th>
+                                        <th>Margin</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="currentRatesTable">
+                                    <!-- Will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <button onclick="updateRateCard()" class="btn-secondary">Update Rate Card</button>
+                    </div>
+                </div>
+
+                <div class="analysis-results" id="analysisResults" style="display: none;">
+                    <h3>Analysis Results</h3>
+                    <div class="results-summary" id="resultsSummary"></div>
+                    <div class="results-details" id="resultsDetails"></div>
+                </div>
+
+                <div class="analysis-history">
+                    <h3>Analysis History</h3>
+                    <div id="analysisHistoryList" class="history-list">
+                        <p class="no-data">No analysis history yet</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="content-section">
+                <div class="section-header">
+                    <h2>Settings</h2>
+                </div>
+
+                <div class="settings-grid">
+                    <div class="settings-card">
+                        <h3>Business Information</h3>
+                        <div class="form-group">
+                            <label>Business Name:</label>
+                            <input type="text" id="businessName" value="Gro Chicken">
+                        </div>
+                        <div class="form-group">
+                            <label>Contact Email:</label>
+                            <input type="email" id="businessEmail" placeholder="contact@grochicken.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number:</label>
+                            <input type="tel" id="businessPhone" placeholder="+27 XX XXX XXXX">
+                        </div>
+                        <div class="form-group">
+                            <label>Address:</label>
+                            <textarea id="businessAddress" rows="3" placeholder="Business address"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>Banking Details</h3>
+                        <div class="form-group">
+                            <label>Bank Name:</label>
+                            <input type="text" id="bankName" placeholder="Standard Bank">
+                        </div>
+                        <div class="form-group">
+                            <label>Account Holder:</label>
+                            <input type="text" id="accountHolder" placeholder="Gro Chicken (Pty) Ltd">
+                        </div>
+                        <div class="form-group">
+                            <label>Account Number:</label>
+                            <input type="text" id="accountNumber" placeholder="123456789">
+                        </div>
+                        <div class="form-group">
+                            <label>Branch Code:</label>
+                            <input type="text" id="branchCode" placeholder="051001">
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="saveSettings()" class="btn-primary">Save All Settings</button>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
