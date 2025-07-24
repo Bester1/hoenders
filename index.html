@@ -109,8 +109,29 @@
                 </div>
                 
                 <div class="import-area">
-                    <textarea id="orderData" placeholder="Paste your Google Sheets data here (CSV format with headers: Name, Email, Phone, Product, Quantity, Special Instructions)..." rows="8"></textarea>
-                    <button onclick="processOrders()" class="btn-primary">Process Orders</button>
+                    <div class="import-options">
+                        <div class="csv-upload">
+                            <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleCSVUpload(event)">
+                            <button onclick="document.getElementById('csvFileInput').click()" class="btn-secondary">
+                                <i class="fas fa-file-csv"></i> Upload CSV File
+                            </button>
+                            <span id="csvFileName" class="file-name"></span>
+                        </div>
+                        <div class="divider">or</div>
+                        <button onclick="toggleManualInput()" class="btn-secondary">
+                            <i class="fas fa-paste"></i> Paste Data Manually
+                        </button>
+                    </div>
+                    <div id="manualInputArea" style="display: none;">
+                        <textarea id="orderData" placeholder="Paste your Google Sheets data here..." rows="8"></textarea>
+                        <button onclick="processOrders()" class="btn-primary">Process Orders</button>
+                    </div>
+                    <div id="csvPreview" style="display: none;">
+                        <h4>CSV File Loaded: <span id="previewFileName"></span></h4>
+                        <p>Found <span id="previewRowCount">0</span> orders ready to process</p>
+                        <button onclick="processCSVFile()" class="btn-primary">Process CSV Orders</button>
+                        <button onclick="clearCSVUpload()" class="btn-secondary">Clear</button>
+                    </div>
                 </div>
 
                 <div class="orders-table-container">
@@ -122,6 +143,7 @@
                                 <th>Customer</th>
                                 <th>Email</th>
                                 <th>Phone</th>
+                                <th>Address</th>
                                 <th>Product</th>
                                 <th>Quantity</th>
                                 <th>Total</th>
@@ -131,7 +153,7 @@
                         </thead>
                         <tbody id="ordersTableBody">
                             <tr>
-                                <td colspan="10" class="no-data">No orders loaded</td>
+                                <td colspan="11" class="no-data">No orders loaded</td>
                             </tr>
                         </tbody>
                     </table>

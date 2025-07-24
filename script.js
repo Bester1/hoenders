@@ -3,6 +3,32 @@ let orders = [];
 let invoices = [];
 let emailQueue = [];
 let gmailConfig = {};
+let csvData = null;
+let csvHeaders = [];
+
+// Product mapping for CSV columns to standardized names
+const productMapping = {
+    'Heel Hoender - Full Chicken 1.5kg - 2.2kg R67/kg': 'HEEL HOENDER',
+    'Halwe Hoender - Half Chicken  R68/kg': 'HEEL HALWE HOENDERS',
+    'Plat Hoender - Flatty R79/kg': 'PLAT HOENDER (FLATTY\'S)',
+    'Braai pakke Heel hoender opgesny R74/kg': 'BRAAIPAKKE',
+    'Bors stukke met been en vel R73/kg 2 of 4 in pak.': 'BORSSTUKKE MET BEEN EN VEL',
+    'Boude en dye, 2 boude en 2 dye in pak.+-800gr R81/Kg': 'BOUDE EN DYE',
+    'Guns (Boude en dye aan mekaar vas) R81/kg. 3 in pak': 'GUNS Boud en dy aanmekaar',
+    'Fillets sonder vel R100/kg +-900gr 4 fillets per pak': 'FILETTE (sonder vel)',
+    'Strips +-500gr pak R100/kg': 'STRIPS',
+    'Ontbeende hoender R125/kg     1kg - 1.4kg': 'ONTBEENDE HOENDER',
+    'Vlerkies R90/kg 8 in n pak (nie altyd beskikbaar nie)': 'VLERKIES',
+    'Gevulde hoender rolle  R193/kg(Opsie 1 - Vye,Feta,Cheddar sweet chilly ,beskikbaar as daar vye is)1.2kg-1.6kg': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+    'Gevulde hoender rolle  R193/kg (Opsie 2 - Peppadew, mozzarella, cheddar,pynappel)1.2kg-1.6kg': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+    'Lewer - In 500 g  bakkies verpak  R31/kg': 'LEWER',
+    'Nekkies - In 1  kg sakkies verpak (NIE ALTYD BESKIKBAAR ) R30/kg': 'NEKKIES',
+    'INGELEGDE GROEN VYE  R75 PER POTJIE 375ml potjie': 'INGELEGDE GROEN VYE',
+    'Hoender Kaaswors 1kg Vacuum verpak R148/kg': 'HOENDER KAASWORS',
+    'Hoender Patties 4 in pak (120-140gr/patty) R120/kg': 'HOENDER PATTIES',
+    'Heuning 500ml R70': 'SUIWER HEUNING'
+};
+
 // Updated pricing based on March 2025 Braaikuikens rate card
 let pricing = {
     'HEEL HOENDER': { cost: 67, selling: 95, margin: 42, packaging: 'VAKUUM VERPAK' },
@@ -348,7 +374,7 @@ function updateOrdersTable() {
     const tableBody = document.getElementById('ordersTableBody');
     
     if (orders.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="10" class="no-data">No orders loaded</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="11" class="no-data">No orders loaded</td></tr>';
         return;
     }
     
@@ -359,6 +385,7 @@ function updateOrdersTable() {
             <td>${order.name}</td>
             <td>${order.email}</td>
             <td>${order.phone}</td>
+            <td>${order.address || 'N/A'}</td>
             <td>${order.product}</td>
             <td>${order.quantity}</td>
             <td>R${order.total}</td>
@@ -639,6 +666,191 @@ function exportData() {
 
 function importOrders() {
     document.getElementById('orderData').focus();
+}
+
+// CSV handling functions
+function handleCSVUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const content = e.target.result;
+        parseCSVFile(content, file.name);
+    };
+    reader.readAsText(file);
+}
+
+function parseCSVFile(content, filename) {
+    try {
+        const lines = content.trim().split('\n');
+        csvHeaders = parseCSVLine(lines[0]);
+        csvData = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+            if (lines[i].trim()) {
+                const values = parseCSVLine(lines[i]);
+                csvData.push(values);
+            }
+        }
+        
+        // Show preview
+        document.getElementById('csvFileName').textContent = filename;
+        document.getElementById('previewFileName').textContent = filename;
+        document.getElementById('previewRowCount').textContent = csvData.length;
+        document.getElementById('csvPreview').style.display = 'block';
+        document.getElementById('manualInputArea').style.display = 'none';
+        
+        addActivity(`CSV file loaded: ${filename} with ${csvData.length} rows`);
+    } catch (error) {
+        alert('Error parsing CSV file. Please check the file format.');
+        console.error(error);
+    }
+}
+
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    
+    result.push(current.trim());
+    return result;
+}
+
+function processCSVFile() {
+    if (!csvData || csvData.length === 0) {
+        alert('No CSV data to process.');
+        return;
+    }
+    
+    try {
+        const newOrders = [];
+        const skippedRows = [];
+        
+        // Find column indices
+        const emailIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('email'));
+        const nameIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('name'));
+        const phoneIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('tel'));
+        const addressIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('adress') || h.toLowerCase().includes('address'));
+        
+        // Process each row
+        csvData.forEach((row, rowIndex) => {
+            const email = row[emailIndex] || '';
+            const name = row[nameIndex] || '';
+            const phone = row[phoneIndex] || '';
+            const address = row[addressIndex] || '';
+            
+            // Skip rows without essential info
+            if (!email || !name) {
+                skippedRows.push(rowIndex + 2); // +2 for header and 0-index
+                return;
+            }
+            
+            // Process each product column
+            let orderCount = 0;
+            csvHeaders.forEach((header, colIndex) => {
+                // Skip non-product columns
+                if (colIndex <= addressIndex) return;
+                
+                const quantity = row[colIndex];
+                if (quantity && !isNaN(parseInt(quantity))) {
+                    const mappedProduct = productMapping[header];
+                    if (mappedProduct && pricing[mappedProduct]) {
+                        const order = {
+                            orderId: 'ORD-' + Date.now() + '-' + rowIndex + '-' + orderCount++,
+                            date: new Date().toISOString().split('T')[0],
+                            name: name,
+                            email: email,
+                            phone: phone,
+                            address: address,
+                            product: mappedProduct,
+                            quantity: parseInt(quantity),
+                            specialInstructions: extractSpecialInstructions(row[colIndex]),
+                            status: 'pending'
+                        };
+                        
+                        // Calculate pricing
+                        const productPricing = pricing[order.product];
+                        order.unitPrice = productPricing.selling;
+                        order.total = order.unitPrice * order.quantity;
+                        
+                        newOrders.push(order);
+                    }
+                }
+            });
+        });
+        
+        if (newOrders.length === 0) {
+            alert('No valid orders found in the CSV file.');
+            return;
+        }
+        
+        // Add orders to system
+        orders.push(...newOrders);
+        updateOrdersTable();
+        updateDashboard();
+        saveToStorage();
+        
+        // Clear upload state
+        clearCSVUpload();
+        
+        let message = `Successfully processed ${newOrders.length} orders from CSV!`;
+        if (skippedRows.length > 0) {
+            message += `\nSkipped ${skippedRows.length} rows with missing data.`;
+        }
+        
+        addActivity(message);
+        alert(message);
+        
+    } catch (error) {
+        alert('Error processing CSV orders. Please check the data format.');
+        console.error(error);
+    }
+}
+
+function extractSpecialInstructions(value) {
+    // Extract special instructions like "2 in pak, 3" or "4 in pak, 6"
+    if (typeof value === 'string' && value.includes('pak')) {
+        const parts = value.split(',');
+        if (parts.length > 1) {
+            return parts[0].trim();
+        }
+    }
+    return '';
+}
+
+function toggleManualInput() {
+    const manualArea = document.getElementById('manualInputArea');
+    const csvPreview = document.getElementById('csvPreview');
+    
+    if (manualArea.style.display === 'none') {
+        manualArea.style.display = 'block';
+        csvPreview.style.display = 'none';
+        clearCSVUpload();
+    } else {
+        manualArea.style.display = 'none';
+    }
+}
+
+function clearCSVUpload() {
+    document.getElementById('csvFileInput').value = '';
+    document.getElementById('csvFileName').textContent = '';
+    document.getElementById('csvPreview').style.display = 'none';
+    csvData = null;
+    csvHeaders = [];
 }
 
 // Placeholder functions for additional features

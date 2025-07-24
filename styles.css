@@ -269,6 +269,47 @@ body {
     margin-bottom: 30px;
 }
 
+.import-options {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.csv-upload {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.file-name {
+    font-size: 14px;
+    color: #495057;
+    font-style: italic;
+}
+
+.divider {
+    color: #adb5bd;
+    font-weight: 500;
+}
+
+#csvPreview {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+#csvPreview h4 {
+    margin-bottom: 10px;
+    color: #2c3e50;
+}
+
+#csvPreview p {
+    margin-bottom: 15px;
+    color: #495057;
+}
+
 .import-area textarea {
     width: 100%;
     min-height: 150px;
