@@ -421,6 +421,67 @@ Plaas Hoenders Team</textarea>
                 </div>
 
                 <button onclick="saveSettings()" class="btn-primary">Save All Settings</button>
+
+                <div class="settings-card" style="grid-column: 1 / -1; margin-top: 30px;">
+                    <h3 style="color: #dc3545;">⚠️ Data Management</h3>
+                    <p style="color: #666; margin-bottom: 20px;">Manage your application data, backups, and storage. <strong>Use with caution!</strong></p>
+                    
+                    <div class="data-management-grid">
+                        <div class="data-action-card">
+                            <h4>📥 Backup Data</h4>
+                            <p>Download all your data as a backup file</p>
+                            <button onclick="downloadBackup()" class="btn-secondary">
+                                <i class="fas fa-download"></i> Download Backup
+                            </button>
+                        </div>
+                        
+                        <div class="data-action-card">
+                            <h4>📤 Restore Data</h4>
+                            <p>Upload and restore from a backup file</p>
+                            <input type="file" id="backupFileInput" accept=".json" style="display: none;" onchange="handleBackupUpload(event)">
+                            <button onclick="document.getElementById('backupFileInput').click()" class="btn-secondary">
+                                <i class="fas fa-upload"></i> Restore Backup
+                            </button>
+                        </div>
+                        
+                        <div class="data-action-card">
+                            <h4>🗑️ Clear Local Data</h4>
+                            <p>Remove all data stored in browser</p>
+                            <button onclick="clearLocalData()" class="btn-danger">
+                                <i class="fas fa-trash"></i> Clear Local Data
+                            </button>
+                        </div>
+                        
+                        <div class="data-action-card">
+                            <h4>🗄️ Clear Database</h4>
+                            <p>Remove all data from Supabase database</p>
+                            <button onclick="clearDatabaseData()" class="btn-danger">
+                                <i class="fas fa-database"></i> Clear Database
+                            </button>
+                        </div>
+                        
+                        <div class="data-action-card">
+                            <h4>🔄 Reset Everything</h4>
+                            <p>Clear all data (local + database) and reset app</p>
+                            <button onclick="resetEverything()" class="btn-danger">
+                                <i class="fas fa-exclamation-triangle"></i> Reset Everything
+                            </button>
+                        </div>
+                        
+                        <div class="data-action-card">
+                            <h4>📊 Data Status</h4>
+                            <div id="dataStatus">
+                                <p><strong>Local Storage:</strong> <span id="localDataStatus">Loading...</span></p>
+                                <p><strong>Database:</strong> <span id="databaseDataStatus">Loading...</span></p>
+                                <p><strong>Total Imports:</strong> <span id="totalImports">0</span></p>
+                                <p><strong>Total Orders:</strong> <span id="totalOrdersCount">0</span></p>
+                            </div>
+                            <button onclick="refreshDataStatus()" class="btn-secondary btn-small">
+                                <i class="fas fa-refresh"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </section>
         </main>
     </div>

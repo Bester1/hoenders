@@ -87,6 +87,8 @@ document.addEventListener('DOMContentLoaded', function() {
     loadPricingTable();
     loadCurrentRatesTable();
     setupPDFDragDrop();
+    // Initialize data status on load
+    setTimeout(refreshDataStatus, 1000);
 });
 
 function initializeApp() {
@@ -1956,5 +1958,238 @@ function deleteHistoryItem(itemId) {
         analysisHistory = analysisHistory.filter(h => h.id != itemId);
         updateAnalysisHistoryDisplay();
         saveToStorage();
+    }
+}
+
+// Data Management Functions
+async function downloadBackup() {
+    try {
+        // Collect all data
+        const backupData = {
+            timestamp: new Date().toISOString(),
+            version: "1.0",
+            imports: imports,
+            currentImportId: currentImportId,
+            invoices: invoices,
+            emailQueue: emailQueue,
+            pricing: pricing,
+            gmailConfig: gmailConfig,
+            analysisHistory: analysisHistory
+        };
+
+        // Create downloadable file
+        const dataStr = JSON.stringify(backupData, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = `plaas-hoenders-backup-${new Date().toISOString().split('T')[0]}.json`;
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+        
+        addActivity('Data backup downloaded successfully');
+        alert('Backup downloaded successfully!');
+    } catch (error) {
+        console.error('Backup failed:', error);
+        alert('Failed to create backup: ' + error.message);
+    }
+}
+
+async function handleBackupUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+        const fileContent = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsText(file);
+        });
+
+        const backupData = JSON.parse(fileContent);
+        
+        // Validate backup data
+        if (!backupData.version || !backupData.timestamp) {
+            throw new Error('Invalid backup file format');
+        }
+
+        // Confirm restore
+        if (!confirm(`Are you sure you want to restore data from ${new Date(backupData.timestamp).toLocaleDateString()}? This will overwrite all current data.`)) {
+            return;
+        }
+
+        // Restore data
+        imports = backupData.imports || {};
+        currentImportId = backupData.currentImportId || null;
+        invoices = backupData.invoices || [];
+        emailQueue = backupData.emailQueue || [];
+        if (backupData.pricing && Object.keys(backupData.pricing).length > 0) {
+            pricing = backupData.pricing;
+        }
+        gmailConfig = backupData.gmailConfig || {};
+        analysisHistory = backupData.analysisHistory || [];
+
+        // Save restored data
+        await saveData();
+
+        // Refresh UI
+        updateImportSelector();
+        updateInvoiceImportSelector();
+        loadPricingTable();
+        updateDashboard();
+        refreshDataStatus();
+
+        addActivity('Data restored from backup successfully');
+        alert('Data restored successfully!');
+        
+    } catch (error) {
+        console.error('Restore failed:', error);
+        alert('Failed to restore backup: ' + error.message);
+    }
+    
+    // Clear file input
+    event.target.value = '';
+}
+
+async function clearLocalData() {
+    if (!confirm('Are you sure you want to clear ALL local data? This cannot be undone!')) {
+        return;
+    }
+
+    try {
+        // Clear localStorage
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('plaasHoenders')) {
+                localStorage.removeItem(key);
+            }
+        });
+
+        addActivity('Local data cleared successfully');
+        alert('Local data cleared successfully!');
+        refreshDataStatus();
+    } catch (error) {
+        console.error('Failed to clear local data:', error);
+        alert('Failed to clear local data: ' + error.message);
+    }
+}
+
+async function clearDatabaseData() {
+    if (!confirm('Are you sure you want to clear ALL database data? This cannot be undone!')) {
+        return;
+    }
+
+    try {
+        // Clear imports table
+        const { error: importsError } = await supabaseClient
+            .from('imports')
+            .delete()
+            .neq('id', 'never_match_this_id'); // Delete all records
+
+        if (importsError) throw importsError;
+
+        // Clear settings table
+        const { error: settingsError } = await supabaseClient
+            .from('settings')
+            .delete()
+            .neq('id', 'never_match_this_id'); // Delete all records
+
+        if (settingsError) throw settingsError;
+
+        addActivity('Database data cleared successfully');
+        alert('Database data cleared successfully!');
+        refreshDataStatus();
+    } catch (error) {
+        console.error('Failed to clear database:', error);
+        alert('Failed to clear database: ' + error.message);
+    }
+}
+
+async function resetEverything() {
+    if (!confirm('⚠️ WARNING: This will delete ALL data (local + database) and reset the entire application. This cannot be undone!\n\nType "RESET" in the next dialog to confirm.')) {
+        return;
+    }
+
+    const confirmation = prompt('Type "RESET" to confirm complete data deletion:');
+    if (confirmation !== 'RESET') {
+        alert('Reset cancelled.');
+        return;
+    }
+
+    try {
+        // Clear database
+        await clearDatabaseData();
+        
+        // Clear local storage
+        await clearLocalData();
+
+        // Reset application state
+        imports = {};
+        currentImportId = null;
+        invoices = [];
+        emailQueue = [];
+        gmailConfig = {};
+        analysisHistory = [];
+
+        // Refresh all UI components
+        updateImportSelector();
+        updateInvoiceImportSelector();
+        loadPricingTable();
+        updateDashboard();
+        document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="11" class="no-data">No orders loaded</td></tr>';
+        document.getElementById('invoicesGrid').innerHTML = '<p class="no-data">No invoices generated yet</p>';
+        
+        addActivity('Complete application reset performed');
+        alert('Application reset completed successfully!');
+        refreshDataStatus();
+    } catch (error) {
+        console.error('Failed to reset application:', error);
+        alert('Failed to reset application: ' + error.message);
+    }
+}
+
+function refreshDataStatus() {
+    try {
+        // Count local storage data
+        let localDataCount = 0;
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('plaasHoenders')) {
+                localDataCount++;
+            }
+        });
+
+        // Count application data
+        const totalImports = Object.keys(imports).length;
+        let totalOrders = 0;
+        Object.values(imports).forEach(imp => {
+            if (imp.orders) totalOrders += imp.orders.length;
+        });
+
+        // Update UI
+        document.getElementById('localDataStatus').textContent = localDataCount > 0 ? `${localDataCount} items` : 'Empty';
+        document.getElementById('databaseDataStatus').textContent = 'Connected';
+        document.getElementById('totalImports').textContent = totalImports;
+        document.getElementById('totalOrdersCount').textContent = totalOrders;
+
+        // Test database connection
+        testDatabaseConnection();
+    } catch (error) {
+        console.error('Failed to refresh data status:', error);
+        document.getElementById('localDataStatus').textContent = 'Error';
+        document.getElementById('databaseDataStatus').textContent = 'Error';
+    }
+}
+
+async function testDatabaseConnection() {
+    try {
+        const { data, error } = await supabaseClient
+            .from('imports')
+            .select('count', { count: 'exact', head: true });
+        
+        if (error) throw error;
+        document.getElementById('databaseDataStatus').textContent = 'Connected ✓';
+    } catch (error) {
+        document.getElementById('databaseDataStatus').textContent = 'Disconnected ✗';
     }
 }

@@ -1342,6 +1342,60 @@ body {
     font-size: 18px;
 }
 
+/* Data Management styles */
+.data-management-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.data-action-card {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.data-action-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.data-action-card h4 {
+    margin-bottom: 10px;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.data-action-card p {
+    margin-bottom: 15px;
+    color: #666;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.data-action-card .btn-danger {
+    background: #dc3545;
+    border-color: #dc3545;
+}
+
+.data-action-card .btn-danger:hover {
+    background: #c82333;
+    border-color: #bd2130;
+}
+
+#dataStatus p {
+    margin-bottom: 8px;
+    font-size: 13px;
+    text-align: left;
+}
+
+#dataStatus span {
+    font-weight: 500;
+}
+
 /* Responsive design */
 @media (max-width: 1200px) {
     .dashboard-grid,
