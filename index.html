@@ -103,9 +103,28 @@
             <section id="orders" class="content-section">
                 <div class="section-header">
                     <h2>Order Management</h2>
-                    <button class="btn-primary" onclick="importOrders()">
-                        <i class="fas fa-upload"></i> Import from Google Sheets
-                    </button>
+                    <div class="header-actions">
+                        <button class="btn-secondary" onclick="showImportManager()">
+                            <i class="fas fa-folder"></i> Manage Imports
+                        </button>
+                        <button class="btn-primary" onclick="importOrders()">
+                            <i class="fas fa-upload"></i> New Import
+                        </button>
+                    </div>
+                </div>
+
+                <div class="imports-overview">
+                    <div class="current-import-info">
+                        <div class="import-selector">
+                            <label>Current Import:</label>
+                            <select id="importSelector" onchange="switchImport(this.value)">
+                                <option value="">Select an import...</option>
+                            </select>
+                        </div>
+                        <div class="import-stats" id="importStats">
+                            <span class="stat">No import selected</span>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="import-area">
@@ -164,9 +183,21 @@
             <section id="invoices" class="content-section">
                 <div class="section-header">
                     <h2>Invoice Management</h2>
-                    <button class="btn-primary" onclick="generateAllInvoices()">
-                        <i class="fas fa-file-pdf"></i> Generate All Invoices
-                    </button>
+                    <div class="header-actions">
+                        <select id="invoiceImportSelector" onchange="switchInvoiceImport(this.value)">
+                            <option value="">Select import for invoicing...</option>
+                        </select>
+                        <button class="btn-primary" onclick="generateAllInvoices()" id="generateAllBtn" disabled>
+                            <i class="fas fa-file-pdf"></i> Generate All Invoices
+                        </button>
+                    </div>
+                </div>
+
+                <div class="invoice-import-info" id="invoiceImportInfo" style="display: none;">
+                    <div class="import-summary">
+                        <span id="invoiceImportName"></span>
+                        <span id="invoiceImportStats"></span>
+                    </div>
                 </div>
 
                 <div class="invoices-grid" id="invoicesGrid">

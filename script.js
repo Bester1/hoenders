@@ -1,10 +1,21 @@
 // Global variables
-let orders = [];
-let invoices = [];
+let imports = {}; // Structure: { importId: { name, date, orders: [], invoices: [] } }
+let currentImportId = null;
+let invoices = []; // Global invoices across all imports
 let emailQueue = [];
 let gmailConfig = {};
 let csvData = null;
 let csvHeaders = [];
+let analysisHistory = [];
+
+// Helper functions for import management
+function getCurrentOrders() {
+    return currentImportId && imports[currentImportId] ? imports[currentImportId].orders : [];
+}
+
+function getCurrentImportInvoices() {
+    return currentImportId && imports[currentImportId] ? imports[currentImportId].invoices : [];
+}
 
 // Product mapping for CSV columns to standardized names
 const productMapping = {
@@ -372,13 +383,14 @@ function processOrders() {
 
 function updateOrdersTable() {
     const tableBody = document.getElementById('ordersTableBody');
+    const currentOrders = getCurrentOrders();
     
-    if (orders.length === 0) {
+    if (currentOrders.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="11" class="no-data">No orders loaded</td></tr>';
         return;
     }
     
-    const tableHTML = orders.map(order => {
+    const tableHTML = currentOrders.map(order => {
         // Handle both old single-product and new multi-product orders
         let productDisplay, quantityDisplay;
         
@@ -423,8 +435,9 @@ function updateOrdersTable() {
 
 // Invoice generation
 function generateInvoice(orderId) {
-    const order = orders.find(o => o.orderId === orderId);
-    if (!order) return;
+    const currentOrders = getCurrentOrders();
+    const order = currentOrders.find(o => o.orderId === orderId);
+    if (!order || !currentImportId) return;
     
     // Handle both old single-product and new multi-product orders
     let invoiceItems = [];
@@ -466,7 +479,9 @@ function generateInvoice(orderId) {
         status: 'generated'
     };
     
+    // Add invoice to both global and import-specific collections
     invoices.push(invoice);
+    imports[currentImportId].invoices.push(invoice);
     order.status = 'invoiced';
     
     updateOrdersTable();
@@ -481,25 +496,51 @@ function generateInvoice(orderId) {
 }
 
 function generateAllInvoices() {
-    const pendingOrders = orders.filter(o => o.status === 'pending');
-    if (pendingOrders.length === 0) {
-        alert('No pending orders to invoice.');
+    // Get the selected import for invoicing
+    const invoiceImportId = document.getElementById('invoiceImportSelector').value;
+    if (!invoiceImportId || !imports[invoiceImportId]) {
+        alert('Please select an import for invoicing.');
         return;
     }
     
+    const selectedImport = imports[invoiceImportId];
+    const pendingOrders = selectedImport.orders.filter(o => o.status === 'pending');
+    
+    if (pendingOrders.length === 0) {
+        alert('No pending orders to invoice in this import.');
+        return;
+    }
+    
+    // Temporarily set the import as current for invoice generation
+    const originalImportId = currentImportId;
+    currentImportId = invoiceImportId;
+    
     pendingOrders.forEach(order => generateInvoice(order.orderId));
-    alert(`Generated ${pendingOrders.length} invoices and added to email queue.`);
+    
+    // Restore original current import
+    currentImportId = originalImportId;
+    
+    // Update the invoice display for the selected import
+    updateInvoicesDisplay(invoiceImportId);
+    
+    alert(`Generated ${pendingOrders.length} invoices for "${selectedImport.name}" and added to email queue.`);
 }
 
-function updateInvoicesDisplay() {
+function updateInvoicesDisplay(importId = null) {
     const container = document.getElementById('invoicesGrid');
     
-    if (invoices.length === 0) {
+    // Show invoices for a specific import or all invoices
+    let displayInvoices = invoices;
+    if (importId && imports[importId]) {
+        displayInvoices = imports[importId].invoices;
+    }
+    
+    if (displayInvoices.length === 0) {
         container.innerHTML = '<p class="no-data">No invoices generated yet</p>';
         return;
     }
     
-    const invoicesHTML = invoices.map(invoice => {
+    const invoicesHTML = displayInvoices.map(invoice => {
         const itemsCount = invoice.items ? invoice.items.length : 1;
         const itemsSummary = invoice.items && invoice.items.length > 1 
             ? `${itemsCount} items` 
@@ -630,7 +671,8 @@ function showSection(sectionId) {
 
 // Storage functions
 function saveToStorage() {
-    localStorage.setItem('groChickenOrders', JSON.stringify(orders));
+    localStorage.setItem('groChickenImports', JSON.stringify(imports));
+    localStorage.setItem('groChickenCurrentImportId', currentImportId || '');
     localStorage.setItem('groChickenInvoices', JSON.stringify(invoices));
     localStorage.setItem('groChickenEmailQueue', JSON.stringify(emailQueue));
     localStorage.setItem('groChickenPricing', JSON.stringify(pricing));
@@ -639,14 +681,16 @@ function saveToStorage() {
 }
 
 function loadStoredData() {
-    const storedOrders = localStorage.getItem('groChickenOrders');
+    const storedImports = localStorage.getItem('groChickenImports');
+    const storedCurrentImportId = localStorage.getItem('groChickenCurrentImportId');
     const storedInvoices = localStorage.getItem('groChickenInvoices');
     const storedEmailQueue = localStorage.getItem('groChickenEmailQueue');
     const storedPricing = localStorage.getItem('groChickenPricing');
     const storedGmailConfig = localStorage.getItem('groChickenGmailConfig');
     const storedAnalysisHistory = localStorage.getItem('groChickenAnalysisHistory');
     
-    if (storedOrders) orders = JSON.parse(storedOrders);
+    if (storedImports) imports = JSON.parse(storedImports);
+    if (storedCurrentImportId) currentImportId = storedCurrentImportId;
     if (storedInvoices) invoices = JSON.parse(storedInvoices);
     if (storedEmailQueue) emailQueue = JSON.parse(storedEmailQueue);
     if (storedPricing) pricing = JSON.parse(storedPricing);
@@ -657,6 +701,8 @@ function loadStoredData() {
     updateInvoicesDisplay();
     updateEmailQueueDisplay();
     updateAnalysisHistoryDisplay();
+    updateImportSelector();
+    updateInvoiceImportSelector();
 }
 
 // Settings functions
@@ -721,6 +767,176 @@ function exportData() {
 
 function importOrders() {
     document.getElementById('orderData').focus();
+}
+
+// Import management functions
+function updateImportSelector() {
+    const selector = document.getElementById('importSelector');
+    if (!selector) return;
+    
+    // Clear existing options
+    selector.innerHTML = '<option value="">Select an import...</option>';
+    
+    // Add imports
+    Object.values(imports).forEach(importData => {
+        const option = document.createElement('option');
+        option.value = importData.id;
+        option.textContent = `${importData.name} (${importData.orders.length} orders)`;
+        if (importData.id === currentImportId) {
+            option.selected = true;
+        }
+        selector.appendChild(option);
+    });
+    
+    updateImportStats();
+}
+
+function updateInvoiceImportSelector() {
+    const selector = document.getElementById('invoiceImportSelector');
+    if (!selector) return;
+    
+    // Clear existing options
+    selector.innerHTML = '<option value="">Select import for invoicing...</option>';
+    
+    // Add imports
+    Object.values(imports).forEach(importData => {
+        const option = document.createElement('option');
+        option.value = importData.id;
+        option.textContent = `${importData.name} (${importData.orders.length} orders)`;
+        selector.appendChild(option);
+    });
+}
+
+function updateImportStats() {
+    const statsElement = document.getElementById('importStats');
+    if (!statsElement) return;
+    
+    if (!currentImportId || !imports[currentImportId]) {
+        statsElement.innerHTML = '<span class="stat">No import selected</span>';
+        return;
+    }
+    
+    const currentImport = imports[currentImportId];
+    const totalRevenue = currentImport.orders.reduce((sum, order) => sum + order.total, 0);
+    const invoicedCount = currentImport.invoices.length;
+    
+    statsElement.innerHTML = `
+        <span class="stat">${currentImport.orders.length} orders</span>
+        <span class="stat">R${totalRevenue.toFixed(2)} total</span>
+        <span class="stat">${invoicedCount} invoiced</span>
+        <span class="stat">Created: ${new Date(currentImport.date).toLocaleDateString()}</span>
+    `;
+}
+
+function switchImport(importId) {
+    currentImportId = importId;
+    updateOrdersTable();
+    updateImportStats();
+    updateDashboard();
+    
+    if (importId) {
+        addActivity(`Switched to import: ${imports[importId].name}`);
+    }
+}
+
+function switchInvoiceImport(importId) {
+    const infoElement = document.getElementById('invoiceImportInfo');
+    const nameElement = document.getElementById('invoiceImportName');
+    const statsElement = document.getElementById('invoiceImportStats');
+    const generateBtn = document.getElementById('generateAllBtn');
+    
+    if (!importId || !imports[importId]) {
+        infoElement.style.display = 'none';
+        generateBtn.disabled = true;
+        updateInvoicesDisplay();
+        return;
+    }
+    
+    const selectedImport = imports[importId];
+    infoElement.style.display = 'block';
+    nameElement.textContent = selectedImport.name;
+    statsElement.textContent = `${selectedImport.orders.length} orders, ${selectedImport.invoices.length} invoices`;
+    generateBtn.disabled = false;
+    
+    // Update invoices display to show only this import's invoices
+    updateInvoicesDisplay(importId);
+}
+
+function showImportManager() {
+    const managerHTML = `
+        <div class="import-manager-modal">
+            <div class="modal-content large">
+                <div class="modal-header">
+                    <h3>Import Manager</h3>
+                    <button onclick="closeModal()" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="imports-list">
+                        ${Object.values(imports).length === 0 ? 
+                            '<p class="no-data">No imports yet. Create your first import by uploading a CSV file.</p>' :
+                            Object.values(imports).map(importData => `
+                                <div class="import-item">
+                                    <div class="import-header">
+                                        <h4>${importData.name}</h4>
+                                        <div class="import-actions">
+                                            <button onclick="setAsCurrentImport('${importData.id}')" class="btn-small btn-primary">
+                                                ${importData.id === currentImportId ? '✓ Current' : 'Set Current'}
+                                            </button>
+                                            <button onclick="deleteImport('${importData.id}')" class="btn-small btn-danger">Delete</button>
+                                        </div>
+                                    </div>
+                                    <div class="import-details">
+                                        <p><strong>Created:</strong> ${new Date(importData.date).toLocaleString()}</p>
+                                        <p><strong>Orders:</strong> ${importData.orders.length}</p>
+                                        <p><strong>Invoices:</strong> ${importData.invoices.length}</p>
+                                        <p><strong>Total Value:</strong> R${importData.orders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}</p>
+                                    </div>
+                                </div>
+                            `).join('')
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    showModal(managerHTML);
+}
+
+function setAsCurrentImport(importId) {
+    currentImportId = importId;
+    updateImportSelector();
+    updateOrdersTable();
+    updateImportStats();
+    updateDashboard();
+    closeModal();
+    addActivity(`Set "${imports[importId].name}" as current import`);
+}
+
+function deleteImport(importId) {
+    const importData = imports[importId];
+    if (!confirm(`Are you sure you want to delete the import "${importData.name}"?\n\nThis will permanently delete:\n- ${importData.orders.length} orders\n- ${importData.invoices.length} invoices\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    // Remove from imports
+    delete imports[importId];
+    
+    // If this was the current import, clear it
+    if (currentImportId === importId) {
+        currentImportId = null;
+    }
+    
+    // Update displays
+    updateImportSelector();
+    updateInvoiceImportSelector();
+    updateOrdersTable();
+    updateDashboard();
+    saveToStorage();
+    
+    addActivity(`Deleted import: ${importData.name}`);
+    closeModal();
+    showImportManager(); // Refresh the manager
 }
 
 // CSV handling functions
@@ -790,6 +1006,10 @@ function processCSVFile() {
         alert('No CSV data to process.');
         return;
     }
+    
+    // Ask for import name
+    const importName = prompt('Enter a name for this import:', `Import ${new Date().toLocaleDateString()}`);
+    if (!importName) return;
     
     try {
         const newOrders = [];
@@ -865,8 +1085,22 @@ function processCSVFile() {
             return;
         }
         
-        // Add orders to system
-        orders.push(...newOrders);
+        // Create new import
+        const importId = 'import-' + Date.now();
+        imports[importId] = {
+            id: importId,
+            name: importName,
+            date: new Date().toISOString(),
+            orders: newOrders,
+            invoices: []
+        };
+        
+        // Set as current import
+        currentImportId = importId;
+        
+        // Update displays
+        updateImportSelector();
+        updateInvoiceImportSelector();
         updateOrdersTable();
         updateDashboard();
         saveToStorage();
@@ -874,7 +1108,7 @@ function processCSVFile() {
         // Clear upload state
         clearCSVUpload();
         
-        let message = `Successfully processed ${newOrders.length} orders from CSV!`;
+        let message = `Successfully created import "${importName}" with ${newOrders.length} orders!`;
         if (skippedRows.length > 0) {
             message += `\nSkipped ${skippedRows.length} rows with missing data.`;
         }
