@@ -136,9 +136,16 @@ await sendEmailViaGoogleScript(
 - Verify you're under Gmail sending limits
 - Make sure recipient email is valid
 
-### CORS errors
-- This shouldn't happen with "Anyone" access
-- If it does, check that you're using the `/exec` URL, not `/dev`
+### CORS errors from web applications
+- If you get CORS errors when calling from a website (like GitHub Pages)
+- Make sure you're using the latest version of GoogleAppsScript.gs (v1.1+) which includes CORS headers
+- You need to redeploy the script after updating:
+  1. Go to your Apps Script project
+  2. Click "Deploy" → "Manage deployments"
+  3. Click the pencil icon ✏️ next to your deployment
+  4. Change "Version" to "New version"
+  5. Click "Deploy"
+  6. You'll get a new URL - update GOOGLE_SCRIPT_URL in your script.js
 
 ## 📊 Monitoring
 
