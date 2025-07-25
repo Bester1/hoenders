@@ -110,29 +110,45 @@ The AI PDF analysis system is designed to catch these frequent errors:
    - Verify total calculations (Quantity × Weight × Price/kg)
    - Flag unusual price variations
 
-### EXACT Butchery Invoice Format (System Now Matches This)
+### CRITICAL CORRECTION: Butchery Invoice Column Confusion (UPDATED 2025-07-25)
+
+**THE BUTCHERY MADE COLUMN HEADER MISTAKES** - System must compensate:
+
+**Actual Invoice Format (Header labels are WRONG):**
 ```
-Description | Quantity | KG | Price | Total
-Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg | 4 | 8.47 | 65 | 550.55
-Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg | 4 | 3.32 | 79 | 262.28
-Guns (Boude en dye aan mekaar vas) R79/kg. 3 in pak | 2 | 2.22 | 79 | 175.38
-                                                              TOTAL: 988.21
+Item | Description | Quantity | Unit Price | Amount ZAR
+Fillets | 3 | 2.99 | 88.50 | 264.62
+heuning | 1 | 1.00 | 60.00 | 60.00
 ```
 
-**CRITICAL**: No VAT on butchery invoices. Total = Subtotal.
+**CRITICAL MAPPING - Headers vs Reality:**
+- **"Item" column** → Contains DESCRIPTION (product name like "Fillets", "heuning")
+- **"Description" column** → Contains ITEM/QUANTITY count (3, 1) 
+- **"Quantity" column** → Contains WEIGHT in kg (2.99, 1.00)
+- **"Unit Price" column** → Contains correct unit price (88.50, 60.00)
+- **"Amount ZAR" column** → Contains correct total (264.62, 60.00)
 
-### Butchery Invoice Structure Mapping
-**PDF Header Information:**
-- **Reference Field**: Contains customer name (e.g., "JEAN DREYER")
-- **Invoice Date**: Transaction date
-- **Invoice Number**: Butchery's internal reference
+**PARSING LOGIC MUST BE:**
+```javascript
+// CORRECT mapping for butchery's mislabeled columns:
+const description = itemColumn;     // "Item" contains the product name
+const quantity = descriptionColumn; // "Description" contains the count 
+const weight = quantityColumn;      // "Quantity" contains the weight
+const price = unitPriceColumn;      // "Unit Price" is correct
+const total = amountColumn;         // "Amount ZAR" is correct
+```
 
-**PDF Table Structure:**
-- **Description**: Full product description with packaging details
-- **Quantity**: Number of items/pieces (NOT weight)
-- **KG**: Actual weight in kilograms
-- **Price**: Unit price per kg
-- **Total**: Quantity × Weight × Price OR final calculated amount
+**NO VAT** - butchery invoices are VAT-free. Total = Subtotal.
+
+### Customer Reference Extraction (OCR Format)
+**From OCR output, customer pattern is:**
+```
+SOUTH AFRICA [Customer Name] Kontak: Ansie
+```
+**Examples:**
+- "SOUTH AFRICA Aleshia Smit Kontak: Ansie" → Customer: "Aleshia Smit"
+- "SOUTH AFRICA Chris Fourie Kontak: Ansie" → Customer: "Chris Fourie" 
+- "SOUTH AFRICA Estene Uys Kontak: Ansie" → Customer: "Estene Uys"
 
 ### Customer Data Flow
 1. **Extract Reference**: "JEAN DREYER" from butchery PDF

@@ -1873,39 +1873,57 @@ function parseInvoicePage(pageText, pageNumber) {
         const hasReference = pageText.toLowerCase().includes('reference');
         console.log(`📄 Page ${pageNumber} contains "reference": ${hasReference}`);
         
-        // Look for Reference field - based on the actual invoice format
+        // Look for Reference field - based on the actual OCR output format
         let customerReference = null;
         
-        // Pattern 1: "Reference" followed by name (case insensitive)
-        let match = pageText.match(/Reference\s*[:.]?\s*([A-Z][A-Z\s]+)/i);
-        if (!match) {
-            // Pattern 2: Look for "Reference" on one line and name on next
-            match = pageText.match(/Reference\s*[:.]?\s*\n\s*([A-Z][A-Z\s]+)/i);
-        }
-        if (!match) {
-            // Pattern 3: More flexible - just find capitalized names after Reference
-            const refIndex = pageText.toLowerCase().indexOf('reference');
-            if (refIndex !== -1) {
-                const afterRef = pageText.substring(refIndex + 9, refIndex + 100);
-                const nameMatch = afterRef.match(/([A-Z][A-Z\s]{3,})/);
-                if (nameMatch) {
-                    match = nameMatch;
-                }
+        // From OCR, we can see the pattern is:
+        // "SOUTH AFRICA [Customer Name] Kontak: Ansie"
+        // So we need to extract the name between "SOUTH AFRICA" and "Kontak:"
+        
+        const southAfricaIndex = pageText.indexOf('SOUTH AFRICA');
+        const kontakIndex = pageText.indexOf('Kontak:');
+        
+        if (southAfricaIndex !== -1 && kontakIndex !== -1 && kontakIndex > southAfricaIndex) {
+            const nameSection = pageText.substring(southAfricaIndex + 'SOUTH AFRICA'.length, kontakIndex).trim();
+            // Extract just the name part (remove any extra text)
+            const nameMatch = nameSection.match(/([A-Za-z]+\s+[A-Za-z]+)/);
+            if (nameMatch) {
+                customerReference = nameMatch[1].trim();
             }
         }
         
-        if (!match) {
+        // Fallback: try the old patterns if the above doesn't work
+        if (!customerReference) {
+            let match = pageText.match(/Reference\s*[:.]?\s*([A-Z][A-Z\s]+)/i);
+            if (!match) {
+                match = pageText.match(/Reference\s*[:.]?\s*\n\s*([A-Z][A-Z\s]+)/i);
+            }
+            if (!match) {
+                const refIndex = pageText.toLowerCase().indexOf('reference');
+                if (refIndex !== -1) {
+                    const afterRef = pageText.substring(refIndex + 9, refIndex + 100);
+                    const nameMatch = afterRef.match(/([A-Z][A-Z\s]{3,})/);
+                    if (nameMatch) {
+                        match = nameMatch;
+                    }
+                }
+            }
+            if (match) {
+                customerReference = match[1].trim();
+            }
+        }
+        
+        if (!customerReference) {
             console.log(`⚠️ No Reference found on page ${pageNumber}`);
             console.log(`Full page text for debugging:`, pageText);
             return null;
         }
-        
-        customerReference = match[1].trim();
         console.log(`📋 Found customer: ${customerReference} on page ${pageNumber}`);
         
-        // Extract table data - based on actual invoice format:
-        // Item | Description | Quantity | Unit Price | Amount ZAR
-        // heuning | 7 | 7.00 | 60.00 | 420.00
+        // Extract table data - CORRECTED for butchery's column mistakes:
+        // Header says: Item | Description | Quantity | Unit Price | Amount ZAR
+        // Reality is:  Description | Count | Weight | Unit Price | Total
+        // So: "Item"=description, "Description"=count, "Quantity"=weight
         const items = [];
         
         // Look for table rows after headers
@@ -1932,37 +1950,27 @@ function parseInvoicePage(pageText, pageNumber) {
             
             // If we're in table data, try to parse the line
             if (inTableData) {
-                // Pattern for table row: product_name | description | quantity | unit_price | total
-                // Or sometimes: product_name description quantity unit_price total (space separated)
+                // Parse OCR line format: Fillets 3 2.99 88.50 264.62
                 const parts = line.split(/\s+/);
                 
-                if (parts.length >= 4) {
-                    // Try to extract numbers from the end
-                    const lastPart = parts[parts.length - 1]; // total amount
-                    const secondLastPart = parts[parts.length - 2]; // unit price
-                    const thirdLastPart = parts[parts.length - 3]; // quantity
+                if (parts.length >= 5) {
+                    // Extract fields based on ACTUAL meaning (not headers):
+                    const description = parts[0];           // "Item" column = product name
+                    const quantity = parseInt(parts[1]);    // "Description" column = count
+                    const weight = parseFloat(parts[2]);    // "Quantity" column = weight in kg
+                    const unitPrice = parseFloat(parts[3]); // "Unit Price" column = correct
+                    const total = parseFloat(parts[4]);     // "Amount ZAR" column = correct
                     
-                    // Check if these look like numbers
-                    if (/^\d+\.\d+$/.test(lastPart) && /^\d+\.\d+$/.test(secondLastPart)) {
-                        const total = parseFloat(lastPart);
-                        const unitPrice = parseFloat(secondLastPart);
-                        const quantity = parseFloat(thirdLastPart);
+                    if (description && !isNaN(quantity) && !isNaN(weight) && !isNaN(unitPrice) && !isNaN(total)) {
+                        items.push({
+                            description: description,
+                            quantity: quantity,     // Actual count (3, 1)
+                            weight: weight,         // Weight in kg (2.99, 1.00)
+                            price: unitPrice,       // Price per unit (88.50, 60.00)
+                            total: total           // Total amount (264.62, 60.00)
+                        });
                         
-                        // Product name is everything before the numbers
-                        const productParts = parts.slice(0, parts.length - 3);
-                        const productName = productParts.join(' ');
-                        
-                        if (productName && !isNaN(quantity) && !isNaN(unitPrice) && !isNaN(total)) {
-                            items.push({
-                                description: productName,
-                                quantity: quantity,
-                                weight: quantity, // In this invoice, quantity IS the weight
-                                price: unitPrice,
-                                total: total
-                            });
-                            
-                            console.log(`📦 Found item: ${productName} - Qty: ${quantity}, Price: ${unitPrice}, Total: ${total}`);
-                        }
+                        console.log(`📦 Found item: ${description} - Count: ${quantity}, Weight: ${weight}kg, Price: R${unitPrice}, Total: R${total}`);
                     }
                 }
             }
@@ -1970,18 +1978,19 @@ function parseInvoicePage(pageText, pageNumber) {
         
         if (items.length === 0) {
             console.log(`⚠️ No items found for ${customerReference} on page ${pageNumber}`);
-            // Try alternative parsing approach
-            const simplePattern = /(\w+)\s+(\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)/g;
+            // Try alternative regex pattern for the corrected format
+            const correctedPattern = /(\w+)\s+(\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)/g;
             let lineMatch;
-            while ((lineMatch = simplePattern.exec(pageText)) !== null) {
-                const [_, product, desc, quantity, price, total] = lineMatch;
+            while ((lineMatch = correctedPattern.exec(pageText)) !== null) {
+                const [_, description, quantity, weight, price, total] = lineMatch;
                 items.push({
-                    description: product,
-                    quantity: parseFloat(quantity),
-                    weight: parseFloat(quantity),
-                    price: parseFloat(price),
-                    total: parseFloat(total)
+                    description: description,
+                    quantity: parseInt(quantity),      // Count
+                    weight: parseFloat(weight),        // Weight in kg
+                    price: parseFloat(price),          // Unit price
+                    total: parseFloat(total)           // Total amount
                 });
+                console.log(`📦 Alt parsing found: ${description} - Count: ${quantity}, Weight: ${weight}kg`);
             }
         }
         
