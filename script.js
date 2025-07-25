@@ -1927,7 +1927,20 @@ async function importPDFAsOrders(filename) {
         return;
     }
     
-    const confirmMessage = `Import ${lastPDFAnalysis.extractedData.items.length} items from "${filename}" as orders?\n\nThis will create a new import and generate invoices with proper weight columns.`;
+    // Prompt for customer information
+    const customerName = prompt('Enter customer name:', lastPDFAnalysis.extractedData.customerInfo.name || '');
+    if (!customerName) return;
+    
+    // Try to find existing customer info from previous orders
+    const existingCustomer = findExistingCustomer(customerName);
+    
+    const customerEmail = prompt('Enter customer email:', existingCustomer?.email || 'customer@email.com');
+    if (!customerEmail) return;
+    
+    const customerPhone = prompt('Enter customer phone:', existingCustomer?.phone || '');
+    const customerAddress = prompt('Enter customer address:', existingCustomer?.address || lastPDFAnalysis.extractedData.customerInfo.address || '');
+    
+    const confirmMessage = `Import ${lastPDFAnalysis.extractedData.items.length} items from "${filename}" for ${customerName}?\n\nThis will create orders and generate invoices with proper weight columns.`;
     if (!confirm(confirmMessage)) return;
     
     try {
@@ -1943,10 +1956,10 @@ async function importPDFAsOrders(filename) {
             return {
                 orderId: `ORD-PDF-${Date.now()}-${index + 1}`,
                 date: new Date().toISOString().split('T')[0],
-                name: lastPDFAnalysis.extractedData.customerInfo.name || 'Customer from PDF',
-                email: 'customer@email.com', // Would be extracted from PDF in real implementation
-                phone: '000 000 0000', // Would be extracted from PDF
-                address: lastPDFAnalysis.extractedData.customerInfo.address || 'Address from PDF',
+                name: customerName,
+                email: customerEmail,
+                phone: customerPhone || '000 000 0000',
+                address: customerAddress || 'Address not provided',
                 product: mappedProduct,
                 quantity: item.quantity,
                 weight: item.weight, // This is the key - weight from PDF!
@@ -1994,6 +2007,25 @@ async function importPDFAsOrders(filename) {
         console.error('Error importing PDF data:', error);
         alert(`Error importing PDF data: ${error.message}`);
     }
+}
+
+// Helper function to find existing customer from previous orders
+function findExistingCustomer(customerName) {
+    // Search through all imports for a customer with matching name
+    for (const importData of Object.values(imports)) {
+        const matchingOrder = importData.orders.find(order => 
+            order.name && order.name.toLowerCase().includes(customerName.toLowerCase())
+        );
+        if (matchingOrder) {
+            return {
+                name: matchingOrder.name,
+                email: matchingOrder.email,
+                phone: matchingOrder.phone,
+                address: matchingOrder.address
+            };
+        }
+    }
+    return null;
 }
 
 // Helper function to find mapped product name
