@@ -2661,27 +2661,27 @@ async function importPDFAsOrders(filename) {
             // Create ONE order per customer with multiple items (better approach)
             const products = customer.items.map(item => {
                 const mappedProduct = findMappedProduct(item.description);
-                let unitPrice = item.price; // Default to butchery price
-                let total = item.total;      // Default to butchery total
                 
-                // Use your rate card pricing if available
+                // ONLY use your rate card pricing - NEVER use butchery prices
                 if (mappedProduct && pricing[mappedProduct]) {
-                    unitPrice = pricing[mappedProduct].selling;
-                    total = unitPrice * item.weight; // Your price × delivered weight
+                    const unitPrice = pricing[mappedProduct].selling;
+                    const total = unitPrice * item.weight; // Your price × delivered weight
                     console.log(`💰 Applied rate card pricing for ${mappedProduct}: R${unitPrice}/kg × ${item.weight}kg = R${total.toFixed(2)}`);
+                    
+                    return {
+                        product: mappedProduct,
+                        originalDescription: item.description,
+                        quantity: item.quantity,
+                        weight: item.weight, // Actual delivered weight from PDF!
+                        unitPrice: unitPrice,
+                        total: parseFloat(total.toFixed(2))
+                    };
                 } else {
-                    console.log(`⚠️ No rate card pricing found for "${item.description}" (mapped to "${mappedProduct}") - using butchery price R${item.price}`);
+                    // Skip items without rate card pricing - don't use butchery prices
+                    console.log(`❌ SKIPPED: No rate card pricing found for "${item.description}" (mapped to "${mappedProduct}") - item not included in invoice`);
+                    return null; // This will filter out the item
                 }
-                
-                return {
-                    product: mappedProduct,
-                    originalDescription: item.description,
-                    quantity: item.quantity,
-                    weight: item.weight, // Actual delivered weight from PDF!
-                    unitPrice: unitPrice,
-                    total: parseFloat(total.toFixed(2))
-                };
-            });
+            }).filter(product => product !== null); // Remove skipped items
             
             const customerOrder = {
                 orderId: `ORD-PDF-${Date.now()}-P${customer.pageNumber}`,
@@ -3603,9 +3603,9 @@ async function clearLocalData() {
     }
 
     try {
-        // Clear localStorage
+        // Clear localStorage BUT preserve pricing
         Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('plaasHoenders')) {
+            if (key.startsWith('plaasHoenders') && key !== 'plaasHoendersPricing') {
                 localStorage.removeItem(key);
             }
         });
@@ -3633,11 +3633,16 @@ async function clearDatabaseData() {
 
         if (importsError) throw importsError;
 
-        // Clear settings table
+        // Clear settings BUT preserve pricing
         const { error: settingsError } = await supabaseClient
             .from('settings')
-            .delete()
-            .neq('id', 'never_match_this_id'); // Delete all records
+            .upsert({
+                id: 'main',
+                current_import_id: null,
+                pricing: pricing, // Preserve pricing!
+                email_queue: [],
+                analysis_history: []
+            });
 
         if (settingsError) throw settingsError;
 
