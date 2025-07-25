@@ -371,18 +371,19 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
     try {
         showLoadingState(true, 'Sending email...');
         
+        // Use form data to avoid CORS preflight request
+        const formData = new FormData();
+        formData.append('to', to);
+        formData.append('subject', subject);
+        formData.append('body', body);
+        formData.append('fromName', 'Plaas Hoenders');
+        if (attachments && attachments.length > 0) {
+            formData.append('attachments', JSON.stringify(attachments));
+        }
+        
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                to: to,
-                subject: subject,
-                body: body,
-                fromName: 'Plaas Hoenders',
-                attachments: attachments
-            })
+            body: formData
         });
 
         const result = await response.json();

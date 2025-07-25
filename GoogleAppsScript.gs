@@ -3,8 +3,17 @@
 
 function doPost(e) {
   try {
-    // Parse the incoming request
-    const data = JSON.parse(e.postData.contents);
+    // Parse the incoming request (handle both JSON and form data)
+    let data;
+    if (e.postData.type === 'application/json') {
+      data = JSON.parse(e.postData.contents);
+    } else {
+      // Handle form data
+      data = e.parameter;
+      if (data.attachments) {
+        data.attachments = JSON.parse(data.attachments);
+      }
+    }
     
     // Validate required fields
     if (!data.to || !data.subject || !data.body) {
@@ -101,7 +110,7 @@ function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({
     status: 'ready',
     message: 'Plaas Hoenders Email Service is running',
-    version: '1.1'
+    version: '1.2'
   }))
   .setMimeType(ContentService.MimeType.JSON)
   .setHeaders({
