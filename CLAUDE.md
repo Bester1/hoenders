@@ -168,3 +168,37 @@ Guns (Boude en dye aan mekaar vas) R79/kg. 3 in pak | 2 | 2.22 | 79 | 175.38
 - Customer database builds automatically from imports
 - Invoice system preserves exact butchery format and calculations
 - No complex authentication flows required
+
+## CRITICAL DEPLOYMENT INFORMATION (UPDATED 2025-07-25)
+
+### GitHub Pages Deployment
+- **SITE IS LIVE AT**: https://bester1.github.io/hoenders/
+- **USER TESTS ON LIVE SITE** - NOT locally!
+- **MUST PUSH CHANGES TO GITHUB** for user to see them
+- **GitHub Pages takes 2-5 minutes** to update after push
+
+### Development Workflow
+1. Make changes locally in `/Users/user/Documents/Cursor/Hoender/`
+2. **ALWAYS** commit and push changes: `git add -A && git commit -m "message" && git push`
+3. Wait for GitHub Pages to rebuild
+4. User tests on live site: https://bester1.github.io/hoenders/
+
+### PDF Processing Implementation (REAL - NOT MOCK)
+- **PDF.js Integration**: Added for actual PDF text extraction
+- **Real Customer Extraction**: Parses Reference field from each page
+- **Real Item Parsing**: Extracts Description, Quantity, KG, Price, Total
+- **Multi-page Support**: Each page = different customer invoice
+- **NO MORE MOCK DATA**: All data comes from actual PDF content
+
+### Multi-Customer PDF Structure
+- **25 pages = 25 different customers** (not one customer)
+- Each page has different Reference field (customer name)
+- System extracts and processes each customer separately
+- Creates one order per customer with all their items
+- Generates one invoice per customer (not per item)
+
+### Stock Reconciliation Workflow
+- Compare ordered quantities vs delivered quantities
+- Handle stock shortages/surpluses
+- Generate invoices based on ACTUAL delivered amounts
+- Flag discrepancies for review
