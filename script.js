@@ -3911,3 +3911,535 @@ async function testDatabaseConnection() {
         document.getElementById('databaseDataStatus').textContent = 'Disconnected ✗';
     }
 }
+
+// ===== BUSINESS INTELLIGENCE / ANALYTICS FUNCTIONS =====
+
+function refreshAnalytics() {
+    updateSalesAnalytics();
+    updateCustomerAnalytics();
+    updateProductAnalytics();
+    updateProfitAnalytics();
+    addActivity('Analytics refreshed');
+}
+
+function updateSalesAnalytics() {
+    const allOrders = getAllOrders();
+    const allInvoices = getAllInvoices();
+    
+    // Calculate total revenue from invoices
+    const totalRevenue = allInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0);
+    
+    // Calculate monthly revenue (current month)
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const monthlyRevenue = allInvoices
+        .filter(invoice => {
+            const invoiceDate = new Date(invoice.createdAt || invoice.timestamp || Date.now());
+            return invoiceDate.getMonth() === currentMonth && invoiceDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, invoice) => sum + (invoice.total || 0), 0);
+    
+    // Calculate weekly revenue (last 7 days)
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weeklyRevenue = allInvoices
+        .filter(invoice => {
+            const invoiceDate = new Date(invoice.createdAt || invoice.timestamp || Date.now());
+            return invoiceDate >= weekAgo;
+        })
+        .reduce((sum, invoice) => sum + (invoice.total || 0), 0);
+    
+    // Update UI
+    document.getElementById('totalRevenue').textContent = `R${totalRevenue.toFixed(2)}`;
+    document.getElementById('monthlyRevenue').textContent = `R${monthlyRevenue.toFixed(2)}`;
+    document.getElementById('weeklyRevenue').textContent = `R${weeklyRevenue.toFixed(2)}`;
+    
+    // Update chart placeholder
+    const chartContainer = document.getElementById('revenueChart');
+    if (chartContainer) {
+        chartContainer.innerHTML = `
+            <div style="text-align: center; color: #666;">
+                <i class="fas fa-chart-line" style="font-size: 2em; margin-bottom: 10px; opacity: 0.3;"></i>
+                <p>Revenue Chart</p>
+                <p style="font-size: 0.9em;">Total: R${totalRevenue.toFixed(2)}</p>
+            </div>
+        `;
+    }
+}
+
+function updateCustomerAnalytics() {
+    const allOrders = getAllOrders();
+    
+    // Get unique customers
+    const uniqueCustomers = new Set();
+    const customerOrders = {};
+    const customerRevenue = {};
+    
+    allOrders.forEach(order => {
+        if (order.name && order.name.trim()) {
+            const customerName = order.name.trim();
+            uniqueCustomers.add(customerName);
+            
+            if (!customerOrders[customerName]) {
+                customerOrders[customerName] = 0;
+                customerRevenue[customerName] = 0;
+            }
+            
+            customerOrders[customerName]++;
+            customerRevenue[customerName] += order.total || 0;
+        }
+    });
+    
+    // Calculate active customers this month
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const activeCustomers = new Set();
+    
+    allOrders.forEach(order => {
+        if (order.name && order.name.trim()) {
+            const orderDate = new Date(order.createdAt || order.timestamp || Date.now());
+            if (orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear) {
+                activeCustomers.add(order.name.trim());
+            }
+        }
+    });
+    
+    // Calculate average order value
+    const totalRevenue = Object.values(customerRevenue).reduce((sum, revenue) => sum + revenue, 0);
+    const totalOrders = allOrders.length;
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    
+    // Update UI
+    document.getElementById('totalCustomers').textContent = uniqueCustomers.size.toString();
+    document.getElementById('activeCustomers').textContent = activeCustomers.size.toString();
+    document.getElementById('avgOrderValue').textContent = `R${avgOrderValue.toFixed(2)}`;
+    
+    // Generate top customers list
+    const topCustomersContainer = document.getElementById('topCustomers');
+    const sortedCustomers = Object.entries(customerRevenue)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5);
+    
+    let topCustomersHTML = '<h4>Top Customers</h4>';
+    if (sortedCustomers.length > 0) {
+        sortedCustomers.forEach(([name, revenue]) => {
+            const orderCount = customerOrders[name];
+            topCustomersHTML += `
+                <div class="customer-item">
+                    <span class="customer-name">${name}</span>
+                    <span class="customer-value">R${revenue.toFixed(2)} (${orderCount} orders)</span>
+                </div>
+            `;
+        });
+    } else {
+        topCustomersHTML += '<div class="analytics-empty">No customer data available</div>';
+    }
+    
+    topCustomersContainer.innerHTML = topCustomersHTML;
+}
+
+function updateProductAnalytics() {
+    const allOrders = getAllOrders();
+    const allInvoices = getAllInvoices();
+    
+    // Collect product data from invoices (more detailed)
+    const productStats = {};
+    let totalItems = 0;
+    
+    allInvoices.forEach(invoice => {
+        if (invoice.items && invoice.items.length > 0) {
+            invoice.items.forEach(item => {
+                const productName = item.originalDescription || item.product || 'Unknown Product';
+                
+                if (!productStats[productName]) {
+                    productStats[productName] = {
+                        quantity: 0,
+                        revenue: 0,
+                        cost: 0,
+                        orders: 0
+                    };
+                }
+                
+                productStats[productName].quantity += item.quantity || 0;
+                productStats[productName].revenue += item.total || 0;
+                
+                // Calculate cost using pricing data
+                const pricingInfo = pricing[productName];
+                if (pricingInfo && item.weight) {
+                    productStats[productName].cost += pricingInfo.cost * item.weight;
+                }
+                
+                productStats[productName].orders++;
+                totalItems++;
+            });
+        }
+    });
+    
+    // Fallback to orders if no invoice data
+    if (totalItems === 0) {
+        allOrders.forEach(order => {
+            if (order.product) {
+                const productName = order.product;
+                if (!productStats[productName]) {
+                    productStats[productName] = {
+                        quantity: 0,
+                        revenue: 0,
+                        cost: 0,
+                        orders: 0
+                    };
+                }
+                
+                productStats[productName].quantity += order.quantity || 0;
+                productStats[productName].revenue += order.total || 0;
+                productStats[productName].orders++;
+                totalItems++;
+            }
+        });
+    }
+    
+    // Calculate metrics
+    const productCount = Object.keys(productStats).length;
+    const bestSeller = Object.entries(productStats)
+        .sort(([,a], [,b]) => b.quantity - a.quantity)[0];
+    
+    const totalCost = Object.values(productStats).reduce((sum, stats) => sum + stats.cost, 0);
+    const totalRevenue = Object.values(productStats).reduce((sum, stats) => sum + stats.revenue, 0);
+    const avgMargin = totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue * 100) : 0;
+    
+    // Update UI
+    document.getElementById('totalProducts').textContent = productCount.toString();
+    document.getElementById('bestSeller').textContent = bestSeller ? bestSeller[0] : '-';
+    document.getElementById('avgMargin').textContent = `${avgMargin.toFixed(1)}%`;
+    
+    // Generate product performance list
+    const productPerformanceContainer = document.getElementById('productPerformance');
+    const sortedProducts = Object.entries(productStats)
+        .sort(([,a], [,b]) => b.revenue - a.revenue)
+        .slice(0, 5);
+    
+    let productHTML = '<h4>Product Performance</h4>';
+    if (sortedProducts.length > 0) {
+        sortedProducts.forEach(([name, stats]) => {
+            const margin = stats.revenue > 0 ? ((stats.revenue - stats.cost) / stats.revenue * 100) : 0;
+            productHTML += `
+                <div class="product-item">
+                    <span class="product-name">${name}</span>
+                    <span class="product-value">R${stats.revenue.toFixed(2)} (${margin.toFixed(1)}% margin)</span>
+                </div>
+            `;
+        });
+    } else {
+        productHTML += '<div class="analytics-empty">No product data available</div>';
+    }
+    
+    productPerformanceContainer.innerHTML = productHTML;
+}
+
+function updateProfitAnalytics() {
+    const allInvoices = getAllInvoices();
+    
+    let totalRevenue = 0;
+    let totalCost = 0;
+    const productProfits = {};
+    
+    allInvoices.forEach(invoice => {
+        if (invoice.items && invoice.items.length > 0) {
+            invoice.items.forEach(item => {
+                const productName = item.originalDescription || item.product || 'Unknown Product';
+                const itemRevenue = item.total || 0;
+                
+                totalRevenue += itemRevenue;
+                
+                // Calculate cost using pricing data
+                const pricingInfo = pricing[productName];
+                let itemCost = 0;
+                if (pricingInfo && item.weight) {
+                    itemCost = pricingInfo.cost * item.weight;
+                    totalCost += itemCost;
+                }
+                
+                if (!productProfits[productName]) {
+                    productProfits[productName] = {
+                        revenue: 0,
+                        cost: 0,
+                        profit: 0,
+                        margin: 0
+                    };
+                }
+                
+                productProfits[productName].revenue += itemRevenue;
+                productProfits[productName].cost += itemCost;
+                productProfits[productName].profit = productProfits[productName].revenue - productProfits[productName].cost;
+                productProfits[productName].margin = productProfits[productName].revenue > 0 ? 
+                    (productProfits[productName].profit / productProfits[productName].revenue * 100) : 0;
+            });
+        }
+    });
+    
+    const totalProfit = totalRevenue - totalCost;
+    const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue * 100) : 0;
+    const costRevenueRatio = totalCost > 0 ? `1:${(totalRevenue / totalCost).toFixed(1)}` : '1:0';
+    
+    // Update UI
+    document.getElementById('totalProfit').textContent = `R${totalProfit.toFixed(2)}`;
+    document.getElementById('profitMargin').textContent = `${profitMargin.toFixed(1)}%`;
+    document.getElementById('costRevenue').textContent = costRevenueRatio;
+    
+    // Generate profit breakdown table
+    const profitBreakdownContainer = document.getElementById('profitBreakdown');
+    const sortedProfits = Object.entries(productProfits)
+        .sort(([,a], [,b]) => b.profit - a.profit)
+        .slice(0, 10);
+    
+    let profitHTML = '<h4>Profit Breakdown by Product</h4>';
+    if (sortedProfits.length > 0) {
+        profitHTML += `
+            <table class="profit-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Revenue</th>
+                        <th>Cost</th>
+                        <th>Profit</th>
+                        <th>Margin</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        sortedProfits.forEach(([name, stats]) => {
+            const profitClass = stats.profit >= 0 ? 'profit-positive' : 'profit-negative';
+            profitHTML += `
+                <tr>
+                    <td>${name}</td>
+                    <td>R${stats.revenue.toFixed(2)}</td>
+                    <td>R${stats.cost.toFixed(2)}</td>
+                    <td class="${profitClass}">R${stats.profit.toFixed(2)}</td>
+                    <td class="${profitClass}">${stats.margin.toFixed(1)}%</td>
+                </tr>
+            `;
+        });
+        
+        profitHTML += '</tbody></table>';
+    } else {
+        profitHTML += '<div class="analytics-empty">No profit data available</div>';
+    }
+    
+    profitBreakdownContainer.innerHTML = profitHTML;
+}
+
+function exportAnalyticsData() {
+    const allOrders = getAllOrders();
+    const allInvoices = getAllInvoices();
+    
+    // Prepare comprehensive analytics data
+    const analyticsData = {
+        exportDate: new Date().toISOString(),
+        summary: {
+            totalOrders: allOrders.length,
+            totalInvoices: allInvoices.length,
+            totalRevenue: allInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
+            uniqueCustomers: new Set(allOrders.map(o => o.name).filter(Boolean)).size
+        },
+        orders: allOrders,
+        invoices: allInvoices,
+        customerAnalytics: generateCustomerAnalyticsData(),
+        productAnalytics: generateProductAnalyticsData(),
+        profitAnalytics: generateProfitAnalyticsData()
+    };
+    
+    // Create and download file
+    const dataStr = JSON.stringify(analyticsData, null, 2);
+    const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(dataBlob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `plaas-hoenders-analytics-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    addActivity('Analytics data exported');
+    alert('Analytics data exported successfully!');
+}
+
+function generateCustomerAnalyticsData() {
+    const allOrders = getAllOrders();
+    const customerData = {};
+    
+    allOrders.forEach(order => {
+        if (order.name && order.name.trim()) {
+            const customerName = order.name.trim();
+            if (!customerData[customerName]) {
+                customerData[customerName] = {
+                    name: customerName,
+                    totalOrders: 0,
+                    totalRevenue: 0,
+                    averageOrderValue: 0,
+                    firstOrder: null,
+                    lastOrder: null,
+                    products: {}
+                };
+            }
+            
+            const data = customerData[customerName];
+            data.totalOrders++;
+            data.totalRevenue += order.total || 0;
+            
+            const orderDate = new Date(order.createdAt || order.timestamp || Date.now());
+            if (!data.firstOrder || orderDate < new Date(data.firstOrder)) {
+                data.firstOrder = orderDate.toISOString();
+            }
+            if (!data.lastOrder || orderDate > new Date(data.lastOrder)) {
+                data.lastOrder = orderDate.toISOString();
+            }
+            
+            if (order.product) {
+                if (!data.products[order.product]) {
+                    data.products[order.product] = 0;
+                }
+                data.products[order.product] += order.quantity || 1;
+            }
+        }
+    });
+    
+    // Calculate average order values
+    Object.values(customerData).forEach(data => {
+        data.averageOrderValue = data.totalOrders > 0 ? data.totalRevenue / data.totalOrders : 0;
+    });
+    
+    return Object.values(customerData);
+}
+
+function generateProductAnalyticsData() {
+    const allInvoices = getAllInvoices();
+    const productData = {};
+    
+    allInvoices.forEach(invoice => {
+        if (invoice.items && invoice.items.length > 0) {
+            invoice.items.forEach(item => {
+                const productName = item.originalDescription || item.product || 'Unknown Product';
+                
+                if (!productData[productName]) {
+                    productData[productName] = {
+                        name: productName,
+                        totalQuantity: 0,
+                        totalWeight: 0,
+                        totalRevenue: 0,
+                        totalCost: 0,
+                        ordersCount: 0,
+                        averagePrice: 0,
+                        margin: 0
+                    };
+                }
+                
+                const data = productData[productName];
+                data.totalQuantity += item.quantity || 0;
+                data.totalWeight += item.weight || 0;
+                data.totalRevenue += item.total || 0;
+                data.ordersCount++;
+                
+                // Calculate cost using pricing data
+                const pricingInfo = pricing[productName];
+                if (pricingInfo && item.weight) {
+                    data.totalCost += pricingInfo.cost * item.weight;
+                }
+            });
+        }
+    });
+    
+    // Calculate derived metrics
+    Object.values(productData).forEach(data => {
+        data.averagePrice = data.totalWeight > 0 ? data.totalRevenue / data.totalWeight : 0;
+        data.margin = data.totalRevenue > 0 ? ((data.totalRevenue - data.totalCost) / data.totalRevenue * 100) : 0;
+    });
+    
+    return Object.values(productData);
+}
+
+function generateProfitAnalyticsData() {
+    const allInvoices = getAllInvoices();
+    
+    let totalRevenue = 0;
+    let totalCost = 0;
+    const monthlyProfits = {};
+    
+    allInvoices.forEach(invoice => {
+        const invoiceDate = new Date(invoice.createdAt || invoice.timestamp || Date.now());
+        const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        if (!monthlyProfits[monthKey]) {
+            monthlyProfits[monthKey] = {
+                month: monthKey,
+                revenue: 0,
+                cost: 0,
+                profit: 0,
+                margin: 0
+            };
+        }
+        
+        const invoiceRevenue = invoice.total || 0;
+        totalRevenue += invoiceRevenue;
+        monthlyProfits[monthKey].revenue += invoiceRevenue;
+        
+        if (invoice.items && invoice.items.length > 0) {
+            invoice.items.forEach(item => {
+                const productName = item.originalDescription || item.product || 'Unknown Product';
+                const pricingInfo = pricing[productName];
+                
+                if (pricingInfo && item.weight) {
+                    const itemCost = pricingInfo.cost * item.weight;
+                    totalCost += itemCost;
+                    monthlyProfits[monthKey].cost += itemCost;
+                }
+            });
+        }
+    });
+    
+    // Calculate monthly profit and margin
+    Object.values(monthlyProfits).forEach(data => {
+        data.profit = data.revenue - data.cost;
+        data.margin = data.revenue > 0 ? (data.profit / data.revenue * 100) : 0;
+    });
+    
+    return {
+        totalRevenue,
+        totalCost,
+        totalProfit: totalRevenue - totalCost,
+        overallMargin: totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue * 100) : 0,
+        monthlyBreakdown: Object.values(monthlyProfits)
+    };
+}
+
+function getAllOrders() {
+    const allOrders = [];
+    Object.values(imports).forEach(importData => {
+        if (importData.orders) {
+            allOrders.push(...importData.orders);
+        }
+    });
+    return allOrders;
+}
+
+function getAllInvoices() {
+    const allInvoices = [];
+    Object.values(imports).forEach(importData => {
+        if (importData.invoices) {
+            allInvoices.push(...importData.invoices);
+        }
+    });
+    return allInvoices;
+}
+
+// Initialize analytics when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    // Auto-refresh analytics when switching to analytics tab
+    const analyticsLink = document.querySelector('a[href="#analytics"]');
+    if (analyticsLink) {
+        analyticsLink.addEventListener('click', () => {
+            setTimeout(refreshAnalytics, 100); // Small delay to ensure section is visible
+        });
+    }
+});

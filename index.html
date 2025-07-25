@@ -16,6 +16,7 @@
             </div>
             <ul class="nav-menu">
                 <li><a href="#dashboard" class="nav-link active"><i class="fas fa-chart-line"></i> Dashboard</a></li>
+                <li><a href="#analytics" class="nav-link"><i class="fas fa-chart-bar"></i> Business Intelligence</a></li>
                 <li><a href="#orders" class="nav-link"><i class="fas fa-shopping-cart"></i> Orders</a></li>
                 <li><a href="#invoices" class="nav-link"><i class="fas fa-file-invoice"></i> Invoices</a></li>
                 <li><a href="#emails" class="nav-link"><i class="fas fa-envelope"></i> Email Center</a></li>
@@ -94,6 +95,130 @@
                             <button class="action-btn" onclick="exportData()">
                                 <i class="fas fa-download"></i> Export Data
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Business Intelligence Section -->
+            <section id="analytics" class="content-section">
+                <div class="section-header">
+                    <h2>📊 Business Intelligence</h2>
+                    <div class="header-actions">
+                        <button class="btn-secondary" onclick="exportAnalyticsData()">
+                            <i class="fas fa-download"></i> Export Data
+                        </button>
+                        <button class="btn-primary" onclick="refreshAnalytics()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Analytics Grid -->
+                <div class="analytics-grid">
+                    <!-- Sales Analytics -->
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-line"></i> Sales Analytics</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="stats-row">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Revenue</span>
+                                    <span class="stat-value" id="totalRevenue">R0.00</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">This Month</span>
+                                    <span class="stat-value" id="monthlyRevenue">R0.00</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">This Week</span>
+                                    <span class="stat-value" id="weeklyRevenue">R0.00</span>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="revenueChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Customer Analytics -->
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-users"></i> Customer Analytics</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="stats-row">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Customers</span>
+                                    <span class="stat-value" id="totalCustomers">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Active This Month</span>
+                                    <span class="stat-value" id="activeCustomers">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Avg Order Value</span>
+                                    <span class="stat-value" id="avgOrderValue">R0.00</span>
+                                </div>
+                            </div>
+                            <div class="top-customers" id="topCustomers">
+                                <h4>Top Customers</h4>
+                                <!-- Dynamic content -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Product Analytics -->
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-box"></i> Product Analytics</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="stats-row">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Products</span>
+                                    <span class="stat-value" id="totalProducts">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Best Seller</span>
+                                    <span class="stat-value" id="bestSeller">-</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Avg Margin</span>
+                                    <span class="stat-value" id="avgMargin">0%</span>
+                                </div>
+                            </div>
+                            <div class="product-performance" id="productPerformance">
+                                <h4>Product Performance</h4>
+                                <!-- Dynamic content -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Profit Analytics -->
+                    <div class="analytics-card full-width">
+                        <div class="card-header">
+                            <h3><i class="fas fa-money-bill-wave"></i> Profit Analysis</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="stats-row">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Profit</span>
+                                    <span class="stat-value" id="totalProfit">R0.00</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Profit Margin</span>
+                                    <span class="stat-value" id="profitMargin">0%</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Cost vs Revenue</span>
+                                    <span class="stat-value" id="costRevenue">1:0</span>
+                                </div>
+                            </div>
+                            <div class="profit-breakdown" id="profitBreakdown">
+                                <!-- Dynamic profit breakdown table -->
+                            </div>
                         </div>
                     </div>
                 </div>
