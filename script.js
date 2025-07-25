@@ -70,14 +70,20 @@ const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Gmail API Configuration
-const GMAIL_API_KEY = 'YOUR_GMAIL_API_KEY'; // You'll need to get this from Google Cloud Console
-const GMAIL_CLIENT_ID = 'YOUR_GMAIL_CLIENT_ID';
+// Email Service Configuration
+// Option 1: Google Apps Script (RECOMMENDED - Much easier!)
+const GOOGLE_SCRIPT_URL = ''; // Paste your Web App URL here after deploying GoogleAppsScript.gs
+
+// Option 2: Gmail API (Complex - requires OAuth)
+const GMAIL_API_KEY = 'YOUR_API_KEY_HERE'; // Get from Google Cloud Console > Credentials > API Keys
+const GMAIL_CLIENT_ID = 'YOUR_CLIENT_ID_HERE.apps.googleusercontent.com'; // Get from OAuth 2.0 Client ID
 const GMAIL_DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest';
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.send';
 
 let gapi;
 let tokenClient;
 let isGmailInitialized = false;
+let useGoogleScript = true; // Set to false to use Gmail API instead
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -428,6 +434,51 @@ function updateGmailStatus(connected, message = '') {
     }
 }
 
+// Google Apps Script Email Function (Simpler Alternative)
+async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
+    if (!GOOGLE_SCRIPT_URL) {
+        alert('Please configure Google Apps Script URL first. See GOOGLE_APPS_SCRIPT_SETUP.md');
+        return false;
+    }
+
+    try {
+        showLoadingState(true, 'Sending email...');
+        
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                to: to,
+                subject: subject,
+                body: body,
+                fromName: 'Plaas Hoenders',
+                attachments: attachments
+            })
+        });
+
+        const result = await response.json();
+        
+        showLoadingState(false);
+        
+        if (result.status === 'success') {
+            console.log('Email sent successfully via Google Apps Script');
+            addActivity(`Email sent to ${to}`);
+            return true;
+        } else {
+            console.error('Email failed:', result.message);
+            alert(`Failed to send email: ${result.message}`);
+            return false;
+        }
+    } catch (error) {
+        showLoadingState(false);
+        console.error('Error sending email:', error);
+        alert(`Error sending email: ${error.message}`);
+        return false;
+    }
+}
+
 async function sendEmailViaGmail(to, subject, body, attachments = []) {
     if (!gapi.client.getToken()) {
         throw new Error('Gmail not connected. Please connect Gmail first.');
@@ -505,7 +556,11 @@ async function sendQueuedEmails() {
         return;
     }
 
-    if (!gapi.client.getToken()) {
+    // Check which email service to use
+    if (useGoogleScript && !GOOGLE_SCRIPT_URL) {
+        alert('Please configure Google Apps Script URL first. See GOOGLE_APPS_SCRIPT_SETUP.md');
+        return;
+    } else if (!useGoogleScript && !gapi.client.getToken()) {
         alert('Please connect Gmail first.');
         return;
     }
@@ -520,7 +575,12 @@ async function sendQueuedEmails() {
     for (let email of emailQueue) {
         if (email.status === 'pending') {
             try {
-                await sendEmailViaGmail(email.to, email.subject, email.body);
+                // Use Google Apps Script or Gmail API based on configuration
+                if (useGoogleScript) {
+                    await sendEmailViaGoogleScript(email.to, email.subject, email.body);
+                } else {
+                    await sendEmailViaGmail(email.to, email.subject, email.body);
+                }
                 email.status = 'sent';
                 email.sentAt = new Date().toISOString();
                 sentCount++;
@@ -570,22 +630,30 @@ function updateEmailQueueDisplay() {
 }
 
 async function testEmail() {
-    if (!gapi.client.getToken()) {
+    // Check which email service to use
+    if (useGoogleScript && !GOOGLE_SCRIPT_URL) {
+        alert('Please configure Google Apps Script URL first. See GOOGLE_APPS_SCRIPT_SETUP.md');
+        return;
+    } else if (!useGoogleScript && !gapi.client.getToken()) {
         alert('Please connect Gmail first.');
         return;
     }
 
-    const testEmail = prompt('Enter email address for test:');
-    if (!testEmail) return;
+    const testEmailAddress = prompt('Enter email address for test:');
+    if (!testEmailAddress) return;
 
     try {
-        await sendEmailViaGmail(
-            testEmail,
-            'Test Email from Plaas Hoenders Admin',
-            '<h2>Test Email</h2><p>This is a test email from your Plaas Hoenders admin panel. Gmail integration is working correctly!</p>'
-        );
+        const subject = 'Test Email from Plaas Hoenders Admin';
+        const body = '<h2>Test Email</h2><p>This is a test email from your Plaas Hoenders admin panel. Email integration is working correctly!</p>';
+        
+        if (useGoogleScript) {
+            await sendEmailViaGoogleScript(testEmailAddress, subject, body);
+        } else {
+            await sendEmailViaGmail(testEmailAddress, subject, body);
+        }
+        
         alert('Test email sent successfully!');
-        addActivity(`Test email sent to ${testEmail}`);
+        addActivity(`Test email sent to ${testEmailAddress}`);
     } catch (error) {
         alert(`Failed to send test email: ${error.message}`);
     }
