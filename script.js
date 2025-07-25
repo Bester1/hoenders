@@ -1886,43 +1886,57 @@ function parseInvoicePage(pageText, pageNumber) {
         const hasReference = pageText.toLowerCase().includes('reference');
         console.log(`📄 Page ${pageNumber} contains "reference": ${hasReference}`);
         
-        // Look for Reference field - based on the actual OCR output format
+        // Look for Reference field - based on the actual PDF text format
         let customerReference = null;
         
-        // From OCR, we can see the pattern is:
-        // "SOUTH AFRICA [Customer Name] Kontak: Ansie"
-        // So we need to extract the name between "SOUTH AFRICA" and "Kontak:"
+        // From the logs, we can see the pattern is:
+        // "Reference [Customer Name]" directly in the text
+        // Let's extract it properly
         
-        const southAfricaIndex = pageText.indexOf('SOUTH AFRICA');
-        const kontakIndex = pageText.indexOf('Kontak:');
+        // First, try to find "Reference" followed by the customer name
+        const referenceMatch = pageText.match(/Reference\s+((?:[A-Z][a-z]+(?:\s+[A-Z][a-z]*)*(?:\s*-\s*[A-Z][a-z]*)?)|(?:[A-Z]+(?:\s+[A-Z]+)*))/);
         
-        if (southAfricaIndex !== -1 && kontakIndex !== -1 && kontakIndex > southAfricaIndex) {
-            const nameSection = pageText.substring(southAfricaIndex + 'SOUTH AFRICA'.length, kontakIndex).trim();
-            // Extract just the name part (remove any extra text)
-            const nameMatch = nameSection.match(/([A-Za-z]+\s+[A-Za-z]+)/);
-            if (nameMatch) {
-                customerReference = nameMatch[1].trim();
+        if (referenceMatch) {
+            customerReference = referenceMatch[1].trim();
+            console.log(`✅ Found Reference match: "${customerReference}"`);
+        } else {
+            // Try a more flexible approach - look for Reference and get the next line or nearby text
+            const lines = pageText.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.toLowerCase().includes('reference')) {
+                    // Check if the name is on the same line
+                    const refInLine = line.match(/reference\s+([A-Z][A-Za-z\s\-]+)/i);
+                    if (refInLine) {
+                        customerReference = refInLine[1].trim();
+                        console.log(`✅ Found Reference in same line: "${customerReference}"`);
+                        break;
+                    }
+                    
+                    // Check the next few lines for a name
+                    for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+                        const nextLine = lines[j].trim();
+                        // Look for a name pattern (first name last name)
+                        const nameMatch = nextLine.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*(?:\s*-\s*[A-Z][a-z]*)?)$/);
+                        if (nameMatch && !nextLine.toLowerCase().includes('nieuwoudt') && !nextLine.toLowerCase().includes('braaikuikens')) {
+                            customerReference = nameMatch[1].trim();
+                            console.log(`✅ Found Reference in next line: "${customerReference}"`);
+                            break;
+                        }
+                    }
+                    if (customerReference) break;
+                }
             }
         }
         
-        // Fallback: try the old patterns if the above doesn't work
+        // If still not found, debug what we're getting
         if (!customerReference) {
-            let match = pageText.match(/Reference\s*[:.]?\s*([A-Z][A-Z\s]+)/i);
-            if (!match) {
-                match = pageText.match(/Reference\s*[:.]?\s*\n\s*([A-Z][A-Z\s]+)/i);
-            }
-            if (!match) {
-                const refIndex = pageText.toLowerCase().indexOf('reference');
-                if (refIndex !== -1) {
-                    const afterRef = pageText.substring(refIndex + 9, refIndex + 100);
-                    const nameMatch = afterRef.match(/([A-Z][A-Z\s]{3,})/);
-                    if (nameMatch) {
-                        match = nameMatch;
-                    }
-                }
-            }
-            if (match) {
-                customerReference = match[1].trim();
+            console.log(`🔍 Debug - looking for Reference in text:`, pageText.substring(0, 500));
+            // Try one more pattern - any capitalized name after reference
+            const anyRefMatch = pageText.match(/reference[^\n\r]*?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i);
+            if (anyRefMatch) {
+                customerReference = anyRefMatch[1].trim();
+                console.log(`✅ Found Reference with flexible pattern: "${customerReference}"`);
             }
         }
         
