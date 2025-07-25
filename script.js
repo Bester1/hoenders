@@ -3,7 +3,6 @@ let imports = {}; // Structure: { importId: { name, date, orders: [], invoices: 
 let currentImportId = null;
 let invoices = []; // Global invoices across all imports
 let emailQueue = [];
-let gmailConfig = {};
 let csvData = null;
 let csvHeaders = [];
 let analysisHistory = [];
@@ -69,21 +68,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Gmail API Configuration
-// Email Service Configuration
-// Option 1: Google Apps Script (RECOMMENDED - Much easier!)
+// Email Service Configuration - Google Apps Script
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBN3lIbR-ZW9ybqb5E6e0XNa7wdrfKmO8d6pQeSVXAd0WM7tT-n9M4jFO42mC1vcS1/exec'; // Paste your Web App URL here after deploying GoogleAppsScript.gs
-
-// Option 2: Gmail API (Complex - requires OAuth)
-const GMAIL_API_KEY = 'YOUR_API_KEY_HERE'; // Get from Google Cloud Console > Credentials > API Keys
-const GMAIL_CLIENT_ID = 'YOUR_CLIENT_ID_HERE.apps.googleusercontent.com'; // Get from OAuth 2.0 Client ID
-const GMAIL_DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest';
-const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.send';
-
-let gapi;
-let tokenClient;
-let isGmailInitialized = false;
-let useGoogleScript = true; // Set to false to use Gmail API instead
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -118,8 +104,8 @@ function initializeApp() {
         });
     });
 
-    // Initialize Gmail API
-    initializeGmailAPI();
+    // Initialize email status
+    updateEmailStatus();
 }
 
 // Database Functions
@@ -184,7 +170,6 @@ async function saveToDatabase() {
                 id: 'main',
                 current_import_id: currentImportId,
                 pricing: pricing,
-                gmail_config: gmailConfig,
                 email_queue: emailQueue,
                 analysis_history: analysisHistory
             });
@@ -237,7 +222,6 @@ async function loadFromDatabase() {
         if (settingsData) {
             currentImportId = settingsData.current_import_id;
             pricing = settingsData.pricing || pricing;
-            gmailConfig = settingsData.gmail_config || {};
             emailQueue = settingsData.email_queue || [];
             analysisHistory = settingsData.analysis_history || [];
         }
@@ -326,7 +310,6 @@ async function migrateToDatabase() {
         const localInvoices = JSON.parse(localStorage.getItem('plaasHoendersInvoices') || '[]');
         const localEmailQueue = JSON.parse(localStorage.getItem('plaasHoendersEmailQueue') || '[]');
         const localPricing = JSON.parse(localStorage.getItem('plaasHoendersPricing') || '{}');
-        const localGmailConfig = JSON.parse(localStorage.getItem('plaasHoendersGmailConfig') || '{}');
         const localAnalysisHistory = JSON.parse(localStorage.getItem('plaasHoendersAnalysisHistory') || '[]');
         
         // Set global variables
@@ -335,7 +318,6 @@ async function migrateToDatabase() {
         invoices = localInvoices;
         emailQueue = localEmailQueue;
         if (Object.keys(localPricing).length > 0) pricing = localPricing;
-        gmailConfig = localGmailConfig;
         analysisHistory = localAnalysisHistory;
         
         // Save to database
@@ -352,7 +334,7 @@ async function migrateToDatabase() {
             // localStorage.removeItem('plaasHoendersInvoices');
             // localStorage.removeItem('plaasHoendersEmailQueue');
             // localStorage.removeItem('plaasHoendersPricing');
-            // localStorage.removeItem('plaasHoendersGmailConfig');
+            localStorage.removeItem('plaasHoendersGmailConfig');
             // localStorage.removeItem('plaasHoendersAnalysisHistory');
             
             return true;
@@ -365,71 +347,16 @@ async function migrateToDatabase() {
     }
 }
 
-// Gmail API Functions
-async function initializeGmailAPI() {
-    try {
-        // Check if Gmail API script is loaded
-        if (typeof gapi === 'undefined') {
-            console.log('Gmail API script not loaded, skipping Gmail initialization');
-            updateGmailStatus(false, 'API not loaded');
-            return;
-        }
-
-        await new Promise((resolve, reject) => {
-            gapi.load('client', {
-                callback: resolve,
-                onerror: reject
-            });
-        });
-        
-        await gapi.client.init({
-            apiKey: GMAIL_API_KEY,
-            discoveryDocs: [GMAIL_DISCOVERY_DOC],
-        });
-
-        if (typeof google !== 'undefined' && google.accounts) {
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: GMAIL_CLIENT_ID,
-                scope: GMAIL_SCOPES,
-                callback: (response) => {
-                    if (response.access_token) {
-                        updateGmailStatus(true);
-                        addActivity('Gmail connected successfully');
-                    }
-                },
-            });
-        }
-
-        isGmailInitialized = true;
-        console.log('Gmail API initialized successfully');
-    } catch (error) {
-        console.error('Gmail API initialization failed:', error);
-        updateGmailStatus(false, 'Initialization failed');
-    }
-}
-
-function connectGmail() {
-    if (!isGmailInitialized) {
-        alert('Gmail API is not initialized. Please check your configuration.');
-        return;
-    }
-
-    if (gapi.client.getToken() === null) {
-        tokenClient.requestAccessToken({prompt: 'consent'});
-    } else {
-        tokenClient.requestAccessToken({prompt: ''});
-    }
-}
-
-function updateGmailStatus(connected, message = '') {
-    const statusElement = document.getElementById('gmailStatusText');
-    const statusIcon = document.querySelector('.gmail-status i');
+// Email Status Functions
+function updateEmailStatus() {
+    const statusElement = document.getElementById('emailStatusText');
+    const statusIcon = document.querySelector('.email-status i');
     
-    if (connected) {
-        statusElement.textContent = 'Gmail Connected';
+    if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== 'YOUR_SCRIPT_URL_HERE') {
+        statusElement.textContent = 'Google Apps Script Ready';
         statusIcon.style.color = '#4CAF50';
     } else {
-        statusElement.textContent = message || 'Gmail Disconnected';
+        statusElement.textContent = 'Google Apps Script Not Configured';
         statusIcon.style.color = '#f44336';
     }
 }
@@ -479,42 +406,6 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
     }
 }
 
-async function sendEmailViaGmail(to, subject, body) {
-    if (!gapi.client.getToken()) {
-        throw new Error('Gmail not connected. Please connect Gmail first.');
-    }
-
-    try {
-        // Create the email message
-        const email = [
-            `To: ${to}`,
-            `Subject: ${subject}`,
-            `Content-Type: text/html; charset=utf-8`,
-            '',
-            body
-        ].join('\n');
-
-        // Encode the email
-        const encodedEmail = btoa(String.fromCharCode(...new TextEncoder().encode(email)))
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=+$/, '');
-
-        // Send the email
-        const response = await gapi.client.gmail.users.messages.send({
-            userId: 'me',
-            resource: {
-                raw: encodedEmail
-            }
-        });
-
-        console.log('Email sent successfully:', response);
-        return response;
-    } catch (error) {
-        console.error('Failed to send email:', error);
-        throw error;
-    }
-}
 
 // Email queue management
 function addToEmailQueue(orderData) {
@@ -575,12 +466,8 @@ async function sendQueuedEmails() {
     for (let email of emailQueue) {
         if (email.status === 'pending') {
             try {
-                // Use Google Apps Script or Gmail API based on configuration
-                if (useGoogleScript) {
-                    await sendEmailViaGoogleScript(email.to, email.subject, email.body);
-                } else {
-                    await sendEmailViaGmail(email.to, email.subject, email.body);
-                }
+                // Use Google Apps Script for email sending
+                await sendEmailViaGoogleScript(email.to, email.subject, email.body);
                 email.status = 'sent';
                 email.sentAt = new Date().toISOString();
                 sentCount++;
@@ -646,11 +533,7 @@ async function testEmail() {
         const subject = 'Test Email from Plaas Hoenders Admin';
         const body = '<h2>Test Email</h2><p>This is a test email from your Plaas Hoenders admin panel. Email integration is working correctly!</p>';
         
-        if (useGoogleScript) {
-            await sendEmailViaGoogleScript(testEmailAddress, subject, body);
-        } else {
-            await sendEmailViaGmail(testEmailAddress, subject, body);
-        }
+        await sendEmailViaGoogleScript(testEmailAddress, subject, body);
         
         alert('Test email sent successfully!');
         addActivity(`Test email sent to ${testEmailAddress}`);
@@ -1022,7 +905,6 @@ async function saveToStorage() {
         localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
         localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
         localStorage.setItem('plaasHoendersPricing', JSON.stringify(pricing));
-        localStorage.setItem('plaasHoendersGmailConfig', JSON.stringify(gmailConfig));
         localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
     }
 }
@@ -1039,7 +921,6 @@ async function loadStoredData() {
         const storedInvoices = localStorage.getItem('plaasHoendersInvoices');
         const storedEmailQueue = localStorage.getItem('plaasHoendersEmailQueue');
         const storedPricing = localStorage.getItem('plaasHoendersPricing');
-        const storedGmailConfig = localStorage.getItem('plaasHoendersGmailConfig');
         const storedAnalysisHistory = localStorage.getItem('plaasHoendersAnalysisHistory');
         
         if (storedImports) imports = JSON.parse(storedImports);
@@ -1047,7 +928,6 @@ async function loadStoredData() {
         if (storedInvoices) invoices = JSON.parse(storedInvoices);
         if (storedEmailQueue) emailQueue = JSON.parse(storedEmailQueue);
         if (storedPricing) pricing = JSON.parse(storedPricing);
-        if (storedGmailConfig) gmailConfig = JSON.parse(storedGmailConfig);
         if (storedAnalysisHistory) analysisHistory = JSON.parse(storedAnalysisHistory);
     }
     
@@ -1077,16 +957,6 @@ function saveSettings() {
     alert('Settings saved successfully!');
 }
 
-function saveGmailConfig() {
-    gmailConfig = {
-        email: document.getElementById('gmailAddress').value,
-        password: document.getElementById('gmailPassword').value
-    };
-    
-    saveToStorage();
-    addActivity('Gmail configuration updated');
-    alert('Gmail configuration saved!');
-}
 
 function saveEmailTemplate() {
     const template = {
@@ -2078,7 +1948,6 @@ async function downloadBackup() {
             invoices: invoices,
             emailQueue: emailQueue,
             pricing: pricing,
-            gmailConfig: gmailConfig,
             analysisHistory: analysisHistory
         };
 
@@ -2133,7 +2002,6 @@ async function handleBackupUpload(event) {
         if (backupData.pricing && Object.keys(backupData.pricing).length > 0) {
             pricing = backupData.pricing;
         }
-        gmailConfig = backupData.gmailConfig || {};
         analysisHistory = backupData.analysisHistory || [];
 
         // Save restored data
@@ -2234,7 +2102,6 @@ async function resetEverything() {
         currentImportId = null;
         invoices = [];
         emailQueue = [];
-        gmailConfig = {};
         analysisHistory = [];
 
         // Refresh all UI components

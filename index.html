@@ -31,9 +31,9 @@
                 <h1 id="page-title">Dashboard</h1>
                 <div class="user-info">
                     <span>Welcome, Admin</span>
-                    <div class="gmail-status" id="gmailStatus">
+                    <div class="email-status" id="emailStatus">
                         <i class="fas fa-envelope"></i>
-                        <span id="gmailStatusText">Gmail Disconnected</span>
+                        <span id="emailStatusText">Google Apps Script Ready</span>
                     </div>
                 </div>
             </header>
@@ -210,9 +210,6 @@
                 <div class="section-header">
                     <h2>Email Center</h2>
                     <div class="email-actions">
-                        <button class="btn-primary" onclick="connectGmail()">
-                            <i class="fab fa-google"></i> Connect Gmail
-                        </button>
                         <button class="btn-secondary" onclick="testEmail()">
                             <i class="fas fa-paper-plane"></i> Send Test Email
                         </button>
@@ -221,17 +218,14 @@
 
                 <div class="email-grid">
                     <div class="email-card">
-                        <h3>Gmail Configuration</h3>
-                        <div class="form-group">
-                            <label>Gmail Address:</label>
-                            <input type="email" id="gmailAddress" placeholder="your-email@gmail.com">
+                        <h3>Google Apps Script Configuration</h3>
+                        <div class="config-info">
+                            <p>Email service is configured via Google Apps Script.</p>
+                            <p>No additional configuration needed in the admin panel.</p>
+                            <a href="GOOGLE_APPS_SCRIPT_SETUP.md" target="_blank" class="btn-secondary">
+                                <i class="fas fa-book"></i> View Setup Guide
+                            </a>
                         </div>
-                        <div class="form-group">
-                            <label>App Password:</label>
-                            <input type="password" id="gmailPassword" placeholder="Generated app password">
-                            <small>Generate an app password in your Google Account settings</small>
-                        </div>
-                        <button onclick="saveGmailConfig()" class="btn-primary">Save Configuration</button>
                     </div>
 
                     <div class="email-card">
@@ -486,7 +480,6 @@ Plaas Hoenders Team</textarea>
         </main>
     </div>
 
-    <script src="https://apis.google.com/js/api.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
 </body>
