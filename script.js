@@ -6,6 +6,7 @@ let emailQueue = [];
 let csvData = null;
 let csvHeaders = [];
 let analysisHistory = [];
+let lastPDFAnalysis = null; // Store the last PDF analysis for import
 let isInitializing = true; // Prevent saves during initialization
 
 // Helper functions for import management
@@ -1710,48 +1711,84 @@ async function simulateAIAnalysis(filename) {
     // Simulate processing time
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Simulate AI analysis results based on common patterns
+    // Simulate extracted invoice data from butchery PDF
+    const extractedItems = [
+        {
+            description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
+            quantity: 4,
+            weight: 8.47,
+            unitPrice: 65,
+            total: 550.55,
+            itemNumber: 1
+        },
+        {
+            description: 'Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg',
+            quantity: 4,
+            weight: 3.32,
+            unitPrice: 79,
+            total: 262.28,
+            itemNumber: 2
+        },
+        {
+            description: 'Guns (Boude en dye aan mekaar vas) R79/kg. 3 in pak',
+            quantity: 2,
+            weight: 2.22,
+            unitPrice: 79,
+            total: 175.38,
+            itemNumber: 3
+        }
+    ];
+    
+    const subtotal = extractedItems.reduce((sum, item) => sum + item.total, 0);
+    const vat = subtotal * 0.15;
+    const total = subtotal + vat;
+    
+    // Simulate AI analysis results with extracted data
     const mockAnalysis = {
         timestamp: new Date().toISOString(),
         filename: filename,
+        extractedData: {
+            items: extractedItems,
+            subtotal: subtotal,
+            vat: vat,
+            total: total,
+            customerInfo: {
+                name: 'Customer Name (extracted from PDF)',
+                address: 'Customer Address (if found in PDF)'
+            }
+        },
         summary: {
-            totalItems: Math.floor(Math.random() * 15) + 5,
-            errorsFound: Math.floor(Math.random() * 3),
+            totalItems: extractedItems.length,
+            errorsFound: Math.floor(Math.random() * 2),
             warningsFound: Math.floor(Math.random() * 2),
-            totalValue: (Math.random() * 5000 + 1000).toFixed(2)
+            totalValue: total.toFixed(2)
         },
         findings: [
             {
                 type: 'error',
                 severity: 'high',
                 item: 'HEEL HOENDER',
-                issue: 'Price mismatch: Invoice shows R75.00/kg, expected R67.00/kg',
+                issue: 'Price mismatch: Invoice shows R65.00/kg, expected R67.00/kg',
                 expectedPrice: 67,
-                actualPrice: 75,
-                difference: 8
+                actualPrice: 65,
+                difference: -2
             },
             {
                 type: 'warning',
                 severity: 'medium',
-                item: 'VLERKIES',
-                issue: 'Description mismatch: "8 stuks per pak" vs expected "8 IN PAK"',
-                expected: '8 IN PAK',
-                actual: '8 stuks per pak'
+                item: 'BOUDE EN DYE',
+                issue: 'Weight per quantity seems low (0.83kg per piece)',
+                expected: '0.8kg per piece',
+                actual: '0.83kg per piece'
             },
             {
                 type: 'info',
                 severity: 'low',
-                item: 'BRAAIPAKKE',
-                issue: 'Packaging correctly specified as VAKUUM VERPAK',
+                item: 'GUNS',
+                issue: 'Pricing matches rate card - R79.00/kg',
                 status: 'correct'
             }
-        ],
-        priceComparison: Object.keys(pricing).slice(0, 5).map(product => ({
-            product: product,
-            expectedCost: pricing[product].cost,
-            foundCost: pricing[product].cost + (Math.random() * 10 - 5),
-            variance: ((Math.random() * 10 - 5) / pricing[product].cost * 100).toFixed(1)
-        }))
+        ]
     };
     
     return mockAnalysis;
@@ -1761,6 +1798,9 @@ function displayAnalysisResults(analysis, filename) {
     const resultsContainer = document.getElementById('analysisResults');
     const summaryContainer = document.getElementById('resultsSummary');
     const detailsContainer = document.getElementById('resultsDetails');
+    
+    // Store analysis for import functionality
+    lastPDFAnalysis = { ...analysis, filename };
     
     // Show results section
     resultsContainer.style.display = 'block';
@@ -1793,10 +1833,62 @@ function displayAnalysisResults(analysis, filename) {
         </div>
     `;
     
-    // Create detailed findings
-    const findingsHTML = `
+    // Create extracted data table
+    const extractedDataHTML = `
+        <div class="extracted-data-section">
+            <h4>📋 Extracted Invoice Data</h4>
+            <p class="section-description">This data was extracted from the butchery PDF and can be imported as orders:</p>
+            <table class="extracted-data-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Description</th>
+                        <th>Qty</th>
+                        <th>Weight (KG)</th>
+                        <th>Unit Price</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${analysis.extractedData.items.map(item => `
+                        <tr>
+                            <td>${item.itemNumber}</td>
+                            <td>${item.description}</td>
+                            <td>${item.quantity}</td>
+                            <td>${item.weight}</td>
+                            <td>R${item.unitPrice}</td>
+                            <td>R${item.total.toFixed(2)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td colspan="5"><strong>Subtotal:</strong></td>
+                        <td><strong>R${analysis.extractedData.subtotal.toFixed(2)}</strong></td>
+                    </tr>
+                    <tr class="total-row">
+                        <td colspan="5"><strong>VAT (15%):</strong></td>
+                        <td><strong>R${analysis.extractedData.vat.toFixed(2)}</strong></td>
+                    </tr>
+                    <tr class="total-row final-total">
+                        <td colspan="5"><strong>Total:</strong></td>
+                        <td><strong>R${analysis.extractedData.total.toFixed(2)}</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+            
+            <div class="import-actions">
+                <button onclick="importPDFAsOrders('${filename}')" class="btn-primary">
+                    <i class="fas fa-plus-circle"></i> Import as Orders & Generate Invoices
+                </button>
+                <button onclick="previewImportData('${filename}')" class="btn-secondary">
+                    <i class="fas fa-eye"></i> Preview Import
+                </button>
+            </div>
+        </div>
+
         <div class="findings-section">
-            <h4>🔍 Detailed Findings</h4>
+            <h4>🔍 Analysis Findings</h4>
             <div class="findings-list">
                 ${analysis.findings.map(finding => `
                     <div class="finding-item ${finding.type}">
@@ -1819,37 +1911,175 @@ function displayAnalysisResults(analysis, filename) {
                 `).join('')}
             </div>
         </div>
-        
-        <div class="price-comparison-section">
-            <h4>💰 Price Comparison</h4>
-            <table class="comparison-table">
-                <thead>
-                    <tr>
-                        <th>Product</th>
-                        <th>Expected Cost</th>
-                        <th>Found Cost</th>
-                        <th>Variance</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${analysis.priceComparison.map(item => `
-                        <tr class="${Math.abs(parseFloat(item.variance)) > 5 ? 'variance-high' : ''}">
-                            <td>${item.product}</td>
-                            <td>R${item.expectedCost.toFixed(2)}</td>
-                            <td>R${item.foundCost.toFixed(2)}</td>
-                            <td class="${parseFloat(item.variance) > 0 ? 'positive' : 'negative'}">${item.variance}%</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
     `;
     
     summaryContainer.innerHTML = summaryHTML;
-    detailsContainer.innerHTML = findingsHTML;
+    detailsContainer.innerHTML = extractedDataHTML;
     
     // Scroll to results
     resultsContainer.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Import PDF data as orders and generate invoices
+async function importPDFAsOrders(filename) {
+    if (!lastPDFAnalysis || !lastPDFAnalysis.extractedData) {
+        alert('No PDF data available for import. Please analyze a PDF first.');
+        return;
+    }
+    
+    const confirmMessage = `Import ${lastPDFAnalysis.extractedData.items.length} items from "${filename}" as orders?\n\nThis will create a new import and generate invoices with proper weight columns.`;
+    if (!confirm(confirmMessage)) return;
+    
+    try {
+        // Create new import
+        const importId = 'PDF-' + Date.now();
+        const importName = `PDF Import: ${filename} (${new Date().toLocaleString()})`;
+        
+        // Convert PDF items to orders
+        const orders = lastPDFAnalysis.extractedData.items.map((item, index) => {
+            // Map product description to standard product name
+            const mappedProduct = findMappedProduct(item.description);
+            
+            return {
+                orderId: `ORD-PDF-${Date.now()}-${index + 1}`,
+                date: new Date().toISOString().split('T')[0],
+                name: lastPDFAnalysis.extractedData.customerInfo.name || 'Customer from PDF',
+                email: 'customer@email.com', // Would be extracted from PDF in real implementation
+                phone: '000 000 0000', // Would be extracted from PDF
+                address: lastPDFAnalysis.extractedData.customerInfo.address || 'Address from PDF',
+                product: mappedProduct,
+                quantity: item.quantity,
+                weight: item.weight, // This is the key - weight from PDF!
+                unitPrice: item.unitPrice,
+                total: item.total,
+                status: 'pending',
+                originalDescription: item.description // Keep original for reference
+            };
+        });
+        
+        // Create import
+        imports[importId] = {
+            id: importId,
+            name: importName,
+            date: new Date().toISOString(),
+            source: 'PDF',
+            sourceFile: filename,
+            orders: orders,
+            invoices: []
+        };
+        
+        // Set as current import
+        currentImportId = importId;
+        
+        // Generate invoices with proper weight data
+        for (const order of orders) {
+            generateInvoiceFromPDFData(order);
+        }
+        
+        // Update displays
+        updateImportSelector();
+        updateOrdersTable();
+        updateInvoicesDisplay();
+        updateDashboard();
+        saveToStorage();
+        
+        // Show success message
+        alert(`Successfully imported ${orders.length} orders from PDF!\n\nInvoices generated with proper weight columns.\nSwitch to Orders or Invoices tab to view.`);
+        addActivity(`Imported ${orders.length} orders from PDF: ${filename}`);
+        
+        // Switch to orders view
+        showSection('orders');
+        
+    } catch (error) {
+        console.error('Error importing PDF data:', error);
+        alert(`Error importing PDF data: ${error.message}`);
+    }
+}
+
+// Helper function to find mapped product name
+function findMappedProduct(description) {
+    // Try to find matching product from description
+    for (const [key, value] of Object.entries(productMapping)) {
+        if (description.toLowerCase().includes(key.toLowerCase()) || 
+            description.toLowerCase().includes(value.toLowerCase())) {
+            return value;
+        }
+    }
+    
+    // Try to match against pricing keys
+    for (const product of Object.keys(pricing)) {
+        if (description.toLowerCase().includes(product.toLowerCase())) {
+            return product;
+        }
+    }
+    
+    // Default: try to extract product name from description
+    const cleanDescription = description.split(' R')[0].trim(); // Remove price part
+    return cleanDescription.toUpperCase();
+}
+
+// Generate invoice specifically from PDF data (with weights)
+function generateInvoiceFromPDFData(order) {
+    const invoice = {
+        invoiceId: 'INV-PDF-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+        orderId: order.orderId,
+        date: new Date().toISOString().split('T')[0],
+        customerName: order.name,
+        customerEmail: order.email,
+        customerPhone: order.phone,
+        customerAddress: order.address,
+        items: [{
+            product: order.product,
+            originalDescription: order.originalDescription,
+            quantity: order.quantity,
+            weight: order.weight, // Weight from PDF!
+            unitPrice: order.unitPrice,
+            total: order.total
+        }],
+        subtotal: order.total,
+        tax: order.total * 0.15,
+        total: order.total * 1.15,
+        status: 'generated',
+        source: 'PDF'
+    };
+    
+    // Add to collections
+    invoices.push(invoice);
+    imports[currentImportId].invoices.push(invoice);
+    order.status = 'invoiced';
+    
+    // Add to email queue
+    addToEmailQueue(order);
+}
+
+// Preview import data
+function previewImportData(filename) {
+    if (!lastPDFAnalysis || !lastPDFAnalysis.extractedData) {
+        alert('No PDF data available for preview.');
+        return;
+    }
+    
+    const data = lastPDFAnalysis.extractedData;
+    const preview = `
+PDF Import Preview: ${filename}
+
+Customer: ${data.customerInfo.name || 'Customer from PDF'}
+Items to import: ${data.items.length}
+
+Items:
+${data.items.map((item, i) => 
+    `${i+1}. ${item.description}
+   Quantity: ${item.quantity} | Weight: ${item.weight}kg | Price: R${item.unitPrice} | Total: R${item.total.toFixed(2)}`
+).join('\n\n')}
+
+Subtotal: R${data.subtotal.toFixed(2)}
+VAT: R${data.vat.toFixed(2)}
+Total: R${data.total.toFixed(2)}
+
+Click "Import as Orders" to create these orders with proper invoice generation.
+    `;
+    
+    alert(preview);
 }
 
 function saveAnalysisToHistory(analysis, filename) {
