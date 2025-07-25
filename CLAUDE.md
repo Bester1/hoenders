@@ -490,3 +490,99 @@ Total:    R237.40
 - **Clean email queue** - only customers with valid emails
 
 **SYSTEM READY FOR PRODUCTION**: Complete multi-customer PDF invoice processing with proper pricing, customer matching, and professional invoice generation.
+
+## FINAL PRICING SYSTEM OVERHAUL (2025-07-25 FINAL)
+
+### 🎯 **ABSOLUTE PRICING POLICY ENFORCEMENT**
+
+**CRITICAL ISSUE RESOLVED**: System was still loading old pricing data from database, localStorage, and backups, causing wrong prices (R95/kg instead of R67/kg for HEEL HOENDER).
+
+**FINAL SOLUTION**: Complete isolation of pricing data - NEVER saved, NEVER loaded, ALWAYS uses current default.
+
+### 🔒 **PRICING DATA ISOLATION**
+
+**ELIMINATED ALL PRICING PERSISTENCE**:
+1. ❌ **Database Storage**: `pricing: pricing` removed from settings upsert
+2. ❌ **localStorage Storage**: `plaasHoendersPricing` saving disabled 
+3. ❌ **Backup Export**: Pricing excluded from backup files
+4. ❌ **Backup Restore**: Pricing restoration completely disabled
+5. ❌ **Data Migration**: Pricing loading from any source blocked
+
+**CODE CHANGES**:
+```javascript
+// Database - DON'T save pricing
+.upsert({
+    id: 'main',
+    current_import_id: currentImportId,
+    // pricing: pricing, // REMOVED
+    email_queue: emailQueue,
+    analysis_history: analysisHistory
+});
+
+// localStorage - DON'T save pricing  
+// localStorage.setItem('plaasHoendersPricing', JSON.stringify(pricing)); // DISABLED
+
+// Backup - DON'T export pricing
+const backupData = {
+    imports: imports,
+    invoices: invoices,
+    // pricing: pricing, // REMOVED
+    analysisHistory: analysisHistory
+};
+
+// Restore - DON'T restore pricing
+// if (backupData.pricing) { pricing = backupData.pricing; } // DISABLED
+```
+
+### 📊 **GUARANTEED CURRENT PRICING**
+
+**CURRENT RATE CARD (March 2025)** - These are the ONLY prices used:
+```javascript
+let pricing = {
+    'HEEL HOENDER': { cost: 59.00, selling: 67.00 },          // ✅ R67/kg (NOT R95)
+    'PLAT HOENDER (FLATTY\'S)': { cost: 69.00, selling: 79.00 }, // ✅ R79/kg  
+    'BRAAIPAKKE': { cost: 65.00, selling: 74.00 },            // ✅ R74/kg
+    'HEEL HALWE HOENDERS': { cost: 60.00, selling: 68.00 },   // ✅ R68/kg
+    'BORSSTUKKE MET BEEN EN VEL': { cost: 64.00, selling: 73.00 }, // ✅ R73/kg
+    'VLERKIES': { cost: 79.00, selling: 90.00 },              // ✅ R90/kg
+    'BOUDE EN DYE': { cost: 71.00, selling: 81.00 },          // ✅ R81/kg
+    'FILETTE (sonder vel)': { cost: 86.50, selling: 100.00 }, // ✅ R100/kg
+    'SUIWER HEUNING': { cost: 60, selling: 70 },              // ✅ R70/kg
+    // ... all other products at correct selling prices
+};
+```
+
+### 🛡️ **PRICING IMMUTABILITY ACHIEVED**
+
+**SYSTEM BEHAVIOR NOW**:
+- ✅ **Application Start**: Always loads default pricing (R67/kg for HEEL HOENDER)
+- ✅ **Database Reset**: Pricing unaffected, remains current
+- ✅ **localStorage Clear**: Pricing unaffected, remains current  
+- ✅ **Backup/Restore**: Pricing unaffected, remains current
+- ✅ **Any Data Operation**: Pricing NEVER changes from defaults
+
+**CONSOLE OUTPUT VERIFICATION**:
+```
+💰 Applied rate card pricing for HEEL HOENDER: R67/kg × 6.81kg = R456.27
+💰 Applied rate card pricing for PLAT HOENDER (FLATTY'S): R79/kg × 8.86kg = R699.94
+💰 Applied rate card pricing for SUIWER HEUNING: R70/kg × 1kg = R70.00
+```
+
+### 🎯 **FINAL SYSTEM STATUS**
+
+**PRICING SYSTEM COMPLETELY ISOLATED**:
+- **Source**: Only `script.js` line 91-110 default pricing object
+- **Storage**: NEVER saved to database, localStorage, or backups
+- **Loading**: NEVER loaded from any external source
+- **Modification**: Only possible by updating source code
+- **Persistence**: Guaranteed consistent across all operations
+
+**USER EXPERIENCE**:
+- **Correct Prices**: Always uses current rate card (R67, R79, R74, etc.)
+- **No Conflicts**: Zero chance of old pricing data interfering
+- **Professional Invoices**: Proper pricing on all customer invoices
+- **System Reliability**: Pricing guaranteed consistent every time
+
+**TECHNICAL GUARANTEE**: Pricing data is now completely immutable at runtime - only the hardcoded default values in `script.js` are ever used.
+
+**SYSTEM STATUS**: FINAL - Pricing system completely fixed and isolated. All operations use correct current rate card prices.

@@ -210,13 +210,13 @@ async function saveToDatabase() {
             }
         }
         
-        // Save settings
+        // Save settings (but NOT pricing - always use current default)
         const { error: settingsError } = await supabaseClient
             .from('settings')
             .upsert({
                 id: 'main',
                 current_import_id: currentImportId,
-                pricing: pricing,
+                // pricing: pricing, // DON'T save pricing - always use current default
                 email_queue: emailQueue,
                 analysis_history: analysisHistory
             });
@@ -1043,7 +1043,7 @@ async function saveToStorage() {
                 localStorage.setItem('plaasHoendersCurrentImportId', currentImportId || '');
                 localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
                 localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
-                localStorage.setItem('plaasHoendersPricing', JSON.stringify(pricing));
+                // localStorage.setItem('plaasHoendersPricing', JSON.stringify(pricing)); // DON'T save pricing
                 localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
             }
         } catch (error) {
@@ -1119,7 +1119,7 @@ function exportData() {
         orders: orders,
         invoices: invoices,
         emailQueue: emailQueue,
-        pricing: pricing,
+        // pricing: pricing, // DON'T export pricing - always use current default
         exportDate: new Date().toISOString()
     };
     
@@ -3548,7 +3548,7 @@ function deleteHistoryItem(itemId) {
 // Data Management Functions
 async function downloadBackup() {
     try {
-        // Collect all data
+        // Collect all data (but NOT pricing - always use current default)
         const backupData = {
             timestamp: new Date().toISOString(),
             version: "1.0",
@@ -3556,7 +3556,7 @@ async function downloadBackup() {
             currentImportId: currentImportId,
             invoices: invoices,
             emailQueue: emailQueue,
-            pricing: pricing,
+            // pricing: pricing, // DON'T backup pricing - always use current default
             analysisHistory: analysisHistory
         };
 
@@ -3608,9 +3608,10 @@ async function handleBackupUpload(event) {
         currentImportId = backupData.currentImportId || null;
         invoices = backupData.invoices || [];
         emailQueue = backupData.emailQueue || [];
-        if (backupData.pricing && Object.keys(backupData.pricing).length > 0) {
-            pricing = backupData.pricing;
-        }
+        // DON'T restore pricing from backup - always use current default
+        // if (backupData.pricing && Object.keys(backupData.pricing).length > 0) {
+        //     pricing = backupData.pricing;
+        // }
         analysisHistory = backupData.analysisHistory || [];
 
         // Save restored data
