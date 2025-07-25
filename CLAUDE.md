@@ -246,3 +246,86 @@ SOUTH AFRICA [Customer Name] Kontak: Ansie
 - **CHECK MEMORY FIRST** before making assumptions  
 - **DOCUMENT DISCOVERIES** immediately when found
 - **USER TESTS ON LIVE SITE** - push changes to GitHub
+
+## BREAKTHROUGH SESSION ANALYSIS (2025-07-25)
+
+### Critical Problem Diagnosis
+**ISSUE**: OCR was working perfectly, extracting all customer data, but parsing logic was completely wrong due to butchery's mislabeled invoice columns.
+
+**USER FEEDBACK**: "they made a mistake, the item is the description, and the description the item, the item is actually the quantity"
+
+### Root Cause Discovery
+The butchery created invoices with **COMPLETELY WRONG COLUMN HEADERS**:
+
+**What Headers Say vs What Data Actually Contains:**
+```
+Header Label     →  Actual Data Content
+"Item"          →  Product Description (Fillets, heuning, 4bors, boud/dy)
+"Description"   →  Quantity Count (3, 1, 6, 4) 
+"Quantity"      →  Weight in KG (2.99, 1.00, 12.75, 3.02)
+"Unit Price"    →  Correct Unit Price (88.50, 60.00, 64.00, 71.00)
+"Amount ZAR"    →  Correct Total Amount (264.62, 60.00, 816.00, 214.42)
+```
+
+### Technical Implementation Fix
+**BEFORE (Wrong)**: Used header labels literally
+```javascript
+const description = descriptionColumn;  // WRONG - gets count numbers
+const quantity = quantityColumn;        // WRONG - gets weight
+```
+
+**AFTER (Correct)**: Map based on actual content
+```javascript
+const description = itemColumn;         // "Item" = product name
+const quantity = descriptionColumn;     // "Description" = count
+const weight = quantityColumn;          // "Quantity" = weight in kg
+const price = unitPriceColumn;          // "Unit Price" = correct
+const total = amountColumn;             // "Amount ZAR" = correct
+```
+
+### OCR Customer Extraction Pattern
+**Pattern Discovery**: Customer names are embedded in OCR text as:
+```
+SOUTH AFRICA [Customer Name] Kontak: Ansie Nieuwoudt
+```
+
+**Extraction Logic**:
+```javascript
+const southAfricaIndex = pageText.indexOf('SOUTH AFRICA');
+const kontakIndex = pageText.indexOf('Kontak:');
+const nameSection = pageText.substring(southAfricaIndex + 12, kontakIndex).trim();
+const customerName = nameSection.match(/([A-Za-z]+\s+[A-Za-z]+)/)[1];
+```
+
+**Results**: Successfully extracts "Aleshia Smit", "Chris Fourie", "Estene Uys", "Mathilde Pieterse"
+
+### Multi-Customer Processing Success
+- **26 pages processed** with OCR (pages 1-26)
+- **Customer names extracted** from each page correctly  
+- **Items parsed** with correct quantity/weight mapping
+- **All data ready** for invoice generation
+
+### System Architecture Validation
+1. **PDF.js fails** → Detects scanned PDF (no text)
+2. **OCR kicks in** → Tesseract.js processes each page as image  
+3. **Text extraction** → Gets raw OCR text from each page
+4. **Customer parsing** → Finds names between "SOUTH AFRICA" and "Kontak:"
+5. **Item parsing** → Maps mislabeled columns to correct data
+6. **Invoice generation** → Creates orders with proper structure
+
+### Key Learnings for Future
+- **NEVER TRUST COLUMN HEADERS** - always verify against actual data
+- **OCR TEXT PATTERNS** are different from PDF text patterns
+- **BUTCHERY ERRORS** are systematic - document and compensate
+- **USER FEEDBACK** often reveals critical system misunderstandings
+- **REAL DATA BEATS ASSUMPTIONS** every time
+
+### Current Status (Post-Fix)
+✅ **OCR Processing**: Working perfectly (26 pages processed)  
+✅ **Customer Extraction**: Fixed (proper names extracted)  
+✅ **Column Mapping**: Corrected (handles mislabeled headers)  
+✅ **Multi-Customer**: Ready (all customers and items parsed)  
+✅ **Memory Updated**: All discoveries documented  
+✅ **Code Pushed**: Live site has latest fixes  
+
+**NEXT**: User will test on live site to verify complete end-to-end functionality.
