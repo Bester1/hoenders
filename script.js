@@ -891,11 +891,10 @@ function updateInvoicesDisplay(importId = null) {
                     <p><strong>Customer:</strong> ${invoice.customerName}</p>
                     <p><strong>Date:</strong> ${invoice.date}</p>
                     <p><strong>Items:</strong> ${itemsSummary}</p>
-                    ${invoice.source === 'PDF' ? `<p><strong>Source:</strong> 📄 Butchery Invoice (Delivered quantities)</p>` : ''}
                     ${invoice.items && invoice.items[0] && invoice.items[0].weight ? 
                         `<p><strong>Weight:</strong> ${invoice.items.reduce((sum, item) => sum + (item.weight || 0), 0).toFixed(2)}kg</p>` : ''}
                     <p><strong>Subtotal:</strong> R${invoice.subtotal.toFixed(2)}</p>
-                    ${invoice.tax > 0 ? `<p><strong>VAT (15%):</strong> R${invoice.tax.toFixed(2)}</p>` : '<p><strong>VAT:</strong> R0.00 (No VAT - Butchery Invoice)</p>'}
+                    ${invoice.tax > 0 ? `<p><strong>VAT (15%):</strong> R${invoice.tax.toFixed(2)}</p>` : ''}
                     <p><strong>Total:</strong> R${invoice.total.toFixed(2)}</p>
                 </div>
                 <div class="invoice-actions">
@@ -1642,10 +1641,10 @@ function previewInvoice(invoiceId) {
                                     <span>Subtotal:</span>
                                     <span>R${invoice.subtotal.toFixed(2)}</span>
                                 </div>
-                                <div class="total-row">
-                                    <span>${invoice.tax > 0 ? 'VAT (15%):' : 'VAT:'}</span>
-                                    <span>R${invoice.tax.toFixed(2)}${invoice.tax === 0 ? ' (No VAT - Butchery Invoice)' : ''}</span>
-                                </div>
+                                ${invoice.tax > 0 ? `<div class="total-row">
+                                    <span>VAT (15%):</span>
+                                    <span>R${invoice.tax.toFixed(2)}</span>
+                                </div>` : ''}
                                 <div class="total-row final">
                                     <span><strong>Total:</strong></span>
                                     <span><strong>R${invoice.total.toFixed(2)}</strong></span>
