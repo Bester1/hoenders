@@ -7,6 +7,7 @@ let gmailConfig = {};
 let csvData = null;
 let csvHeaders = [];
 let analysisHistory = [];
+let isInitializing = true; // Prevent saves during initialization
 
 // Helper functions for import management
 function getCurrentOrders() {
@@ -89,6 +90,11 @@ document.addEventListener('DOMContentLoaded', function() {
     setupPDFDragDrop();
     // Initialize data status on load
     setTimeout(refreshDataStatus, 1000);
+    // Finish initialization to allow saves
+    setTimeout(() => {
+        isInitializing = false;
+        console.log('Application initialization complete');
+    }, 2000);
 });
 
 function initializeApp() {
@@ -141,6 +147,11 @@ async function initializeDatabase() {
 }
 
 async function saveToDatabase() {
+    // Skip save during initialization to prevent excessive calls
+    if (isInitializing) {
+        return true;
+    }
+
     try {
         // Save imports
         for (const [importId, importData] of Object.entries(imports)) {
@@ -351,8 +362,18 @@ async function migrateToDatabase() {
 // Gmail API Functions
 async function initializeGmailAPI() {
     try {
-        await new Promise((resolve) => {
-            gapi.load('client', resolve);
+        // Check if Gmail API script is loaded
+        if (typeof gapi === 'undefined') {
+            console.log('Gmail API script not loaded, skipping Gmail initialization');
+            updateGmailStatus(false, 'API not loaded');
+            return;
+        }
+
+        await new Promise((resolve, reject) => {
+            gapi.load('client', {
+                callback: resolve,
+                onerror: reject
+            });
         });
         
         await gapi.client.init({
@@ -360,16 +381,18 @@ async function initializeGmailAPI() {
             discoveryDocs: [GMAIL_DISCOVERY_DOC],
         });
 
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: GMAIL_CLIENT_ID,
-            scope: GMAIL_SCOPES,
-            callback: (response) => {
-                if (response.access_token) {
-                    updateGmailStatus(true);
-                    addActivity('Gmail connected successfully');
-                }
-            },
-        });
+        if (typeof google !== 'undefined' && google.accounts) {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GMAIL_CLIENT_ID,
+                scope: GMAIL_SCOPES,
+                callback: (response) => {
+                    if (response.access_token) {
+                        updateGmailStatus(true);
+                        addActivity('Gmail connected successfully');
+                    }
+                },
+            });
+        }
 
         isGmailInitialized = true;
         console.log('Gmail API initialized successfully');
@@ -1475,8 +1498,22 @@ function viewOrderDetails(orderId) {
 }
 
 function previewInvoice(invoiceId) {
-    const invoice = invoices.find(i => i.invoiceId === invoiceId);
-    if (!invoice) return;
+    // Look for invoice in current import first, then global invoices
+    let invoice;
+    
+    if (currentImportId && imports[currentImportId] && imports[currentImportId].invoices) {
+        invoice = imports[currentImportId].invoices.find(i => i.invoiceId === invoiceId);
+    }
+    
+    // Fallback to global invoices
+    if (!invoice) {
+        invoice = invoices.find(i => i.invoiceId === invoiceId);
+    }
+    
+    if (!invoice) {
+        alert('Invoice not found');
+        return;
+    }
     
     const previewHTML = `
         <div class="invoice-preview-modal">
