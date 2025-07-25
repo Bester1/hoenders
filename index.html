@@ -131,7 +131,7 @@
                     <div class="import-options">
                         <div class="csv-upload">
                             <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleCSVUpload(event)">
-                            <button onclick="document.getElementById('csvFileInput').click()" class="btn-secondary">
+                            <button onclick="triggerCSVUpload()" class="btn-secondary">
                                 <i class="fas fa-file-csv"></i> Upload CSV File
                             </button>
                             <span id="csvFileName" class="file-name"></span>
@@ -312,7 +312,7 @@ Plaas Hoenders Team</textarea>
                         <h3>📄 Import Butchery Invoice PDF</h3>
                         <div class="upload-area" id="pdfUploadArea">
                             <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;" onchange="handlePDFUpload(event)">
-                            <div class="upload-placeholder" onclick="document.getElementById('pdfFileInput').click()">
+                            <div class="upload-placeholder" onclick="triggerPDFUpload()">
                                 <i class="fas fa-cloud-upload-alt"></i>
                                 <p><strong>Click to import your butchery invoice PDF</strong></p>
                                 <p>Or drag & drop the PDF file here</p>
@@ -435,7 +435,7 @@ Plaas Hoenders Team</textarea>
                             <h4>📤 Restore Data</h4>
                             <p>Upload and restore from a backup file</p>
                             <input type="file" id="backupFileInput" accept=".json" style="display: none;" onchange="handleBackupUpload(event)">
-                            <button onclick="document.getElementById('backupFileInput').click()" class="btn-secondary">
+                            <button onclick="triggerBackupUpload()" class="btn-secondary">
                                 <i class="fas fa-upload"></i> Restore Backup
                             </button>
                         </div>
@@ -483,6 +483,11 @@ Plaas Hoenders Team</textarea>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Configure PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
     <script src="script.js"></script>
 </body>
 </html>

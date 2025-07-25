@@ -1507,3 +1507,134 @@ body {
         display: block !important;
     }
 }
+
+/* Multi-customer PDF display styles */
+.customer-section {
+    margin-bottom: 30px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    background: #fafafa;
+}
+
+.customer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #007bff;
+}
+
+.customer-header h5 {
+    margin: 0;
+    color: #333;
+    font-size: 1.1em;
+}
+
+.customer-stats {
+    display: flex;
+    gap: 20px;
+    font-size: 0.9em;
+    color: #666;
+}
+
+.customer-stats span {
+    background: white;
+    padding: 4px 12px;
+    border-radius: 15px;
+    border: 1px solid #ddd;
+}
+
+.customer-table {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.overall-summary {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f0f8ff;
+    border-radius: 8px;
+    border: 1px solid #007bff;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.summary-row span {
+    font-size: 1.1em;
+}
+
+/* Reconciliation styles */
+.reconciliation-section {
+    padding: 20px 0;
+}
+
+.customer-reconciliation {
+    margin-bottom: 25px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    background: white;
+}
+
+.customer-reconciliation.has-differences {
+    border-color: #ff9800;
+    background: #fff8f0;
+}
+
+.status-badge {
+    font-size: 0.85em;
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-weight: 500;
+}
+
+.status-badge.differences {
+    background: #ff9800;
+    color: white;
+}
+
+.status-badge.matched {
+    background: #4caf50;
+    color: white;
+}
+
+.reconciliation-table {
+    width: 100%;
+    margin-top: 15px;
+    border-collapse: collapse;
+}
+
+.reconciliation-table th,
+.reconciliation-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.reconciliation-table tr.has-difference {
+    background: #fff3e0;
+}
+
+.difference.shortage {
+    color: #d32f2f;
+    font-weight: 500;
+}
+
+.difference.surplus {
+    color: #388e3c;
+    font-weight: 500;
+}
+
+.reconciliation-actions {
+    margin-top: 30px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}

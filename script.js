@@ -457,6 +457,23 @@ function addToEmailQueue(orderData) {
     saveToStorage();
 }
 
+// Multi-product version for PDF imports
+function addToEmailQueueMultiProduct(orderData) {
+    const emailData = {
+        id: Date.now(),
+        to: orderData.email,
+        subject: generateEmailSubjectMultiProduct(orderData),
+        body: generateEmailBodyMultiProduct(orderData),
+        orderData: orderData,
+        status: 'pending',
+        timestamp: new Date().toISOString()
+    };
+    
+    emailQueue.push(emailData);
+    updateEmailQueueDisplay();
+    saveToStorage();
+}
+
 function generateEmailSubject(orderData) {
     const template = document.getElementById('emailSubject').value;
     return template
@@ -472,6 +489,30 @@ function generateEmailBody(orderData) {
         .replace('{productName}', orderData.product)
         .replace('{quantity}', orderData.quantity)
         .replace('{total}', orderData.total);
+}
+
+// Multi-product email generation functions
+function generateEmailSubjectMultiProduct(orderData) {
+    const template = document.getElementById('emailSubject').value;
+    return template
+        .replace('{orderNumber}', orderData.orderId)
+        .replace('{customerName}', orderData.name);
+}
+
+function generateEmailBodyMultiProduct(orderData) {
+    const template = document.getElementById('emailTemplate').value;
+    
+    // Build product list for multi-product orders
+    const productList = orderData.products.map(product => 
+        `- ${product.originalDescription || product.product}: ${product.quantity} qty, ${product.weight}kg @ R${product.unitPrice}/kg = R${product.total.toFixed(2)}`
+    ).join('\n');
+    
+    return template
+        .replace('{customerName}', orderData.name)
+        .replace('{orderNumber}', orderData.orderId)
+        .replace('{productName}', `Multiple items:\n${productList}`)
+        .replace('{quantity}', orderData.products.length + ' items')
+        .replace('{total}', orderData.total.toFixed(2));
 }
 
 async function sendQueuedEmails() {
@@ -818,8 +859,11 @@ function updateInvoicesDisplay(importId = null) {
                     <p><strong>Customer:</strong> ${invoice.customerName}</p>
                     <p><strong>Date:</strong> ${invoice.date}</p>
                     <p><strong>Items:</strong> ${itemsSummary}</p>
+                    ${invoice.source === 'PDF' ? `<p><strong>Source:</strong> 📄 Butchery Invoice (Delivered quantities)</p>` : ''}
+                    ${invoice.items && invoice.items[0] && invoice.items[0].weight ? 
+                        `<p><strong>Weight:</strong> ${invoice.items.reduce((sum, item) => sum + (item.weight || 0), 0).toFixed(2)}kg</p>` : ''}
                     <p><strong>Subtotal:</strong> R${invoice.subtotal.toFixed(2)}</p>
-                    <p><strong>VAT (15%):</strong> R${invoice.tax.toFixed(2)}</p>
+                    ${invoice.tax > 0 ? `<p><strong>VAT (15%):</strong> R${invoice.tax.toFixed(2)}</p>` : '<p><strong>VAT:</strong> R0.00 (No VAT - Butchery Invoice)</p>'}
                     <p><strong>Total:</strong> R${invoice.total.toFixed(2)}</p>
                 </div>
                 <div class="invoice-actions">
@@ -935,20 +979,34 @@ function showSection(sectionId) {
 }
 
 // Storage functions - Now with Supabase integration
+// Debounced save to prevent excessive database calls
+let saveTimeout;
 async function saveToStorage() {
-    // Try to save to database first
-    const databaseSaved = await saveToDatabase();
-    
-    if (!databaseSaved) {
-        // Fallback to localStorage if database fails
-        console.log('Falling back to localStorage');
-        localStorage.setItem('plaasHoendersImports', JSON.stringify(imports));
-        localStorage.setItem('plaasHoendersCurrentImportId', currentImportId || '');
-        localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
-        localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
-        localStorage.setItem('plaasHoendersPricing', JSON.stringify(pricing));
-        localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
+    // Clear existing timeout
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
     }
+    
+    // Set new timeout to batch saves
+    saveTimeout = setTimeout(async () => {
+        try {
+            // Try to save to database first
+            const databaseSaved = await saveToDatabase();
+            
+            if (!databaseSaved) {
+                // Fallback to localStorage if database fails
+                console.log('Falling back to localStorage');
+                localStorage.setItem('plaasHoendersImports', JSON.stringify(imports));
+                localStorage.setItem('plaasHoendersCurrentImportId', currentImportId || '');
+                localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
+                localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
+                localStorage.setItem('plaasHoendersPricing', JSON.stringify(pricing));
+                localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
+            }
+        } catch (error) {
+            console.error('Error in saveToStorage:', error);
+        }
+    }, 500); // Wait 500ms before saving to batch multiple rapid calls
 }
 
 async function loadStoredData() {
@@ -1525,17 +1583,19 @@ function previewInvoice(invoiceId) {
                             <table class="invoice-items-table">
                                 <thead>
                                     <tr>
-                                        <th>Product</th>
+                                        <th>Description</th>
                                         <th>Quantity</th>
-                                        <th>Unit Price</th>
+                                        ${invoice.source === 'PDF' ? '<th>KG</th>' : ''}
+                                        <th>Price</th>
                                         <th>Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     ${invoice.items.map(item => `
                                         <tr>
-                                            <td>${item.product}</td>
+                                            <td>${item.originalDescription || item.product}</td>
                                             <td>${item.quantity}</td>
+                                            ${invoice.source === 'PDF' && item.weight ? `<td>${item.weight.toFixed(2)}</td>` : ''}
                                             <td>R${item.unitPrice.toFixed(2)}</td>
                                             <td>R${item.total.toFixed(2)}</td>
                                         </tr>
@@ -1551,8 +1611,8 @@ function previewInvoice(invoiceId) {
                                     <span>R${invoice.subtotal.toFixed(2)}</span>
                                 </div>
                                 <div class="total-row">
-                                    <span>VAT (15%):</span>
-                                    <span>R${invoice.tax.toFixed(2)}</span>
+                                    <span>${invoice.tax > 0 ? 'VAT (15%):' : 'VAT:'}</span>
+                                    <span>R${invoice.tax.toFixed(2)}${invoice.tax === 0 ? ' (No VAT - Butchery Invoice)' : ''}</span>
                                 </div>
                                 <div class="total-row final">
                                     <span><strong>Total:</strong></span>
@@ -1662,6 +1722,52 @@ function setupPDFDragDrop() {
     });
 }
 
+// Safely trigger file input clicks
+function triggerPDFUpload() {
+    try {
+        const fileInput = document.getElementById('pdfFileInput');
+        if (fileInput) {
+            fileInput.click();
+        } else {
+            console.error('PDF file input element not found');
+            alert('Upload functionality not available. Please refresh the page and try again.');
+        }
+    } catch (error) {
+        console.error('Error triggering PDF upload:', error);
+        alert('Error opening file dialog. Please refresh the page and try again.');
+    }
+}
+
+function triggerCSVUpload() {
+    try {
+        const fileInput = document.getElementById('csvFileInput');
+        if (fileInput) {
+            fileInput.click();
+        } else {
+            console.error('CSV file input element not found');
+            alert('CSV upload functionality not available. Please refresh the page and try again.');
+        }
+    } catch (error) {
+        console.error('Error triggering CSV upload:', error);
+        alert('Error opening file dialog. Please refresh the page and try again.');
+    }
+}
+
+function triggerBackupUpload() {
+    try {
+        const fileInput = document.getElementById('backupFileInput');
+        if (fileInput) {
+            fileInput.click();
+        } else {
+            console.error('Backup file input element not found');
+            alert('Backup upload functionality not available. Please refresh the page and try again.');
+        }
+    } catch (error) {
+        console.error('Error triggering backup upload:', error);
+        alert('Error opening file dialog. Please refresh the page and try again.');
+    }
+}
+
 async function handlePDFUpload(event) {
     const file = event.target.files[0];
     if (!file || file.type !== 'application/pdf') {
@@ -1687,10 +1793,41 @@ async function handlePDFUpload(event) {
     }
 }
 
-async function analyzePDFContent(_, filename) {
+async function analyzePDFContent(arrayBuffer, filename) {
     try {
-        // Simulate AI analysis (in a real implementation, you'd send this to an AI service)
-        const analysisResult = await simulateAIAnalysis(filename);
+        console.log('🔍 Starting REAL PDF analysis...');
+        
+        // Load the PDF document
+        const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
+        const pdfDoc = await loadingTask.promise;
+        const numPages = pdfDoc.numPages;
+        
+        console.log(`📄 PDF loaded: ${numPages} pages found`);
+        
+        const extractedCustomers = [];
+        
+        // Process each page
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+            console.log(`📄 Processing page ${pageNum}/${numPages}...`);
+            
+            const page = await pdfDoc.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            
+            // Extract text from page
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            
+            // Parse customer and items from page text
+            const customerData = parseInvoicePage(pageText, pageNum);
+            if (customerData) {
+                extractedCustomers.push(customerData);
+                console.log(`✅ Found customer: ${customerData.reference} on page ${pageNum}`);
+            }
+        }
+        
+        console.log(`✅ Extracted ${extractedCustomers.length} customers from PDF`);
+        
+        // Create analysis result in expected format
+        const analysisResult = createAnalysisResult(extractedCustomers, filename);
         
         // Display results
         displayAnalysisResults(analysisResult, filename);
@@ -1707,100 +1844,257 @@ async function analyzePDFContent(_, filename) {
     }
 }
 
-async function simulateAIAnalysis(filename) {
-    // Simulate processing multiple pages with progress
-    console.log(`Processing ${filename} - scanning for pages...`);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log('Found 25 pages, extracting table data from each page...');
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    console.log('Extracted all items from PDF pages, analyzing data...');
-    
-    // Simulate extracted invoice data from MULTI-PAGE butchery PDF - EXACT FORMAT
-    // In real implementation, this would process all 25 pages and extract ALL table rows
-    const extractedItems = [
-        // Page 1 items
-        {
-            description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
-            quantity: 4,
-            weight: 8.47,
-            price: 65,
-            total: 550.55
-        },
-        {
-            description: 'Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg',
-            quantity: 4,
-            weight: 3.32,
-            price: 79,
-            total: 262.28
-        },
-        // Page 2 items
-        {
-            description: 'Guns (Boude en dye aan mekaar vas) R79/kg. 3 in pak',
-            quantity: 2,
-            weight: 2.22,
-            price: 79,
-            total: 175.38
-        },
-        {
-            description: 'Vlerkies R90/kg 8 in n pak',
-            quantity: 3,
-            weight: 1.8,
-            price: 90,
-            total: 162.00
-        },
-        // Page 3 items
-        {
-            description: 'Fillets sonder vel R100/kg +-900gr 4 fillets per pak',
-            quantity: 2,
-            weight: 1.8,
-            price: 100,
-            total: 180.00
-        },
-        {
-            description: 'Lewer - In 500 g bakkies verpak R31/kg',
-            quantity: 6,
-            weight: 3.0,
-            price: 31,
-            total: 93.00
-        },
-        // More pages would continue...
-        // Simulate processing 25 pages of data
-        {
-            description: 'Ontbeende hoender R125/kg 1kg - 1.4kg',
-            quantity: 1,
-            weight: 1.2,
-            price: 125,
-            total: 150.00
-        },
-        {
-            description: 'Hoender Patties 4 in pak (120-140gr/patty) R120/kg',
-            quantity: 2,
-            weight: 1.0,
-            price: 120,
-            total: 120.00
+// Parse invoice page text to extract customer and items
+function parseInvoicePage(pageText, pageNumber) {
+    try {
+        // Look for Reference field (customer name)
+        const referenceMatch = pageText.match(/Reference\s*([A-Z\s]+?)(?=\s*Description|$)/i);
+        if (!referenceMatch) {
+            console.log(`⚠️ No Reference found on page ${pageNumber}`);
+            return null;
         }
-    ];
+        
+        const customerReference = referenceMatch[1].trim();
+        console.log(`📋 Parsing invoice for: ${customerReference}`);
+        
+        // Extract table data - look for patterns like "Heel Hoender..." followed by numbers
+        const items = [];
+        
+        // Pattern to match invoice lines: Description, Quantity, KG, Price, Total
+        // Example: "Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg 4 8.47 65 550.55"
+        const linePattern = /([A-Za-z\s\-\.]+(?:R\d+\/kg)?)\s+(\d+)\s+(\d+\.\d+)\s+(\d+)\s+(\d+\.\d+)/g;
+        
+        let match;
+        while ((match = linePattern.exec(pageText)) !== null) {
+            const [_, description, quantity, weight, price, total] = match;
+            
+            items.push({
+                description: description.trim(),
+                quantity: parseInt(quantity),
+                weight: parseFloat(weight),
+                price: parseFloat(price),
+                total: parseFloat(total)
+            });
+        }
+        
+        if (items.length === 0) {
+            console.log(`⚠️ No items found for ${customerReference} on page ${pageNumber}`);
+            return null;
+        }
+        
+        return {
+            reference: customerReference,
+            pageNumber: pageNumber,
+            items: items
+        };
+        
+    } catch (error) {
+        console.error(`Error parsing page ${pageNumber}:`, error);
+        return null;
+    }
+}
+
+// Create analysis result in expected format
+function createAnalysisResult(extractedCustomers, filename) {
+    const allItems = extractedCustomers.flatMap(customer => 
+        customer.items.map(item => ({
+            ...item,
+            customerReference: customer.reference,
+            pageNumber: customer.pageNumber
+        }))
+    );
     
-    const subtotal = extractedItems.reduce((sum, item) => sum + item.total, 0);
-    // NO VAT - butchery invoice doesn't have VAT
-    const total = subtotal;
+    const subtotal = allItems.reduce((sum, item) => sum + item.total, 0);
+    const total = subtotal; // NO VAT
     
-    // Simulate AI analysis results with extracted data
-    const mockAnalysis = {
+    return {
         timestamp: new Date().toISOString(),
         filename: filename,
         extractedData: {
-            items: extractedItems,
+            customers: extractedCustomers,
+            allItems: allItems,
             subtotal: subtotal,
-            total: total, // NO VAT on butchery invoices
-            customerInfo: {
-                reference: 'JEAN DREYER', // Extracted from Reference field
-                name: 'JEAN DREYER',
-                address: 'Customer Address (if found in PDF)'
-            }
+            total: total,
+            customerCount: extractedCustomers.length,
+            multiCustomer: true
         },
         summary: {
-            totalItems: extractedItems.length,
+            totalItems: allItems.length,
+            customersFound: extractedCustomers.length,
+            pagesProcessed: extractedCustomers.length,
+            errorsFound: 0,
+            warningsFound: 0,
+            totalValue: total.toFixed(2)
+        },
+        findings: [] // No mock findings - real data only
+    };
+}
+
+async function simulateAIAnalysis(filename) {
+    try {
+        // Simulate processing multiple pages with progress
+        console.log(`Processing ${filename} - scanning for pages...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('Found 25 pages, extracting table data from each page...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        console.log('Extracted all items from PDF pages, analyzing data...');
+    
+        console.log('Step 1: Creating extractedCustomers array...');
+        
+        // Simulate MULTI-CUSTOMER PDF - Each page is different customer invoice
+        // In real implementation, this would process all 25 pages and extract customer + items per page
+        const extractedCustomers = [
+        {
+            reference: 'JEAN DREYER',
+            pageNumber: 1,
+            items: [
+                {
+                    description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
+                    quantity: 4,
+                    weight: 8.47,
+                    price: 65,
+                    total: 550.55
+                },
+                {
+                    description: 'Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg',
+                    quantity: 2,
+                    weight: 1.6,
+                    price: 79,
+                    total: 126.40
+                }
+            ]
+        },
+        {
+            reference: 'MARIE SMITH',
+            pageNumber: 2,
+            items: [
+                {
+                    description: 'Vlerkies R90/kg 8 in n pak',
+                    quantity: 3,
+                    weight: 1.8,
+                    price: 90,
+                    total: 162.00
+                }
+            ]
+        },
+        {
+            reference: 'PIETER VAN WYK',
+            pageNumber: 3,
+            items: [
+                {
+                    description: 'Fillets sonder vel R100/kg +-900gr 4 fillets per pak',
+                    quantity: 1,
+                    weight: 0.9,
+                    price: 100,
+                    total: 90.00
+                },
+                {
+                    description: 'Lewer - In 500 g bakkies verpak R31/kg',
+                    quantity: 2,
+                    weight: 1.0,
+                    price: 31,
+                    total: 31.00
+                }
+            ]
+        },
+        {
+            reference: 'ANNA WILLIAMS',
+            pageNumber: 4,
+            items: [
+                {
+                    description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
+                    quantity: 2,
+                    weight: 3.8,
+                    price: 65,
+                    total: 247.00
+                }
+            ]
+        },
+        {
+            reference: 'JOHN TAYLOR',
+            pageNumber: 5,
+            items: [
+                {
+                    description: 'Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg',
+                    quantity: 3,
+                    weight: 2.4,
+                    price: 79,
+                    total: 189.60
+                },
+                {
+                    description: 'Vlerkies R90/kg 8 in n pak',
+                    quantity: 1,
+                    weight: 0.6,
+                    price: 90,
+                    total: 54.00
+                }
+            ]
+        },
+        {
+            reference: 'SUSAN BROWN',
+            pageNumber: 6,
+            items: [
+                {
+                    description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
+                    quantity: 1,
+                    weight: 1.9,
+                    price: 65,
+                    total: 123.50
+                }
+            ]
+        },
+        {
+            reference: 'DAVID JONES',
+            pageNumber: 7,
+            items: [
+                {
+                    description: 'Fillets sonder vel R100/kg +-900gr 4 fillets per pak',
+                    quantity: 2,
+                    weight: 1.8,
+                    price: 100,
+                    total: 180.00
+                }
+            ]
+        }
+        // Simulating 7 customers for now instead of full 25 for testing
+    ];
+    
+        console.log('Step 2: extractedCustomers created with', extractedCustomers.length, 'customers');
+        
+        // Flatten all items for display but keep customer structure
+        console.log('Step 3: Creating allItems array...');
+        const allItems = extractedCustomers.flatMap(customer => 
+        customer.items.map(item => ({
+            ...item,
+            customerReference: customer.reference,
+            pageNumber: customer.pageNumber
+        }))
+    );
+    
+        console.log('Step 4: allItems created with', allItems.length, 'items');
+        
+        const subtotal = allItems.reduce((sum, item) => sum + item.total, 0);
+        // NO VAT - butchery invoice doesn't have VAT
+        const total = subtotal;
+        
+        console.log('Step 5: Calculated totals - subtotal:', subtotal);
+        
+        // Simulate AI analysis results with extracted data
+        console.log('Step 6: Creating mockAnalysis object...');
+        const mockAnalysis = {
+        timestamp: new Date().toISOString(),
+        filename: filename,
+        extractedData: {
+            customers: extractedCustomers, // Multiple customers with their items
+            allItems: allItems, // Flattened items for display
+            subtotal: subtotal,
+            total: total, // NO VAT on butchery invoices
+            customerCount: extractedCustomers.length,
+            multiCustomer: true
+        },
+        summary: {
+            totalItems: allItems.length,
+            customersFound: extractedCustomers.length,
             pagesProcessed: 25, // Simulate 25-page PDF
             errorsFound: Math.floor(Math.random() * 2),
             warningsFound: Math.floor(Math.random() * 2),
@@ -1834,19 +2128,83 @@ async function simulateAIAnalysis(filename) {
         ]
     };
     
-    return mockAnalysis;
+        console.log('Step 7: mockAnalysis object created successfully');
+        console.log('Step 8: Final logging...');
+        
+        console.log('📊 Analysis complete:', {
+            customersFound: extractedCustomers.length,
+            customers: extractedCustomers.map(c => c.reference),
+            totalItems: allItems.length,
+            multiCustomer: mockAnalysis.extractedData.multiCustomer
+        });
+        
+        return mockAnalysis;
+    } catch (error) {
+        console.error('❌ Error in simulateAIAnalysis:', error);
+        console.error('Stack trace:', error.stack);
+        // Return a minimal valid structure to prevent further errors
+        return {
+            timestamp: new Date().toISOString(),
+            filename: filename,
+            extractedData: {
+                customers: [],
+                allItems: [],
+                subtotal: 0,
+                total: 0,
+                customerCount: 0,
+                multiCustomer: false
+            },
+            summary: {
+                totalItems: 0,
+                customersFound: 0,
+                pagesProcessed: 0,
+                errorsFound: 1,
+                warningsFound: 0,
+                totalValue: '0.00'
+            },
+            findings: [{
+                type: 'error',
+                severity: 'high',
+                item: 'PDF Processing',
+                issue: 'Failed to process PDF: ' + error.message
+            }]
+        };
+    }
 }
 
 function displayAnalysisResults(analysis, filename) {
-    const resultsContainer = document.getElementById('analysisResults');
-    const summaryContainer = document.getElementById('resultsSummary');
-    const detailsContainer = document.getElementById('resultsDetails');
+    try {
+        const resultsContainer = document.getElementById('analysisResults');
+        const summaryContainer = document.getElementById('resultsSummary');
+        const detailsContainer = document.getElementById('resultsDetails');
+        
+        if (!resultsContainer || !summaryContainer || !detailsContainer) {
+            console.error('❌ Required DOM elements not found');
+            return;
+        }
+        
+        console.log('📋 Displaying analysis results:', {
+            hasAnalysis: !!analysis,
+            hasExtractedData: !!analysis?.extractedData,
+            hasCustomers: !!analysis?.extractedData?.customers,
+            customerCount: analysis?.extractedData?.customers?.length || 0,
+            multiCustomer: analysis?.extractedData?.multiCustomer,
+            allData: analysis
+        });
+        
+        // Store analysis for import functionality
+        lastPDFAnalysis = { ...analysis, filename };
     
-    // Store analysis for import functionality
-    lastPDFAnalysis = { ...analysis, filename };
-    
-    // Show results section
-    resultsContainer.style.display = 'block';
+        // Make sure we're on the PDF analysis section
+        const currentSection = document.querySelector('.content-section.active');
+        
+        if (currentSection && currentSection.id !== 'pdf-analysis') {
+            console.log('🔄 Switching to PDF analysis section');
+            showSection('pdf-analysis');
+        }
+        
+        // Show results section
+        resultsContainer.style.display = 'block';
     
     // Create summary
     const summaryHTML = `
@@ -1859,6 +2217,10 @@ function displayAnalysisResults(analysis, filename) {
                 <div class="summary-stat">
                     <span class="stat-label">Pages Processed</span>
                     <span class="stat-value">${analysis.summary.pagesProcessed || 'N/A'}</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-label">Customers Found</span>
+                    <span class="stat-value">${analysis.summary.customersFound || analysis.summary.totalCustomers || 'N/A'}</span>
                 </div>
                 <div class="summary-stat">
                     <span class="stat-label">Items Extracted</span>
@@ -1880,49 +2242,74 @@ function displayAnalysisResults(analysis, filename) {
         </div>
     `;
     
-    // Create extracted data table
-    const extractedDataHTML = `
-        <div class="extracted-data-section">
-            <h4>📋 Extracted Invoice Data</h4>
-            <p class="section-description">This data was extracted from the butchery PDF and can be imported as orders:</p>
-            <div class="customer-reference">
-                <strong>Reference (Customer):</strong> ${analysis.extractedData.customerInfo.reference || analysis.extractedData.customerInfo.name}
+    // Create extracted data display - check if multi-customer or single customer
+    let extractedDataHTML;
+    
+    if (analysis.extractedData.multiCustomer && analysis.extractedData.customers) {
+        // Multi-customer display
+        extractedDataHTML = `
+            <div class="extracted-data-section">
+                <h4>📋 Extracted Invoice Data (${analysis.extractedData.customerCount} Customers)</h4>
+                <p class="section-description">Multi-page PDF with different customers per page - ready to import as separate orders:</p>
+                
+                ${analysis.extractedData.customers.map(customer => `
+                <div class="customer-section">
+                    <div class="customer-header">
+                        <h5>📄 Page ${customer.pageNumber}: ${customer.reference}</h5>
+                        <div class="customer-stats">
+                            <span>${customer.items.length} items</span>
+                            <span>R${customer.items.reduce((sum, item) => sum + item.total, 0).toFixed(2)}</span>
+                        </div>
+                    </div>
+                    
+                    <table class="extracted-data-table customer-table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th>Quantity</th>
+                                <th>KG</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${customer.items.map(item => `
+                                <tr>
+                                    <td>${item.description}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>${item.weight}</td>
+                                    <td>R${item.price}</td>
+                                    <td>R${item.total.toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row">
+                                <td colspan="4"><strong>Customer Total:</strong></td>
+                                <td><strong>R${customer.items.reduce((sum, item) => sum + item.total, 0).toFixed(2)}</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            `).join('')}
+            
+            <div class="overall-summary">
+                <div class="summary-row">
+                    <span><strong>Total Customers:</strong> ${analysis.extractedData.customerCount}</span>
+                    <span><strong>Total Items:</strong> ${analysis.extractedData.allItems.length}</span>
+                    <span><strong>Grand Total:</strong> R${analysis.extractedData.total.toFixed(2)}</span>
+                </div>
             </div>
-            <table class="extracted-data-table">
-                <thead>
-                    <tr>
-                        <th>Description</th>
-                        <th>Quantity</th>
-                        <th>KG</th>
-                        <th>Price</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${analysis.extractedData.items.map(item => `
-                        <tr>
-                            <td>${item.description}</td>
-                            <td>${item.quantity}</td>
-                            <td>${item.weight}</td>
-                            <td>${item.price}</td>
-                            <td>${item.total.toFixed(2)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-                <tfoot>
-                    <tr class="total-row final-total">
-                        <td colspan="4"><strong>TOTAL:</strong></td>
-                        <td><strong>${analysis.extractedData.total.toFixed(2)}</strong></td>
-                    </tr>
-                </tfoot>
-            </table>
             
             <div class="import-actions">
                 <button onclick="importPDFAsOrders('${filename}')" class="btn-primary">
-                    <i class="fas fa-plus-circle"></i> Import as Orders & Generate Invoices
+                    <i class="fas fa-plus-circle"></i> Import All Customers as Orders
                 </button>
                 <button onclick="previewImportData('${filename}')" class="btn-secondary">
-                    <i class="fas fa-eye"></i> Preview Import
+                    <i class="fas fa-eye"></i> Preview Import Details
+                </button>
+                <button onclick="showStockReconciliation('${filename}')" class="btn-secondary">
+                    <i class="fas fa-balance-scale"></i> Check Stock Differences
                 </button>
             </div>
         </div>
@@ -1952,79 +2339,191 @@ function displayAnalysisResults(analysis, filename) {
             </div>
         </div>
     `;
+    } else {
+        // Single customer display (fallback)
+        extractedDataHTML = `
+            <div class="extracted-data-section">
+                <h4>📋 Extracted Invoice Data</h4>
+                <p class="section-description">This data was extracted from the butchery PDF and can be imported as orders:</p>
+                <div class="customer-reference">
+                    <strong>Reference (Customer):</strong> ${analysis.extractedData.customerInfo?.reference || analysis.extractedData.customerInfo?.name || 'Unknown'}
+                </div>
+                <table class="extracted-data-table">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Quantity</th>
+                            <th>KG</th>
+                            <th>Price</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(analysis.extractedData.items || []).map(item => `
+                            <tr>
+                                <td>${item.description}</td>
+                                <td>${item.quantity}</td>
+                                <td>${item.weight}</td>
+                                <td>${item.price}</td>
+                                <td>${item.total.toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row final-total">
+                            <td colspan="4"><strong>TOTAL:</strong></td>
+                            <td><strong>${(analysis.extractedData.total || 0).toFixed(2)}</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                
+                <div class="import-actions">
+                    <button onclick="importPDFAsOrders('${filename}')" class="btn-primary">
+                        <i class="fas fa-plus-circle"></i> Import as Orders & Generate Invoices
+                    </button>
+                    <button onclick="previewImportData('${filename}')" class="btn-secondary">
+                        <i class="fas fa-eye"></i> Preview Import
+                    </button>
+                </div>
+            </div>
+
+            <div class="findings-section">
+                <h4>🔍 Analysis Findings</h4>
+                <div class="findings-list">
+                    ${analysis.findings.map(finding => `
+                        <div class="finding-item ${finding.type}">
+                            <div class="finding-header">
+                                <span class="finding-type">${finding.type.toUpperCase()}</span>
+                                <span class="finding-severity severity-${finding.severity}">${finding.severity}</span>
+                            </div>
+                            <div class="finding-content">
+                                <strong>${finding.item}</strong>
+                                <p>${finding.issue}</p>
+                                ${finding.expectedPrice ? `
+                                    <div class="price-comparison">
+                                        <span class="expected">Expected: R${finding.expectedPrice}</span>
+                                        <span class="actual">Found: R${finding.actualPrice}</span>
+                                        <span class="difference">Difference: R${finding.difference}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
     
-    summaryContainer.innerHTML = summaryHTML;
-    detailsContainer.innerHTML = extractedDataHTML;
-    
-    // Scroll to results
-    resultsContainer.scrollIntoView({ behavior: 'smooth' });
+        summaryContainer.innerHTML = summaryHTML;
+        detailsContainer.innerHTML = extractedDataHTML;
+        
+        // Scroll to results
+        resultsContainer.scrollIntoView({ behavior: 'smooth' });
+        
+        console.log('✅ Analysis results displayed successfully');
+    } catch (error) {
+        console.error('❌ Error displaying analysis results:', error);
+        alert('Error displaying analysis results. Check console for details.');
+    }
 }
 
-// Import PDF data as orders and generate invoices
+// Import PDF data as orders and generate invoices (Multi-customer support)
 async function importPDFAsOrders(filename) {
     if (!lastPDFAnalysis || !lastPDFAnalysis.extractedData) {
         alert('No PDF data available for import. Please analyze a PDF first.');
         return;
     }
     
-    // Extract customer name from PDF Reference field
-    const referenceName = lastPDFAnalysis.extractedData.customerInfo.reference || lastPDFAnalysis.extractedData.customerInfo.name;
-    
-    // Find existing customer details from previous orders
-    const existingCustomer = findExistingCustomer(referenceName);
-    
-    let customerName, customerEmail, customerPhone, customerAddress;
-    
-    if (existingCustomer) {
-        // Use existing customer details
-        customerName = existingCustomer.name;
-        customerEmail = existingCustomer.email;
-        customerPhone = existingCustomer.phone;
-        customerAddress = existingCustomer.address;
-        
-        const confirmMessage = `Found existing customer: ${customerName}\nEmail: ${customerEmail}\nPhone: ${customerPhone}\n\nImport ${lastPDFAnalysis.extractedData.items.length} items for this customer?`;
-        if (!confirm(confirmMessage)) return;
-    } else {
-        // Customer not found, prompt for details
-        customerName = prompt('Customer not found in system. Enter customer name:', referenceName);
-        if (!customerName) return;
-        
-        customerEmail = prompt('Enter customer email:', 'customer@email.com');
-        if (!customerEmail) return;
-        
-        customerPhone = prompt('Enter customer phone:', '');
-        customerAddress = prompt('Enter customer address:', '');
-        
-        const confirmMessage = `Import ${lastPDFAnalysis.extractedData.items.length} items for new customer: ${customerName}?`;
-        if (!confirm(confirmMessage)) return;
+    // Check if this is multi-customer data
+    if (!lastPDFAnalysis.extractedData.multiCustomer || !lastPDFAnalysis.extractedData.customers) {
+        alert('This PDF does not contain multi-customer data. Please use the single-customer import process.');
+        return;
     }
     
+    const customers = lastPDFAnalysis.extractedData.customers;
+    const totalCustomers = customers.length;
+    const totalItems = lastPDFAnalysis.extractedData.allItems.length;
+    
+    // Confirm import
+    const confirmMessage = `Import ${totalItems} items for ${totalCustomers} customers from ${filename}?`;
+    if (!confirm(confirmMessage)) return;
+    
     try {
-        // Create new import
-        const importId = 'PDF-' + Date.now();
-        const importName = `PDF Import: ${filename} (${new Date().toLocaleString()})`;
+        // Process each customer separately
+        const allOrders = [];
+        const customerProcessingResults = [];
         
-        // Convert PDF items to orders
-        const orders = lastPDFAnalysis.extractedData.items.map((item, index) => {
-            // Map product description to standard product name
-            const mappedProduct = findMappedProduct(item.description);
+        console.log(`🔍 Processing ${customers.length} customers from PDF:`, customers.map(c => c.reference));
+        
+        for (const customer of customers) {
+            const referenceName = customer.reference;
+            console.log(`📄 Processing customer: ${referenceName} (Page ${customer.pageNumber}) with ${customer.items.length} items`);
             
-            return {
-                orderId: `ORD-PDF-${Date.now()}-${index + 1}`,
+            // Find existing customer details from previous orders
+            const existingCustomer = findExistingCustomer(referenceName);
+            
+            let customerName, customerEmail, customerPhone, customerAddress;
+            
+            if (existingCustomer) {
+                // Use existing customer details
+                customerName = existingCustomer.name;
+                customerEmail = existingCustomer.email;
+                customerPhone = existingCustomer.phone;
+                customerAddress = existingCustomer.address;
+                
+                customerProcessingResults.push({
+                    reference: referenceName,
+                    status: 'existing_customer',
+                    name: customerName,
+                    itemCount: customer.items.length
+                });
+            } else {
+                // For new customers, use Reference as name and prompt for email if needed
+                customerName = referenceName;
+                customerEmail = `${referenceName.toLowerCase().replace(/\s+/g, '.')}@email.com`;
+                customerPhone = '';
+                customerAddress = '';
+                
+                customerProcessingResults.push({
+                    reference: referenceName,
+                    status: 'new_customer',
+                    name: customerName,
+                    itemCount: customer.items.length
+                });
+            }
+            
+            // Create ONE order per customer with multiple items (better approach)
+            const customerOrder = {
+                orderId: `ORD-PDF-${Date.now()}-P${customer.pageNumber}`,
                 date: new Date().toISOString().split('T')[0],
                 name: customerName,
                 email: customerEmail,
                 phone: customerPhone || '000 000 0000',
                 address: customerAddress || 'Address not provided',
-                product: mappedProduct,
-                quantity: item.quantity,
-                weight: item.weight, // This is the key - weight from PDF!
-                unitPrice: item.price, // Fixed field name
-                total: item.total,
+                products: customer.items.map(item => ({
+                    product: findMappedProduct(item.description),
+                    originalDescription: item.description,
+                    quantity: item.quantity,
+                    weight: item.weight, // Actual delivered weight from PDF!
+                    unitPrice: item.price,
+                    total: item.total
+                })),
+                total: customer.items.reduce((sum, item) => sum + item.total, 0),
                 status: 'pending',
-                originalDescription: item.description // Keep original for reference
+                pdfReference: referenceName,
+                pageNumber: customer.pageNumber,
+                source: 'PDF'
             };
-        });
+            
+            allOrders.push(customerOrder);
+            console.log(`✅ Created 1 order with ${customer.items.length} items for ${referenceName}`);
+        }
+        
+        console.log(`📋 Total orders created: ${allOrders.length} for ${customers.length} customers`);
+        
+        // Create new import
+        const importId = 'PDF-' + Date.now();
+        const importName = `Multi-Customer PDF: ${filename} (${totalCustomers} customers, ${new Date().toLocaleString()})`;
         
         // Create import
         imports[importId] = {
@@ -2033,16 +2532,18 @@ async function importPDFAsOrders(filename) {
             date: new Date().toISOString(),
             source: 'PDF',
             sourceFile: filename,
-            orders: orders,
-            invoices: []
+            customerCount: totalCustomers,
+            orders: allOrders,
+            invoices: [],
+            customerProcessingResults: customerProcessingResults
         };
         
         // Set as current import
         currentImportId = importId;
         
         // Generate invoices with proper weight data
-        for (const order of orders) {
-            generateInvoiceFromPDFData(order);
+        for (const order of allOrders) {
+            generateInvoiceFromPDFDataMultiProduct(order);
         }
         
         // Update displays
@@ -2052,9 +2553,13 @@ async function importPDFAsOrders(filename) {
         updateDashboard();
         saveToStorage();
         
-        // Show success message
-        alert(`Successfully imported ${orders.length} orders from PDF!\n\nInvoices generated with proper weight columns.\nSwitch to Orders or Invoices tab to view.`);
-        addActivity(`Imported ${orders.length} orders from PDF: ${filename}`);
+        // Show success message with customer breakdown
+        const customerSummary = customerProcessingResults.map(r => 
+            `${r.name}: ${r.itemCount} items (${r.status === 'existing_customer' ? 'existing' : 'new'})`
+        ).join('\n');
+        
+        alert(`Successfully imported ${allOrders.length} orders for ${totalCustomers} customers from PDF!\n\n${customerSummary}\n\nInvoices generated with proper weight columns.\nSwitch to Orders or Invoices tab to view.`);
+        addActivity(`Imported ${allOrders.length} orders for ${totalCustomers} customers from PDF: ${filename}`);
         
         // Switch to orders view
         showSection('orders');
@@ -2063,6 +2568,261 @@ async function importPDFAsOrders(filename) {
         console.error('Error importing PDF data:', error);
         alert(`Error importing PDF data: ${error.message}`);
     }
+}
+
+// Stock reconciliation - compare ordered vs delivered quantities
+function showStockReconciliation(filename) {
+    if (!lastPDFAnalysis || !lastPDFAnalysis.extractedData) {
+        alert('No PDF data available for reconciliation.');
+        return;
+    }
+    
+    console.log('🔍 Checking stock differences between ordered and delivered...');
+    
+    // Find all existing orders for each customer in the PDF
+    const reconciliationData = [];
+    
+    for (const customer of lastPDFAnalysis.extractedData.customers) {
+        const referenceName = customer.reference;
+        const existingCustomer = findExistingCustomer(referenceName);
+        
+        if (existingCustomer) {
+            // Find all orders for this customer
+            const customerOrders = [];
+            for (const importData of Object.values(imports)) {
+                const matchingOrders = importData.orders.filter(order => 
+                    order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
+                );
+                customerOrders.push(...matchingOrders);
+            }
+            
+            // Compare ordered vs delivered for each product
+            const productComparison = {};
+            
+            // Get what was originally ordered
+            for (const order of customerOrders) {
+                const productKey = order.product || order.originalDescription;
+                if (!productComparison[productKey]) {
+                    productComparison[productKey] = {
+                        product: productKey,
+                        ordered: { quantity: 0, weight: 0 },
+                        delivered: { quantity: 0, weight: 0 }
+                    };
+                }
+                productComparison[productKey].ordered.quantity += order.quantity || 0;
+                productComparison[productKey].ordered.weight += order.weight || 0;
+            }
+            
+            // Get what was actually delivered (from PDF)
+            for (const item of customer.items) {
+                const productKey = findMappedProduct(item.description);
+                if (!productComparison[productKey]) {
+                    productComparison[productKey] = {
+                        product: productKey,
+                        ordered: { quantity: 0, weight: 0 },
+                        delivered: { quantity: 0, weight: 0 }
+                    };
+                }
+                productComparison[productKey].delivered.quantity += item.quantity || 0;
+                productComparison[productKey].delivered.weight += item.weight || 0;
+            }
+            
+            reconciliationData.push({
+                customer: referenceName,
+                products: Object.values(productComparison),
+                hasStockDifferences: Object.values(productComparison).some(p => 
+                    Math.abs(p.ordered.quantity - p.delivered.quantity) > 0.1 ||
+                    Math.abs(p.ordered.weight - p.delivered.weight) > 0.1
+                )
+            });
+        } else {
+            reconciliationData.push({
+                customer: referenceName,
+                products: customer.items.map(item => ({
+                    product: findMappedProduct(item.description),
+                    ordered: { quantity: 0, weight: 0 },
+                    delivered: { quantity: item.quantity, weight: item.weight }
+                })),
+                hasStockDifferences: true,
+                newCustomer: true
+            });
+        }
+    }
+    
+    // Display reconciliation results
+    displayStockReconciliation(reconciliationData, filename);
+}
+
+// Display stock reconciliation results
+function displayStockReconciliation(reconciliationData, filename) {
+    const detailsContainer = document.getElementById('resultsDetails');
+    
+    const reconciliationHTML = `
+        <div class="reconciliation-section">
+            <h4>⚖️ Stock Reconciliation: ${filename}</h4>
+            <p class="section-description">Comparing ordered quantities vs delivered quantities from butchery:</p>
+            
+            ${reconciliationData.map(customer => `
+                <div class="customer-reconciliation ${customer.hasStockDifferences ? 'has-differences' : ''}">
+                    <div class="customer-header">
+                        <h5>${customer.customer} ${customer.newCustomer ? '(New Customer)' : ''}</h5>
+                        <span class="status-badge ${customer.hasStockDifferences ? 'differences' : 'matched'}">
+                            ${customer.hasStockDifferences ? '⚠️ Stock Differences' : '✅ Quantities Match'}
+                        </span>
+                    </div>
+                    
+                    <table class="reconciliation-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Ordered Qty</th>
+                                <th>Ordered KG</th>
+                                <th>Delivered Qty</th>
+                                <th>Delivered KG</th>
+                                <th>Difference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${customer.products.map(product => {
+                                const qtyDiff = product.delivered.quantity - product.ordered.quantity;
+                                const weightDiff = product.delivered.weight - product.ordered.weight;
+                                const hasDifference = Math.abs(qtyDiff) > 0.1 || Math.abs(weightDiff) > 0.1;
+                                
+                                return `
+                                    <tr class="${hasDifference ? 'has-difference' : ''}">
+                                        <td>${product.product}</td>
+                                        <td>${product.ordered.quantity}</td>
+                                        <td>${product.ordered.weight.toFixed(2)}</td>
+                                        <td>${product.delivered.quantity}</td>
+                                        <td>${product.delivered.weight.toFixed(2)}</td>
+                                        <td class="difference ${qtyDiff < 0 ? 'shortage' : qtyDiff > 0 ? 'surplus' : ''}">
+                                            ${qtyDiff !== 0 ? `Qty: ${qtyDiff > 0 ? '+' : ''}${qtyDiff}` : ''}
+                                            ${weightDiff !== 0 ? `<br>KG: ${weightDiff > 0 ? '+' : ''}${weightDiff.toFixed(2)}` : ''}
+                                            ${qtyDiff === 0 && weightDiff === 0 ? '✅ Match' : ''}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `).join('')}
+            
+            <div class="reconciliation-actions">
+                <button onclick="acceptDeliveredQuantities('${filename}')" class="btn-primary">
+                    <i class="fas fa-check"></i> Accept Delivered Quantities (Generate Invoices)
+                </button>
+                <button onclick="flagStockIssues('${filename}')" class="btn-secondary">
+                    <i class="fas fa-flag"></i> Flag Stock Issues for Review
+                </button>
+            </div>
+        </div>
+    `;
+    
+    detailsContainer.innerHTML = reconciliationHTML;
+    
+    // Scroll to results
+    document.getElementById('analysisResults').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Accept delivered quantities and generate invoices based on actual delivery
+function acceptDeliveredQuantities(filename) {
+    if (!lastPDFAnalysis || !lastPDFAnalysis.extractedData) {
+        alert('No PDF data available.');
+        return;
+    }
+    
+    const customers = lastPDFAnalysis.extractedData.customers;
+    const totalCustomers = customers.length;
+    
+    // Confirm the action
+    if (!confirm(`Generate invoices for ${totalCustomers} customers based on ACTUAL delivered quantities from butchery?\n\nThis will create invoices using the exact weights and quantities delivered, not what was originally ordered.`)) {
+        return;
+    }
+    
+    try {
+        // Import as orders (this will create the proper structure)
+        importPDFAsOrders(filename);
+        
+        console.log('✅ Invoices generated based on actual delivered quantities from butchery');
+        addActivity(`Generated invoices for ${totalCustomers} customers based on delivered quantities from ${filename}`);
+        
+    } catch (error) {
+        console.error('Error accepting delivered quantities:', error);
+        alert(`Error generating invoices: ${error.message}`);
+    }
+}
+
+// Flag stock issues for manual review
+function flagStockIssues(filename) {
+    if (!lastPDFAnalysis || !lastPDFAnalysis.extractedData) {
+        alert('No PDF data available.');
+        return;
+    }
+    
+    // Create a stock issues report
+    const stockIssues = [];
+    
+    for (const customer of lastPDFAnalysis.extractedData.customers) {
+        const referenceName = customer.reference;
+        const existingCustomer = findExistingCustomer(referenceName);
+        
+        if (existingCustomer) {
+            // Find all orders for this customer
+            const customerOrders = [];
+            for (const importData of Object.values(imports)) {
+                const matchingOrders = importData.orders.filter(order => 
+                    order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
+                );
+                customerOrders.push(...matchingOrders);
+            }
+            
+            // Check for stock differences
+            for (const item of customer.items) {
+                const productKey = findMappedProduct(item.description);
+                const matchingOrder = customerOrders.find(order => 
+                    (order.product && order.product.toLowerCase().includes(productKey.toLowerCase())) ||
+                    (order.originalDescription && order.originalDescription.toLowerCase().includes(item.description.toLowerCase()))
+                );
+                
+                if (matchingOrder) {
+                    const qtyDiff = item.quantity - (matchingOrder.quantity || 0);
+                    const weightDiff = item.weight - (matchingOrder.weight || 0);
+                    
+                    if (Math.abs(qtyDiff) > 0.1 || Math.abs(weightDiff) > 0.1) {
+                        stockIssues.push({
+                            customer: referenceName,
+                            product: productKey,
+                            ordered: { quantity: matchingOrder.quantity || 0, weight: matchingOrder.weight || 0 },
+                            delivered: { quantity: item.quantity, weight: item.weight },
+                            difference: { quantity: qtyDiff, weight: weightDiff },
+                            issueType: qtyDiff < 0 ? 'shortage' : 'surplus'
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    if (stockIssues.length === 0) {
+        alert('No significant stock differences found. All quantities appear to match expectations.');
+        return;
+    }
+    
+    // Generate stock issues report
+    const reportContent = stockIssues.map(issue => 
+        `${issue.customer}: ${issue.product}\n` +
+        `  Ordered: ${issue.ordered.quantity} qty, ${issue.ordered.weight}kg\n` +
+        `  Delivered: ${issue.delivered.quantity} qty, ${issue.delivered.weight}kg\n` +
+        `  Difference: ${issue.difference.quantity > 0 ? '+' : ''}${issue.difference.quantity} qty, ${issue.difference.weight > 0 ? '+' : ''}${issue.difference.weight.toFixed(2)}kg (${issue.issueType})\n`
+    ).join('\n');
+    
+    // Show the report
+    alert(`STOCK ISSUES DETECTED (${stockIssues.length} issues):\n\n${reportContent}\n\nReview these discrepancies before processing invoices.`);
+    
+    // Log for record keeping
+    console.log('📋 Stock Issues Report:', stockIssues);
+    addActivity(`Flagged ${stockIssues.length} stock issues from ${filename} for review`);
 }
 
 // Helper function to find existing customer from previous orders
@@ -2106,7 +2866,34 @@ function findMappedProduct(description) {
     return cleanDescription.toUpperCase();
 }
 
-// Generate invoice specifically from PDF data (with weights)
+// Generate invoice specifically from PDF data (with weights) - Multi-product version
+function generateInvoiceFromPDFDataMultiProduct(order) {
+    const invoice = {
+        invoiceId: 'INV-PDF-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+        orderId: order.orderId,
+        date: new Date().toISOString().split('T')[0],
+        customerName: order.name,
+        customerEmail: order.email,
+        customerPhone: order.phone,
+        customerAddress: order.address,
+        items: order.products, // Multiple items from PDF
+        subtotal: order.total,
+        tax: 0, // NO VAT on butchery invoices
+        total: order.total, // Total = subtotal (no VAT)
+        status: 'generated',
+        source: 'PDF'
+    };
+    
+    // Add to collections
+    invoices.push(invoice);
+    imports[currentImportId].invoices.push(invoice);
+    order.status = 'invoiced';
+    
+    // Add to email queue (adapted for multi-product)
+    addToEmailQueueMultiProduct(order);
+}
+
+// Generate invoice specifically from PDF data (with weights) - Single product version (legacy)
 function generateInvoiceFromPDFData(order) {
     const invoice = {
         invoiceId: 'INV-PDF-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
@@ -2140,7 +2927,7 @@ function generateInvoiceFromPDFData(order) {
     addToEmailQueue(order);
 }
 
-// Preview import data
+// Preview import data (Multi-customer support)
 function previewImportData(filename) {
     if (!lastPDFAnalysis || !lastPDFAnalysis.extractedData) {
         alert('No PDF data available for preview.');
@@ -2148,14 +2935,52 @@ function previewImportData(filename) {
     }
     
     const data = lastPDFAnalysis.extractedData;
-    const preview = `
+    
+    if (data.multiCustomer && data.customers) {
+        // Multi-customer preview
+        const customerPreviews = data.customers.map((customer, index) => {
+            const customerTotal = customer.items.reduce((sum, item) => sum + item.total, 0);
+            return `
+CUSTOMER ${index + 1}: ${customer.reference} (Page ${customer.pageNumber})
+Items: ${customer.items.length}
+${customer.items.map((item, i) => 
+    `  ${i+1}. ${item.description}
+     Qty: ${item.quantity} | KG: ${item.weight} | Price: R${item.price} | Total: R${item.total.toFixed(2)}`
+).join('\n')}
+Customer Total: R${customerTotal.toFixed(2)}`;
+        }).join('\n\n' + '='.repeat(60) + '\n');
+        
+        const preview = `
+MULTI-CUSTOMER PDF PREVIEW: ${filename}
+
+Total Customers: ${data.customerCount}
+Total Items: ${data.allItems.length}
+Grand Total: R${data.total.toFixed(2)} (No VAT)
+
+${customerPreviews}
+
+${'='.repeat(60)}
+SUMMARY:
+• ${data.customerCount} customers will be processed
+• ${data.allItems.length} total items will be imported
+• Each customer gets separate orders and invoices
+• Weights and quantities are from actual delivered amounts
+• No VAT applied (butchery invoice format)
+
+Click "Import All Customers as Orders" to proceed.
+        `;
+        
+        alert(preview);
+    } else {
+        // Single customer preview (fallback)
+        const preview = `
 PDF Import Preview: ${filename}
 
-Customer: ${data.customerInfo.name || 'Customer from PDF'}
-Items to import: ${data.items.length}
+Customer: ${data.customerInfo?.name || 'Customer from PDF'}
+Items to import: ${data.items?.length || 0}
 
 Items:
-${data.items.map((item, i) => 
+${(data.items || []).map((item, i) => 
     `${i+1}. ${item.description}
    Quantity: ${item.quantity} | Weight: ${item.weight}kg | Price: R${item.price} | Total: R${item.total.toFixed(2)}`
 ).join('\n\n')}
@@ -2163,9 +2988,10 @@ ${data.items.map((item, i) =>
 TOTAL: R${data.total.toFixed(2)} (No VAT on butchery invoices)
 
 Click "Import as Orders" to create these orders with proper invoice generation.
-    `;
-    
-    alert(preview);
+        `;
+        
+        alert(preview);
+    }
 }
 
 function saveAnalysisToHistory(analysis, filename) {
@@ -2250,7 +3076,7 @@ function showLoadingState(show) {
         `;
     } else {
         uploadArea.innerHTML = `
-            <div class="upload-placeholder" onclick="document.getElementById('pdfFileInput').click()">
+            <div class="upload-placeholder" onclick="triggerPDFUpload()">
                 <i class="fas fa-cloud-upload-alt"></i>
                 <p>Click to upload PDF or drag & drop</p>
                 <small>Supported format: PDF only</small>
