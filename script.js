@@ -1875,7 +1875,10 @@ function parseInvoicePage(pageText, pageNumber) {
             const refIndex = pageText.toLowerCase().indexOf('reference');
             if (refIndex !== -1) {
                 const afterRef = pageText.substring(refIndex + 9, refIndex + 100);
-                match = afterRef.match(/([A-Z][A-Z\s]{3,})/);
+                const nameMatch = afterRef.match(/([A-Z][A-Z\s]{3,})/);
+                if (nameMatch) {
+                    match = nameMatch;
+                }
             }
         }
         
@@ -1895,9 +1898,9 @@ function parseInvoicePage(pageText, pageNumber) {
         // Example: "Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg 4 8.47 65 550.55"
         const linePattern = /([A-Za-z\s\-\.]+(?:R\d+\/kg)?)\s+(\d+)\s+(\d+\.\d+)\s+(\d+)\s+(\d+\.\d+)/g;
         
-        let match;
-        while ((match = linePattern.exec(pageText)) !== null) {
-            const [_, description, quantity, weight, price, total] = match;
+        let lineMatch;
+        while ((lineMatch = linePattern.exec(pageText)) !== null) {
+            const [_, description, quantity, weight, price, total] = lineMatch;
             
             items.push({
                 description: description.trim(),
