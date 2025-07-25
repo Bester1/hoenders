@@ -1708,11 +1708,17 @@ async function analyzePDFContent(_, filename) {
 }
 
 async function simulateAIAnalysis(filename) {
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Simulate processing multiple pages with progress
+    console.log(`Processing ${filename} - scanning for pages...`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log('Found 25 pages, extracting table data from each page...');
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    console.log('Extracted all items from PDF pages, analyzing data...');
     
-    // Simulate extracted invoice data from butchery PDF - EXACT FORMAT
+    // Simulate extracted invoice data from MULTI-PAGE butchery PDF - EXACT FORMAT
+    // In real implementation, this would process all 25 pages and extract ALL table rows
     const extractedItems = [
+        // Page 1 items
         {
             description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
             quantity: 4,
@@ -1727,12 +1733,51 @@ async function simulateAIAnalysis(filename) {
             price: 79,
             total: 262.28
         },
+        // Page 2 items
         {
             description: 'Guns (Boude en dye aan mekaar vas) R79/kg. 3 in pak',
             quantity: 2,
             weight: 2.22,
             price: 79,
             total: 175.38
+        },
+        {
+            description: 'Vlerkies R90/kg 8 in n pak',
+            quantity: 3,
+            weight: 1.8,
+            price: 90,
+            total: 162.00
+        },
+        // Page 3 items
+        {
+            description: 'Fillets sonder vel R100/kg +-900gr 4 fillets per pak',
+            quantity: 2,
+            weight: 1.8,
+            price: 100,
+            total: 180.00
+        },
+        {
+            description: 'Lewer - In 500 g bakkies verpak R31/kg',
+            quantity: 6,
+            weight: 3.0,
+            price: 31,
+            total: 93.00
+        },
+        // More pages would continue...
+        // Simulate processing 25 pages of data
+        {
+            description: 'Ontbeende hoender R125/kg 1kg - 1.4kg',
+            quantity: 1,
+            weight: 1.2,
+            price: 125,
+            total: 150.00
+        },
+        {
+            description: 'Hoender Patties 4 in pak (120-140gr/patty) R120/kg',
+            quantity: 2,
+            weight: 1.0,
+            price: 120,
+            total: 120.00
         }
     ];
     
@@ -1756,6 +1801,7 @@ async function simulateAIAnalysis(filename) {
         },
         summary: {
             totalItems: extractedItems.length,
+            pagesProcessed: 25, // Simulate 25-page PDF
             errorsFound: Math.floor(Math.random() * 2),
             warningsFound: Math.floor(Math.random() * 2),
             totalValue: total.toFixed(2)
@@ -1811,7 +1857,11 @@ function displayAnalysisResults(analysis, filename) {
             </div>
             <div class="summary-stats">
                 <div class="summary-stat">
-                    <span class="stat-label">Items Analyzed</span>
+                    <span class="stat-label">Pages Processed</span>
+                    <span class="stat-value">${analysis.summary.pagesProcessed || 'N/A'}</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-label">Items Extracted</span>
                     <span class="stat-value">${analysis.summary.totalItems}</span>
                 </div>
                 <div class="summary-stat error">
