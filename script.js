@@ -72,7 +72,7 @@ const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Gmail API Configuration
 // Email Service Configuration
 // Option 1: Google Apps Script (RECOMMENDED - Much easier!)
-const GOOGLE_SCRIPT_URL = ''; // Paste your Web App URL here after deploying GoogleAppsScript.gs
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBN3lIbR-ZW9ybqb5E6e0XNa7wdrfKmO8d6pQeSVXAd0WM7tT-n9M4jFO42mC1vcS1/exec'; // Paste your Web App URL here after deploying GoogleAppsScript.gs
 
 // Option 2: Gmail API (Complex - requires OAuth)
 const GMAIL_API_KEY = 'YOUR_API_KEY_HERE'; // Get from Google Cloud Console > Credentials > API Keys
@@ -128,7 +128,7 @@ async function initializeDatabase() {
         console.log('Initializing Supabase connection...');
         
         // Test the connection
-        const { data, error } = await supabaseClient
+        const { error } = await supabaseClient
             .from('imports')
             .select('count', { count: 'exact', head: true });
         
@@ -479,7 +479,7 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
     }
 }
 
-async function sendEmailViaGmail(to, subject, body, attachments = []) {
+async function sendEmailViaGmail(to, subject, body) {
     if (!gapi.client.getToken()) {
         throw new Error('Gmail not connected. Please connect Gmail first.');
     }
@@ -495,7 +495,7 @@ async function sendEmailViaGmail(to, subject, body, attachments = []) {
         ].join('\n');
 
         // Encode the email
-        const encodedEmail = btoa(unescape(encodeURIComponent(email)))
+        const encodedEmail = btoa(String.fromCharCode(...new TextEncoder().encode(email)))
             .replace(/\+/g, '-')
             .replace(/\//g, '_')
             .replace(/=+$/, '');
@@ -1775,7 +1775,7 @@ async function handlePDFUpload(event) {
     }
 }
 
-async function analyzePDFContent(arrayBuffer, filename) {
+async function analyzePDFContent(_, filename) {
     try {
         // Simulate AI analysis (in a real implementation, you'd send this to an AI service)
         const analysisResult = await simulateAIAnalysis(filename);
@@ -2137,7 +2137,7 @@ async function handleBackupUpload(event) {
         analysisHistory = backupData.analysisHistory || [];
 
         // Save restored data
-        await saveData();
+        await saveToStorage();
 
         // Refresh UI
         updateImportSelector();
@@ -2288,7 +2288,7 @@ function refreshDataStatus() {
 
 async function testDatabaseConnection() {
     try {
-        const { data, error } = await supabaseClient
+        const { error } = await supabaseClient
             .from('imports')
             .select('count', { count: 'exact', head: true });
         
