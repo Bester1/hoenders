@@ -375,3 +375,118 @@ const customerName = nameSection.match(/([A-Za-z]+\s+[A-Za-z]+)/)[1];
 - ✅ **Email system integration** with Google Apps Script ready queue
 
 **FINAL STATUS**: System fully operational for end-to-end butchery invoice processing workflow.
+
+## FINAL PRICING & INVOICE REFINEMENTS (2025-07-25)
+
+### 🎯 **PRICING POLICY ENFORCED**
+
+**CRITICAL CHANGE**: System now ONLY uses your rate card pricing, never butchery prices.
+
+**BEFORE**: 
+- Used butchery prices (R88.50, R60.00) as fallback
+- Mixed pricing sources caused confusion
+
+**AFTER**:
+- ONLY your rate card prices (R100.00/kg, R70.00/kg) 
+- Items without rate card pricing are skipped completely
+- No butchery price fallbacks ever
+
+**LOGIC FLOW**:
+1. **Extract from PDF**: Product + weight from butchery invoice
+2. **Map Product**: "heuning" → "SUIWER HEUNING"
+3. **Lookup Rate Card**: R70.00/kg (your selling price)
+4. **Calculate**: R70.00 × 1.00kg = R70.00
+5. **Skip if no match**: Item excluded rather than using butchery price
+
+### 🛡️ **PRICING PROTECTION IMPLEMENTED**
+
+**PROBLEM SOLVED**: User concerned about losing pricing when clearing data.
+
+**PROTECTION ADDED**:
+- **Clear Local Data**: Preserves `plaasHoendersPricing` in localStorage
+- **Clear Database**: Preserves pricing field in settings table
+- **Reset Everything**: Maintains pricing through complete reset
+- **UI Updated**: Shows "⚡ Pricing is protected" on all clear buttons
+
+**TECHNICAL IMPLEMENTATION**:
+```javascript
+// Clear localStorage BUT preserve pricing
+Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('plaasHoenders') && key !== 'plaasHoendersPricing') {
+        localStorage.removeItem(key);
+    }
+});
+
+// Clear database BUT preserve pricing
+await supabaseClient.from('settings').upsert({
+    id: 'main',
+    pricing: pricing, // Preserved!
+    email_queue: [],
+    analysis_history: []
+});
+```
+
+### 🧹 **INVOICE CLEANUP COMPLETED**
+
+**CUSTOMER FEEDBACK**: Remove VAT lines and "butchery invoice" mentions from customer invoices.
+
+**BEFORE**:
+```
+Subtotal: R237.40
+VAT:      R0.00 (No VAT - Butchery Invoice)
+Total:    R237.40
+```
+
+**AFTER**:
+```
+Subtotal: R237.40
+Total:    R237.40
+```
+
+**CHANGES MADE**:
+- Removed VAT line completely when VAT = 0
+- Removed "Source: Butchery Invoice" references
+- Only show VAT when actually applicable (VAT > 0)
+- Professional customer-ready invoices
+
+### 📈 **ENHANCED PRODUCT MAPPING**
+
+**ADDED COMPREHENSIVE MAPPINGS** for all common butchery invoice items:
+```javascript
+'heuning': 'SUIWER HEUNING',
+'fillets': 'FILETTE (sonder vel)',
+'4bors': 'BORSSTUKKE MET BEEN EN VEL',
+'boud/dy': 'BOUDE EN DYE',
+'heel': 'HEEL HOENDER',
+// ... and many more
+```
+
+**RESULT**: Better product recognition and rate card application.
+
+### 🔄 **COMPLETE SYSTEM STATUS (FINAL)**
+
+**WORKFLOW VERIFIED END-TO-END**:
+1. ✅ **PDF Upload** → 26 pages processed with OCR
+2. ✅ **Customer Extraction** → Correct names from Reference fields
+3. ✅ **Product Mapping** → Butchery items → Your rate card
+4. ✅ **Pricing Application** → ONLY your prices, never butchery prices
+5. ✅ **Customer Matching** → Existing orders provide email/phone/address
+6. ✅ **Invoice Generation** → Clean invoices with your pricing + weights
+7. ✅ **Email Preparation** → Valid customers added to email queue
+8. ✅ **Data Protection** → Pricing survives all clearing operations
+
+**CONSOLE OUTPUT EXAMPLES**:
+```
+💰 Applied rate card pricing for SUIWER HEUNING: R70/kg × 1kg = R70.00
+✅ Customer match found: "Jean Dreyer" (jean.dreyer@email.com)
+❌ SKIPPED: No rate card pricing found for "unknown_item" - item not included
+```
+
+**USER EXPERIENCE**:
+- **Professional invoices** without internal references
+- **Correct customer details** from existing order database  
+- **Your pricing only** - no butchery price confusion
+- **Protected rate card** - survives data clearing operations
+- **Clean email queue** - only customers with valid emails
+
+**SYSTEM READY FOR PRODUCTION**: Complete multi-customer PDF invoice processing with proper pricing, customer matching, and professional invoice generation.
