@@ -764,3 +764,137 @@ Savings/Spaar rek
 ```
 
 **SYSTEM STATUS**: Email template and formatting complete. Professional Afrikaans emails with proper spacing and banking details now deployed.
+
+## BUSINESS INTELLIGENCE & ANALYTICS SYSTEM (2025-07-25)
+
+### 📊 **COMPREHENSIVE ANALYTICS DASHBOARD IMPLEMENTED**
+
+**MAJOR BUSINESS FEATURE**: Complete Business Intelligence system added to help grow and analyze business performance.
+
+**LIVE STATUS**: ✅ Deployed to https://bester1.github.io/hoenders/ - Navigate to "Business Intelligence" in sidebar
+
+### **Analytics Features Implemented**
+
+#### 🎯 **Sales Analytics**
+- **Total Revenue**: All-time revenue tracking from invoices
+- **Monthly Revenue**: Current month performance analysis
+- **Weekly Revenue**: Last 7 days revenue tracking  
+- **Visual Revenue Chart**: Placeholder for future chart integration
+- **Real-time Calculations**: Updates automatically from invoice data
+
+#### 👥 **Customer Analytics** 
+- **Total Customers**: Unique customer count across all orders
+- **Active This Month**: Monthly active customer tracking
+- **Average Order Value**: Revenue per order calculation
+- **Top 5 Customers**: Ranked by total spending with order counts
+- **Customer Lifetime Value**: Revenue and order frequency analysis
+
+#### 📦 **Product Analytics**
+- **Total Products**: Product variety tracking
+- **Best Seller**: Top-selling product by quantity
+- **Average Margin**: Overall profit margin percentage using cost prices
+- **Top 5 Products**: Ranked by revenue with margin calculations
+- **Performance Metrics**: Revenue, quantity, and profitability per product
+
+#### 💰 **Profit Analysis**
+- **Total Profit**: Revenue minus costs using rate card cost prices
+- **Profit Margin**: Overall profitability percentage  
+- **Cost vs Revenue Ratio**: Business efficiency metrics
+- **Detailed Breakdown Table**: Profit analysis by individual product
+- **Monthly Profit Tracking**: Trend analysis over time
+
+### **Technical Implementation**
+
+#### **Data Sources**
+- **Orders Data**: Customer, product, quantity information from all imports
+- **Invoice Data**: Detailed revenue calculations with weights and pricing
+- **Rate Card Integration**: Uses cost prices from pricing object for profit calculations
+- **Real-time Processing**: Calculates from live data, no pre-computed values
+
+#### **Key Functions** (script.js:3915-4445)
+```javascript
+// Main analytics functions
+refreshAnalytics()           // Refresh all analytics sections
+updateSalesAnalytics()       // Revenue calculations
+updateCustomerAnalytics()    // Customer insights  
+updateProductAnalytics()     // Product performance
+updateProfitAnalytics()      // Profit margin analysis
+exportAnalyticsData()        // Comprehensive data export
+```
+
+#### **Cost Price Integration**
+- **Rate Card Usage**: `pricingInfo.cost` from pricing object
+- **Profit Calculations**: `revenue - (cost * weight)` for accurate margins
+- **Product Mapping**: Links invoice products to rate card entries
+- **Debug Logging**: Console shows cost calculations and missing products
+
+#### **Export Functionality**
+- **JSON Export**: Complete analytics data for external analysis
+- **Customer Analytics**: Order history, lifetime value, product preferences
+- **Product Analytics**: Performance metrics, margins, trends
+- **Profit Analytics**: Monthly breakdowns, cost analysis
+
+### **Business Growth Benefits**
+
+#### **Data-Driven Decisions**
+- **Customer Insights**: Identify most valuable customers for retention
+- **Product Strategy**: Focus on high-margin, best-selling items
+- **Pricing Optimization**: Compare selling prices vs costs
+- **Revenue Trends**: Track business growth patterns
+
+#### **Profitability Analysis**
+- **Product Margins**: See which products generate most profit
+- **Cost Management**: Track cost prices vs selling prices
+- **Customer Profitability**: Revenue per customer analysis
+- **Business Efficiency**: Cost-to-revenue ratios
+
+### **UI/UX Implementation**
+
+#### **Navigation**
+- **Sidebar Item**: "Business Intelligence" with chart-bar icon
+- **Auto-refresh**: Analytics update when switching to tab
+- **Export Button**: Download comprehensive data
+- **Refresh Button**: Manual analytics update
+
+#### **Card Layout** (index.html:104-225)
+- **Sales Card**: Revenue metrics with chart placeholder
+- **Customer Card**: Customer insights with top customers list
+- **Product Card**: Product performance with rankings
+- **Profit Card**: Full-width profit breakdown table
+
+#### **Responsive Design** (styles.css:1642-1816)
+- **Grid Layout**: Auto-fit columns for different screen sizes
+- **Mobile Optimized**: Stacked layout on smaller screens
+- **Professional Styling**: Gradient headers, clean tables
+- **Status Indicators**: Color-coded profit/loss indicators
+
+### **Current Status & Debug**
+
+#### **Cost Price Verification**
+- **Debug Logging**: Console shows cost calculations in real-time
+- **Product Matching**: Verifies invoice products match rate card
+- **Missing Products**: Identifies products without cost data
+- **Calculation Tracking**: Shows actual profit margin calculations
+
+#### **Data Integration**
+✅ **Revenue Calculations**: From invoice totals  
+✅ **Cost Calculations**: From rate card cost prices  
+✅ **Customer Matching**: From order customer names  
+✅ **Product Mapping**: Invoice products to rate card entries  
+✅ **Weight Integration**: Uses OCR-extracted weights for cost calculations  
+
+### **Recent Fixes**
+- **d21ca2d**: Fixed JavaScript syntax error in cost calculations
+- **28f79f0**: Added debug logging for cost price verification
+- **c6da9b6**: Initial Business Intelligence implementation
+- **174c4a5**: Email invoice integration (related feature)
+
+### **Usage Instructions**
+
+1. **Access Analytics**: Navigate to "Business Intelligence" in sidebar
+2. **View Metrics**: All cards show real-time calculated data
+3. **Export Data**: Click "Export Data" for comprehensive JSON file
+4. **Debug Costs**: Open browser console to see cost calculations
+5. **Refresh Data**: Click "Refresh" button to recalculate analytics
+
+**CRITICAL FOR BUSINESS GROWTH**: This analytics system provides the data insights needed to make informed decisions about customer focus, product strategy, and pricing optimization.

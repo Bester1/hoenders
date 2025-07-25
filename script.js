@@ -3914,6 +3914,27 @@ async function testDatabaseConnection() {
 
 // ===== BUSINESS INTELLIGENCE / ANALYTICS FUNCTIONS =====
 
+// Helper function to map product names for cost calculations in analytics
+function getAnalyticsProductName(originalName) {
+    // First try the productMapping
+    for (const [key, value] of Object.entries(productMapping)) {
+        if (originalName.toLowerCase().includes(key.toLowerCase()) || 
+            originalName.toLowerCase().includes(value.toLowerCase())) {
+            return value;
+        }
+    }
+    
+    // Try to match against pricing keys directly
+    for (const product of Object.keys(pricing)) {
+        if (originalName.toLowerCase().includes(product.toLowerCase())) {
+            return product;
+        }
+    }
+    
+    // Return original name if no mapping found
+    return originalName;
+}
+
 function refreshAnalytics() {
     updateSalesAnalytics();
     updateCustomerAnalytics();
@@ -4049,30 +4070,33 @@ function updateProductAnalytics() {
     allInvoices.forEach(invoice => {
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
-                const productName = item.originalDescription || item.product || 'Unknown Product';
+                const originalProductName = item.originalDescription || item.product || 'Unknown Product';
+                const mappedProductName = getAnalyticsProductName(originalProductName);
                 
-                if (!productStats[productName]) {
-                    productStats[productName] = {
+                if (!productStats[originalProductName]) {
+                    productStats[originalProductName] = {
                         quantity: 0,
                         revenue: 0,
                         cost: 0,
-                        orders: 0
+                        orders: 0,
+                        mappedName: mappedProductName
                     };
                 }
                 
-                productStats[productName].quantity += item.quantity || 0;
-                productStats[productName].revenue += item.total || 0;
+                productStats[originalProductName].quantity += item.quantity || 0;
+                productStats[originalProductName].revenue += item.total || 0;
                 
-                // Calculate cost using pricing data
-                const pricingInfo = pricing[productName];
+                // Calculate cost using mapped product name
+                const pricingInfo = pricing[mappedProductName];
                 if (pricingInfo && item.weight) {
-                    productStats[productName].cost += pricingInfo.cost * item.weight;
-                    console.log(`💰 Cost calculated for ${productName}: R${pricingInfo.cost}/kg × ${item.weight}kg = R${(pricingInfo.cost * item.weight).toFixed(2)}`);
+                    const itemCost = pricingInfo.cost * item.weight;
+                    productStats[originalProductName].cost += itemCost;
+                    console.log(`💰 Cost calculated for "${originalProductName}" → "${mappedProductName}": R${pricingInfo.cost}/kg × ${item.weight}kg = R${itemCost.toFixed(2)}`);
                 } else {
-                    console.log(`❌ No cost data found for product: "${productName}" (pricing available: ${Object.keys(pricing).join(', ')})`);
+                    console.log(`❌ No cost data found for "${originalProductName}" → "${mappedProductName}"`);
                 }
                 
-                productStats[productName].orders++;
+                productStats[originalProductName].orders++;
                 totalItems++;
             });
         }
@@ -4148,36 +4172,38 @@ function updateProfitAnalytics() {
     allInvoices.forEach(invoice => {
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
-                const productName = item.originalDescription || item.product || 'Unknown Product';
+                const originalProductName = item.originalDescription || item.product || 'Unknown Product';
+                const mappedProductName = getAnalyticsProductName(originalProductName);
                 const itemRevenue = item.total || 0;
                 
                 totalRevenue += itemRevenue;
                 
-                // Calculate cost using pricing data
-                const pricingInfo = pricing[productName];
+                // Calculate cost using mapped product name
+                const pricingInfo = pricing[mappedProductName];
                 let itemCost = 0;
                 if (pricingInfo && item.weight) {
                     itemCost = pricingInfo.cost * item.weight;
                     totalCost += itemCost;
-                    console.log(`💰 Profit calc - Cost for ${productName}: R${pricingInfo.cost}/kg × ${item.weight}kg = R${itemCost.toFixed(2)}`);
+                    console.log(`💰 Profit calc - Cost for "${originalProductName}" → "${mappedProductName}": R${pricingInfo.cost}/kg × ${item.weight}kg = R${itemCost.toFixed(2)}`);
                 } else {
-                    console.log(`❌ Profit calc - No cost data for: "${productName}"`);
+                    console.log(`❌ Profit calc - No cost data for: "${originalProductName}" → "${mappedProductName}"`);
                 }
                 
-                if (!productProfits[productName]) {
-                    productProfits[productName] = {
+                if (!productProfits[originalProductName]) {
+                    productProfits[originalProductName] = {
                         revenue: 0,
                         cost: 0,
                         profit: 0,
-                        margin: 0
+                        margin: 0,
+                        mappedName: mappedProductName
                     };
                 }
                 
-                productProfits[productName].revenue += itemRevenue;
-                productProfits[productName].cost += itemCost;
-                productProfits[productName].profit = productProfits[productName].revenue - productProfits[productName].cost;
-                productProfits[productName].margin = productProfits[productName].revenue > 0 ? 
-                    (productProfits[productName].profit / productProfits[productName].revenue * 100) : 0;
+                productProfits[originalProductName].revenue += itemRevenue;
+                productProfits[originalProductName].cost += itemCost;
+                productProfits[originalProductName].profit = productProfits[originalProductName].revenue - productProfits[originalProductName].cost;
+                productProfits[originalProductName].margin = productProfits[originalProductName].revenue > 0 ? 
+                    (productProfits[originalProductName].profit / productProfits[originalProductName].revenue * 100) : 0;
             });
         }
     });
@@ -4326,11 +4352,13 @@ function generateProductAnalyticsData() {
     allInvoices.forEach(invoice => {
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
-                const productName = item.originalDescription || item.product || 'Unknown Product';
+                const originalProductName = item.originalDescription || item.product || 'Unknown Product';
+                const mappedProductName = getAnalyticsProductName(originalProductName);
                 
-                if (!productData[productName]) {
-                    productData[productName] = {
-                        name: productName,
+                if (!productData[originalProductName]) {
+                    productData[originalProductName] = {
+                        name: originalProductName,
+                        mappedName: mappedProductName,
                         totalQuantity: 0,
                         totalWeight: 0,
                         totalRevenue: 0,
@@ -4341,20 +4369,20 @@ function generateProductAnalyticsData() {
                     };
                 }
                 
-                const data = productData[productName];
+                const data = productData[originalProductName];
                 data.totalQuantity += item.quantity || 0;
                 data.totalWeight += item.weight || 0;
                 data.totalRevenue += item.total || 0;
                 data.ordersCount++;
                 
-                // Calculate cost using pricing data
-                const pricingInfo = pricing[productName];
+                // Calculate cost using mapped product name
+                const pricingInfo = pricing[mappedProductName];
                 if (pricingInfo && item.weight) {
                     const itemCost = pricingInfo.cost * item.weight;
                     data.totalCost += itemCost;
-                    console.log(`💰 Export calc - Cost for ${productName}: R${pricingInfo.cost}/kg × ${item.weight}kg = R${itemCost.toFixed(2)}`);
+                    console.log(`💰 Export calc - Cost for "${originalProductName}" → "${mappedProductName}": R${pricingInfo.cost}/kg × ${item.weight}kg = R${itemCost.toFixed(2)}`);
                 } else {
-                    console.log(`❌ Export calc - No cost data for: "${productName}"`);
+                    console.log(`❌ Export calc - No cost data for: "${originalProductName}" → "${mappedProductName}"`);
                 }
             });
         }
@@ -4396,8 +4424,9 @@ function generateProfitAnalyticsData() {
         
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
-                const productName = item.originalDescription || item.product || 'Unknown Product';
-                const pricingInfo = pricing[productName];
+                const originalProductName = item.originalDescription || item.product || 'Unknown Product';
+                const mappedProductName = getAnalyticsProductName(originalProductName);
+                const pricingInfo = pricing[mappedProductName];
                 
                 if (pricingInfo && item.weight) {
                     const itemCost = pricingInfo.cost * item.weight;
