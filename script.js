@@ -1873,15 +1873,14 @@ function parseInvoicePage(pageText, pageNumber) {
         const hasReference = pageText.toLowerCase().includes('reference');
         console.log(`📄 Page ${pageNumber} contains "reference": ${hasReference}`);
         
-        // Look for Reference field with more flexible pattern
-        // Try multiple patterns to find customer name
+        // Look for Reference field - based on the actual invoice format
         let customerReference = null;
         
-        // Pattern 1: "Reference" followed by name
+        // Pattern 1: "Reference" followed by name (case insensitive)
         let match = pageText.match(/Reference\s*[:.]?\s*([A-Z][A-Z\s]+)/i);
         if (!match) {
             // Pattern 2: Look for "Reference" on one line and name on next
-            match = pageText.match(/Reference\s*[:.]?\s*\n?\s*([A-Z][A-Z\s]+)/i);
+            match = pageText.match(/Reference\s*[:.]?\s*\n\s*([A-Z][A-Z\s]+)/i);
         }
         if (!match) {
             // Pattern 3: More flexible - just find capitalized names after Reference
@@ -1904,28 +1903,90 @@ function parseInvoicePage(pageText, pageNumber) {
         customerReference = match[1].trim();
         console.log(`📋 Found customer: ${customerReference} on page ${pageNumber}`);
         
-        // Extract table data - look for patterns like "Heel Hoender..." followed by numbers
+        // Extract table data - based on actual invoice format:
+        // Item | Description | Quantity | Unit Price | Amount ZAR
+        // heuning | 7 | 7.00 | 60.00 | 420.00
         const items = [];
         
-        // Pattern to match invoice lines: Description, Quantity, KG, Price, Total
-        // Example: "Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg 4 8.47 65 550.55"
-        const linePattern = /([A-Za-z\s\-\.]+(?:R\d+\/kg)?)\s+(\d+)\s+(\d+\.\d+)\s+(\d+)\s+(\d+\.\d+)/g;
+        // Look for table rows after headers
+        const lines = pageText.split('\n');
+        let inTableData = false;
         
-        let lineMatch;
-        while ((lineMatch = linePattern.exec(pageText)) !== null) {
-            const [_, description, quantity, weight, price, total] = lineMatch;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
             
-            items.push({
-                description: description.trim(),
-                quantity: parseInt(quantity),
-                weight: parseFloat(weight),
-                price: parseFloat(price),
-                total: parseFloat(total)
-            });
+            // Skip empty lines
+            if (!line) continue;
+            
+            // Check if we're at table headers
+            if (line.toLowerCase().includes('item') && line.toLowerCase().includes('description') && line.toLowerCase().includes('quantity')) {
+                inTableData = true;
+                continue;
+            }
+            
+            // Skip table separator lines or subtotal/total lines
+            if (line.includes('---') || line.toLowerCase().includes('subtotal') || 
+                line.toLowerCase().includes('total vat') || line.toLowerCase().includes('total zar')) {
+                continue;
+            }
+            
+            // If we're in table data, try to parse the line
+            if (inTableData) {
+                // Pattern for table row: product_name | description | quantity | unit_price | total
+                // Or sometimes: product_name description quantity unit_price total (space separated)
+                const parts = line.split(/\s+/);
+                
+                if (parts.length >= 4) {
+                    // Try to extract numbers from the end
+                    const lastPart = parts[parts.length - 1]; // total amount
+                    const secondLastPart = parts[parts.length - 2]; // unit price
+                    const thirdLastPart = parts[parts.length - 3]; // quantity
+                    
+                    // Check if these look like numbers
+                    if (/^\d+\.\d+$/.test(lastPart) && /^\d+\.\d+$/.test(secondLastPart)) {
+                        const total = parseFloat(lastPart);
+                        const unitPrice = parseFloat(secondLastPart);
+                        const quantity = parseFloat(thirdLastPart);
+                        
+                        // Product name is everything before the numbers
+                        const productParts = parts.slice(0, parts.length - 3);
+                        const productName = productParts.join(' ');
+                        
+                        if (productName && !isNaN(quantity) && !isNaN(unitPrice) && !isNaN(total)) {
+                            items.push({
+                                description: productName,
+                                quantity: quantity,
+                                weight: quantity, // In this invoice, quantity IS the weight
+                                price: unitPrice,
+                                total: total
+                            });
+                            
+                            console.log(`📦 Found item: ${productName} - Qty: ${quantity}, Price: ${unitPrice}, Total: ${total}`);
+                        }
+                    }
+                }
+            }
         }
         
         if (items.length === 0) {
             console.log(`⚠️ No items found for ${customerReference} on page ${pageNumber}`);
+            // Try alternative parsing approach
+            const simplePattern = /(\w+)\s+(\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)/g;
+            let lineMatch;
+            while ((lineMatch = simplePattern.exec(pageText)) !== null) {
+                const [_, product, desc, quantity, price, total] = lineMatch;
+                items.push({
+                    description: product,
+                    quantity: parseFloat(quantity),
+                    weight: parseFloat(quantity),
+                    price: parseFloat(price),
+                    total: parseFloat(total)
+                });
+            }
+        }
+        
+        if (items.length === 0) {
+            console.log(`⚠️ Still no items found for ${customerReference} on page ${pageNumber}`);
             return null;
         }
         
