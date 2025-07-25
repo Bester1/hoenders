@@ -386,9 +386,13 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
             body: formData
         });
 
-        const result = await response.json();
-        
         showLoadingState(false);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
         
         if (result.status === 'success') {
             console.log('Email sent successfully via Google Apps Script');
