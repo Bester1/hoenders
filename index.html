@@ -20,7 +20,7 @@
                 <li><a href="#invoices" class="nav-link"><i class="fas fa-file-invoice"></i> Invoices</a></li>
                 <li><a href="#emails" class="nav-link"><i class="fas fa-envelope"></i> Email Center</a></li>
                 <li><a href="#pricing" class="nav-link"><i class="fas fa-tags"></i> Pricing</a></li>
-                <li><a href="#pdf-analysis" class="nav-link"><i class="fas fa-robot"></i> AI PDF Analysis</a></li>
+                <li><a href="#pdf-analysis" class="nav-link"><i class="fas fa-robot"></i> Import & Analyze Invoices</a></li>
                 <li><a href="#settings" class="nav-link"><i class="fas fa-cog"></i> Settings</a></li>
             </ul>
         </nav>
@@ -299,7 +299,7 @@ Plaas Hoenders Team</textarea>
             <!-- AI PDF Analysis Section -->
             <section id="pdf-analysis" class="content-section">
                 <div class="section-header">
-                    <h2>AI PDF Analysis</h2>
+                    <h2>📄 Import & Analyze Butchery Invoices</h2>
                     <div class="analysis-actions">
                         <button class="btn-secondary" onclick="clearAnalysisHistory()">
                             <i class="fas fa-trash"></i> Clear History
@@ -309,24 +309,26 @@ Plaas Hoenders Team</textarea>
 
                 <div class="analysis-grid">
                     <div class="upload-card">
-                        <h3>Upload Butchery Invoice PDF</h3>
+                        <h3>📄 Import Butchery Invoice PDF</h3>
                         <div class="upload-area" id="pdfUploadArea">
                             <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;" onchange="handlePDFUpload(event)">
                             <div class="upload-placeholder" onclick="document.getElementById('pdfFileInput').click()">
                                 <i class="fas fa-cloud-upload-alt"></i>
-                                <p>Click to upload PDF or drag & drop</p>
+                                <p><strong>Click to import your butchery invoice PDF</strong></p>
+                                <p>Or drag & drop the PDF file here</p>
                                 <small>Supported format: PDF only</small>
                             </div>
                         </div>
                         
                         <div class="upload-info">
-                            <h4>What the AI will check:</h4>
+                            <h4>🔍 AI Analysis will check for:</h4>
                             <ul>
                                 <li>✅ Pricing accuracy against your rate card</li>
-                                <li>✅ Product descriptions match items</li>
-                                <li>✅ Quantity calculations</li>
-                                <li>✅ Missing or extra items</li>
-                                <li>✅ Packaging specifications</li>
+                                <li>✅ Product descriptions and item matching</li>
+                                <li>✅ Quantity vs Weight column errors</li>
+                                <li>✅ Item/Description field swapping</li>
+                                <li>✅ Missing or incorrect calculations</li>
+                                <li>✅ Packaging specifications compliance</li>
                             </ul>
                         </div>
                     </div>
