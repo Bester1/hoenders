@@ -4069,7 +4069,8 @@ function updateProductAnalytics() {
                     productStats[productName].cost += pricingInfo.cost * item.weight;
                     console.log(`💰 Cost calculated for ${productName}: R${pricingInfo.cost}/kg × ${item.weight}kg = R${(pricingInfo.cost * item.weight).toFixed(2)}`);
                 } else {
-                    console.log(`❌ No cost data found for product: "${productName}" (pricing available: ${Object.keys(pricing).join(', ')})`);</                }
+                    console.log(`❌ No cost data found for product: "${productName}" (pricing available: ${Object.keys(pricing).join(', ')})`);
+                }
                 
                 productStats[productName].orders++;
                 totalItems++;
