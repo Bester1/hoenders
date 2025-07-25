@@ -1813,8 +1813,18 @@ async function analyzePDFContent(arrayBuffer, filename) {
             const page = await pdfDoc.getPage(pageNum);
             const textContent = await page.getTextContent();
             
-            // Extract text from page
-            const pageText = textContent.items.map(item => item.str).join(' ');
+            // Extract text from page - preserve newlines for better structure
+            let pageText = '';
+            let lastY = -1;
+            
+            textContent.items.forEach(item => {
+                // Add newline if Y position changed significantly (new line)
+                if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
+                    pageText += '\n';
+                }
+                pageText += item.str + ' ';
+                lastY = item.transform[5];
+            });
             
             // Parse customer and items from page text
             const customerData = parseInvoicePage(pageText, pageNum);
@@ -1847,15 +1857,36 @@ async function analyzePDFContent(arrayBuffer, filename) {
 // Parse invoice page text to extract customer and items
 function parseInvoicePage(pageText, pageNumber) {
     try {
-        // Look for Reference field (customer name)
-        const referenceMatch = pageText.match(/Reference\s*([A-Z\s]+?)(?=\s*Description|$)/i);
-        if (!referenceMatch) {
+        // Debug: Log the first 500 characters of page text to see structure
+        console.log(`📄 Page ${pageNumber} text sample:`, pageText.substring(0, 500));
+        
+        // Look for Reference field with more flexible pattern
+        // Try multiple patterns to find customer name
+        let customerReference = null;
+        
+        // Pattern 1: "Reference" followed by name
+        let match = pageText.match(/Reference\s*[:.]?\s*([A-Z][A-Z\s]+)/i);
+        if (!match) {
+            // Pattern 2: Look for "Reference" on one line and name on next
+            match = pageText.match(/Reference\s*[:.]?\s*\n?\s*([A-Z][A-Z\s]+)/i);
+        }
+        if (!match) {
+            // Pattern 3: More flexible - just find capitalized names after Reference
+            const refIndex = pageText.toLowerCase().indexOf('reference');
+            if (refIndex !== -1) {
+                const afterRef = pageText.substring(refIndex + 9, refIndex + 100);
+                match = afterRef.match(/([A-Z][A-Z\s]{3,})/);
+            }
+        }
+        
+        if (!match) {
             console.log(`⚠️ No Reference found on page ${pageNumber}`);
+            console.log(`Full page text for debugging:`, pageText);
             return null;
         }
         
-        const customerReference = referenceMatch[1].trim();
-        console.log(`📋 Parsing invoice for: ${customerReference}`);
+        customerReference = match[1].trim();
+        console.log(`📋 Found customer: ${customerReference} on page ${pageNumber}`);
         
         // Extract table data - look for patterns like "Heel Hoender..." followed by numbers
         const items = [];
