@@ -459,6 +459,18 @@ function addToEmailQueue(orderData) {
 
 // Multi-product version for PDF imports
 function addToEmailQueueMultiProduct(orderData) {
+    // Check if email is valid before adding to queue
+    const isValidEmail = orderData.email && 
+                        orderData.email.includes('@') && 
+                        !orderData.email.includes('@placeholder.com') &&
+                        !orderData.email.includes('@email.com');
+    
+    if (!isValidEmail) {
+        console.log(`⚠️ Skipping email queue for ${orderData.name} - invalid email: ${orderData.email}`);
+        console.log(`📝 Invoice generated but customer needs valid email address for sending`);
+        return;
+    }
+    
     const emailData = {
         id: Date.now(),
         to: orderData.email,
@@ -469,6 +481,7 @@ function addToEmailQueueMultiProduct(orderData) {
         timestamp: new Date().toISOString()
     };
     
+    console.log(`✅ Added ${orderData.name} to email queue: ${orderData.email}`);
     emailQueue.push(emailData);
     updateEmailQueueDisplay();
     saveToStorage();
@@ -2595,17 +2608,20 @@ async function importPDFAsOrders(filename) {
                     itemCount: customer.items.length
                 });
             } else {
-                // For new customers, use Reference as name and prompt for email if needed
+                // For new customers, use Reference as name and provide placeholder email
                 customerName = referenceName;
-                customerEmail = `${referenceName.toLowerCase().replace(/\s+/g, '.')}@email.com`;
-                customerPhone = '';
-                customerAddress = '';
+                customerEmail = `${referenceName.toLowerCase().replace(/\s+/g, '.')}@placeholder.com`;
+                customerPhone = '000 000 0000';
+                customerAddress = 'Address not provided - please update';
+                
+                console.log(`⚠️ New customer "${referenceName}" created with placeholder email: ${customerEmail}`);
                 
                 customerProcessingResults.push({
                     reference: referenceName,
                     status: 'new_customer',
                     name: customerName,
-                    itemCount: customer.items.length
+                    itemCount: customer.items.length,
+                    needsEmailUpdate: true
                 });
             }
             
@@ -2671,11 +2687,19 @@ async function importPDFAsOrders(filename) {
         saveToStorage();
         
         // Show success message with customer breakdown
-        const customerSummary = customerProcessingResults.map(r => 
-            `${r.name}: ${r.itemCount} items (${r.status === 'existing_customer' ? 'existing' : 'new'})`
-        ).join('\n');
+        const existingCustomers = customerProcessingResults.filter(r => r.status === 'existing_customer');
+        const newCustomers = customerProcessingResults.filter(r => r.status === 'new_customer');
         
-        alert(`Successfully imported ${allOrders.length} orders for ${totalCustomers} customers from PDF!\n\n${customerSummary}\n\nInvoices generated with proper weight columns.\nSwitch to Orders or Invoices tab to view.`);
+        const customerSummary = customerProcessingResults.map(r => {
+            const status = r.status === 'existing_customer' ? '✅ existing' : '⚠️ new (needs email)';
+            return `${r.name}: ${r.itemCount} items (${status})`;
+        }).join('\n');
+        
+        const emailMessage = newCustomers.length > 0 
+            ? `\n\n📧 EMAIL STATUS:\n• ${existingCustomers.length} customers ready for email (existing details)\n• ${newCustomers.length} customers need email addresses updated\n• Only customers with valid emails added to email queue`
+            : `\n\n📧 All customers ready for email sending!`;
+        
+        alert(`Successfully imported ${allOrders.length} orders for ${totalCustomers} customers from PDF!\n\n${customerSummary}\n\nInvoices generated with proper weight columns.${emailMessage}\n\nSwitch to Orders or Invoices tab to view.`);
         addActivity(`Imported ${allOrders.length} orders for ${totalCustomers} customers from PDF: ${filename}`);
         
         // Switch to orders view
@@ -2944,12 +2968,46 @@ function flagStockIssues(filename) {
 
 // Helper function to find existing customer from previous orders
 function findExistingCustomer(customerName) {
+    console.log(`🔍 Looking for existing customer: "${customerName}"`);
+    
     // Search through all imports for a customer with matching name
     for (const importData of Object.values(imports)) {
-        const matchingOrder = importData.orders.find(order => 
-            order.name && order.name.toLowerCase().includes(customerName.toLowerCase())
-        );
+        console.log(`📂 Checking import: ${importData.name} (${importData.orders.length} orders)`);
+        
+        const matchingOrder = importData.orders.find(order => {
+            if (!order.name) return false;
+            
+            const orderName = order.name.toLowerCase().trim();
+            const searchName = customerName.toLowerCase().trim();
+            
+            // Try exact match first
+            if (orderName === searchName) {
+                console.log(`✅ Exact match found: "${order.name}" === "${customerName}"`);
+                return true;
+            }
+            
+            // Try contains match
+            if (orderName.includes(searchName) || searchName.includes(orderName)) {
+                console.log(`✅ Partial match found: "${order.name}" ~= "${customerName}"`);
+                return true;
+            }
+            
+            // Try matching individual words (first name, last name)
+            const orderWords = orderName.split(/\s+/);
+            const searchWords = searchName.split(/\s+/);
+            
+            for (const searchWord of searchWords) {
+                if (searchWord.length > 2 && orderWords.some(orderWord => orderWord.includes(searchWord))) {
+                    console.log(`✅ Word match found: "${order.name}" contains "${searchWord}" from "${customerName}"`);
+                    return true;
+                }
+            }
+            
+            return false;
+        });
+        
         if (matchingOrder) {
+            console.log(`✅ Customer match found: "${matchingOrder.name}" (${matchingOrder.email})`);
             return {
                 name: matchingOrder.name,
                 email: matchingOrder.email,
@@ -2958,6 +3016,19 @@ function findExistingCustomer(customerName) {
             };
         }
     }
+    
+    console.log(`❌ No existing customer found for: "${customerName}"`);
+    
+    // Debug: List all existing customer names for comparison
+    console.log('📋 Available customer names:');
+    for (const importData of Object.values(imports)) {
+        importData.orders.forEach(order => {
+            if (order.name) {
+                console.log(`  - "${order.name}" (${order.email || 'no email'})`);
+            }
+        });
+    }
+    
     return null;
 }
 
