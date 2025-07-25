@@ -1753,7 +1753,8 @@ async function simulateAIAnalysis(filename) {
             vat: vat,
             total: total,
             customerInfo: {
-                name: 'Customer Name (extracted from PDF)',
+                reference: 'JEAN DREYER', // Extracted from Reference field
+                name: 'JEAN DREYER',
                 address: 'Customer Address (if found in PDF)'
             }
         },
@@ -1838,6 +1839,9 @@ function displayAnalysisResults(analysis, filename) {
         <div class="extracted-data-section">
             <h4>📋 Extracted Invoice Data</h4>
             <p class="section-description">This data was extracted from the butchery PDF and can be imported as orders:</p>
+            <div class="customer-reference">
+                <strong>Reference (Customer):</strong> ${analysis.extractedData.customerInfo.reference || analysis.extractedData.customerInfo.name}
+            </div>
             <table class="extracted-data-table">
                 <thead>
                     <tr>
@@ -1927,21 +1931,37 @@ async function importPDFAsOrders(filename) {
         return;
     }
     
-    // Prompt for customer information
-    const customerName = prompt('Enter customer name:', lastPDFAnalysis.extractedData.customerInfo.name || '');
-    if (!customerName) return;
+    // Extract customer name from PDF Reference field
+    const referenceName = lastPDFAnalysis.extractedData.customerInfo.reference || lastPDFAnalysis.extractedData.customerInfo.name;
     
-    // Try to find existing customer info from previous orders
-    const existingCustomer = findExistingCustomer(customerName);
+    // Find existing customer details from previous orders
+    const existingCustomer = findExistingCustomer(referenceName);
     
-    const customerEmail = prompt('Enter customer email:', existingCustomer?.email || 'customer@email.com');
-    if (!customerEmail) return;
+    let customerName, customerEmail, customerPhone, customerAddress;
     
-    const customerPhone = prompt('Enter customer phone:', existingCustomer?.phone || '');
-    const customerAddress = prompt('Enter customer address:', existingCustomer?.address || lastPDFAnalysis.extractedData.customerInfo.address || '');
-    
-    const confirmMessage = `Import ${lastPDFAnalysis.extractedData.items.length} items from "${filename}" for ${customerName}?\n\nThis will create orders and generate invoices with proper weight columns.`;
-    if (!confirm(confirmMessage)) return;
+    if (existingCustomer) {
+        // Use existing customer details
+        customerName = existingCustomer.name;
+        customerEmail = existingCustomer.email;
+        customerPhone = existingCustomer.phone;
+        customerAddress = existingCustomer.address;
+        
+        const confirmMessage = `Found existing customer: ${customerName}\nEmail: ${customerEmail}\nPhone: ${customerPhone}\n\nImport ${lastPDFAnalysis.extractedData.items.length} items for this customer?`;
+        if (!confirm(confirmMessage)) return;
+    } else {
+        // Customer not found, prompt for details
+        customerName = prompt('Customer not found in system. Enter customer name:', referenceName);
+        if (!customerName) return;
+        
+        customerEmail = prompt('Enter customer email:', 'customer@email.com');
+        if (!customerEmail) return;
+        
+        customerPhone = prompt('Enter customer phone:', '');
+        customerAddress = prompt('Enter customer address:', '');
+        
+        const confirmMessage = `Import ${lastPDFAnalysis.extractedData.items.length} items for new customer: ${customerName}?`;
+        if (!confirm(confirmMessage)) return;
+    }
     
     try {
         // Create new import

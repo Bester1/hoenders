@@ -111,6 +111,13 @@ Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg | 4 | 8.47 | 65 | 550.55
 Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg | 4 | 3.32 | 79 | 262.28
 ```
 
+### Customer Information Location
+Butchery invoices contain customer information in the **Reference** field:
+- Reference field contains customer name (e.g., "JEAN DREYER")
+- System extracts Reference and matches against existing customer database
+- Auto-populates full customer details if found in previous orders
+- Only prompts for new customer details if Reference name not found
+
 ## Memory Notes
 - Gmail API integration was fully removed in favor of simpler Google Apps Script approach
 - Email Center UI was cleaned up to remove confusing Gmail configuration forms
