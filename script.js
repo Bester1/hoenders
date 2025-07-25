@@ -1767,13 +1767,37 @@ function setupPDFDragDrop() {
 // Safely trigger file input clicks
 function triggerPDFUpload() {
     try {
-        const fileInput = document.getElementById('pdfFileInput');
-        if (fileInput) {
-            fileInput.click();
-        } else {
-            console.error('PDF file input element not found');
-            alert('Upload functionality not available. Please refresh the page and try again.');
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', triggerPDFUpload);
+            return;
         }
+        
+        let fileInput = document.getElementById('pdfFileInput');
+        
+        // If element doesn't exist, create it
+        if (!fileInput) {
+            console.log('Creating PDF file input element...');
+            fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.id = 'pdfFileInput';
+            fileInput.accept = '.pdf';
+            fileInput.style.display = 'none';
+            fileInput.onchange = handlePDFUpload;
+            
+            // Append to upload area
+            const uploadArea = document.getElementById('pdfUploadArea');
+            if (uploadArea) {
+                uploadArea.appendChild(fileInput);
+                console.log('✅ PDF file input created and added to DOM');
+            } else {
+                document.body.appendChild(fileInput);
+                console.log('✅ PDF file input created and added to body');
+            }
+        }
+        
+        fileInput.click();
+        console.log('📁 PDF file dialog opened');
     } catch (error) {
         console.error('Error triggering PDF upload:', error);
         alert('Error opening file dialog. Please refresh the page and try again.');
