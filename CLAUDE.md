@@ -11,20 +11,27 @@ A comprehensive admin dashboard for managing Plaas Hoenders chicken orders, invo
 - **UI Cleanup**: Updated Email Center to show clean Google Apps Script configuration instead of Gmail login forms
 - **Code Reduction**: Removed ~128 lines of Gmail API code, significantly simplifying the codebase
 
-### Invoice Format Improvements
-- **Added Weight Column**: Updated invoice structure to include proper Weight (KG) column like farm butchery invoices
-- **Common Butchery Mistakes**: System now detects and handles common invoice errors:
-  - Item/Description field swapping
-  - Quantity showing weight instead of actual count
-  - Missing weight column in invoice layout
-- **Weight Estimation**: Automatic weight calculation based on product types when not provided
+### MAJOR WORKFLOW OVERHAUL: PDF-to-Invoice System
+- **Revolutionary Change**: Invoices now generated FROM butchery PDF data (not separate order imports)
+- **Exact Format Match**: System works FROM actual butchery invoice format, not assumptions
+- **Reference Field Extraction**: Customer name extracted from PDF Reference field automatically
+- **Smart Customer Lookup**: Auto-populates existing customer details from previous orders
+- **Weight Data Preservation**: Maintains exact quantities, weights, and pricing from butchery invoice
 
-## Key Features
-- **Order Management**: Import and process orders from CSV files or manual input
-- **Invoice Generation**: Create PDF invoices with business branding
-- **Email Integration**: Send invoices via Google Apps Script (no Gmail API complexity)
+## CORE WORKFLOW: Butchery PDF → Customer Invoices
+
+### Primary Workflow (NEW)
+1. **Receive Butchery Invoice PDF** → Upload to "Import & Analyze Invoices"
+2. **AI Extraction** → System extracts EXACT format: Description | Quantity | KG | Price | Total
+3. **Reference Field** → Customer name automatically extracted (e.g., "JEAN DREYER")
+4. **Customer Lookup** → Auto-populates email/phone/address from existing customer database
+5. **Import as Orders** → Creates orders with exact weights and quantities from butchery data
+6. **Generate Invoices** → Creates customer invoices WITH proper weight columns (finally!)
+
+### Legacy Features (Still Available)
+- **Manual Order Import**: CSV files or manual input (for non-butchery orders)
+- **Email Integration**: Send invoices via Google Apps Script
 - **Pricing Management**: Maintain product pricing with cost/selling price tracking
-- **AI PDF Analysis**: Analyze butchery invoices for pricing accuracy
 - **Data Management**: Supabase integration with local backup/restore capabilities
 
 ## Email Configuration
@@ -103,25 +110,61 @@ The AI PDF analysis system is designed to catch these frequent errors:
    - Verify total calculations (Quantity × Weight × Price/kg)
    - Flag unusual price variations
 
-### Correct Invoice Format
-Based on farm butchery standards:
+### EXACT Butchery Invoice Format (System Now Matches This)
 ```
 Description | Quantity | KG | Price | Total
 Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg | 4 | 8.47 | 65 | 550.55
 Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg | 4 | 3.32 | 79 | 262.28
+Guns (Boude en dye aan mekaar vas) R79/kg. 3 in pak | 2 | 2.22 | 79 | 175.38
+                                                              TOTAL: 988.21
 ```
 
-### Customer Information Location
-Butchery invoices contain customer information in the **Reference** field:
-- Reference field contains customer name (e.g., "JEAN DREYER")
-- System extracts Reference and matches against existing customer database
-- Auto-populates full customer details if found in previous orders
-- Only prompts for new customer details if Reference name not found
+**CRITICAL**: No VAT on butchery invoices. Total = Subtotal.
 
-## Memory Notes
-- Gmail API integration was fully removed in favor of simpler Google Apps Script approach
-- Email Center UI was cleaned up to remove confusing Gmail configuration forms
-- All email functionality now uses a single, simple HTTP POST method
-- No complex authentication flows or API key management required
-- Invoice system updated to match proper butchery format with weight column
-- Common invoice mistakes are documented and handled by the system
+### Butchery Invoice Structure Mapping
+**PDF Header Information:**
+- **Reference Field**: Contains customer name (e.g., "JEAN DREYER")
+- **Invoice Date**: Transaction date
+- **Invoice Number**: Butchery's internal reference
+
+**PDF Table Structure:**
+- **Description**: Full product description with packaging details
+- **Quantity**: Number of items/pieces (NOT weight)
+- **KG**: Actual weight in kilograms
+- **Price**: Unit price per kg
+- **Total**: Quantity × Weight × Price OR final calculated amount
+
+### Customer Data Flow
+1. **Extract Reference**: "JEAN DREYER" from butchery PDF
+2. **Search Database**: Look for existing customer with matching name
+3. **Auto-populate**: Use existing email/phone/address if found
+4. **Manual Entry**: Only prompt for details if customer not in system
+5. **Database Update**: Customer info automatically saved for future use
+
+## CRITICAL WORKFLOW RULES
+
+### ALWAYS Work FROM Butchery Invoice
+- **Never assume invoice format** - always check actual butchery PDF structure
+- **Extract exact data** - quantities, weights, descriptions, prices as-is
+- **No VAT calculations** - butchery invoices are VAT-free
+- **Reference field is customer name** - primary customer identification source
+- **Preserve original descriptions** - don't modify product names during extraction
+
+### Data Flow Priority
+1. **Butchery PDF** (primary source) → Extract data exactly as-is
+2. **Customer Database** (secondary) → Auto-populate contact details
+3. **Manual Entry** (fallback) → Only when customer not found
+4. **Generated Invoices** (output) → Must match extracted format with weights
+
+### System Capabilities
+- **PDF Analysis**: Extracts Description | Quantity | KG | Price | Total format
+- **Customer Matching**: Reference field → existing customer lookup
+- **Smart Import**: Creates orders with exact butchery data + customer details
+- **Invoice Generation**: Outputs with proper weight columns (no VAT)
+- **Email Integration**: Google Apps Script (no Gmail API complexity)
+
+## Technical Notes
+- All email functionality uses Google Apps Script HTTP POST
+- Customer database builds automatically from imports
+- Invoice system preserves exact butchery format and calculations
+- No complex authentication flows required
