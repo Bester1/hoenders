@@ -268,7 +268,8 @@ async function loadFromDatabase() {
         
         if (settingsData) {
             currentImportId = settingsData.current_import_id;
-            pricing = settingsData.pricing || pricing;
+            // DON'T load pricing from database - always use current default values
+            // pricing = settingsData.pricing || pricing;
             emailQueue = settingsData.email_queue || [];
             analysisHistory = settingsData.analysis_history || [];
         }
@@ -1062,14 +1063,15 @@ async function loadStoredData() {
         const storedCurrentImportId = localStorage.getItem('plaasHoendersCurrentImportId');
         const storedInvoices = localStorage.getItem('plaasHoendersInvoices');
         const storedEmailQueue = localStorage.getItem('plaasHoendersEmailQueue');
-        const storedPricing = localStorage.getItem('plaasHoendersPricing');
+        // const storedPricing = localStorage.getItem('plaasHoendersPricing'); // Not used - always use default pricing
         const storedAnalysisHistory = localStorage.getItem('plaasHoendersAnalysisHistory');
         
         if (storedImports) imports = JSON.parse(storedImports);
         if (storedCurrentImportId) currentImportId = storedCurrentImportId;
         if (storedInvoices) invoices = JSON.parse(storedInvoices);
         if (storedEmailQueue) emailQueue = JSON.parse(storedEmailQueue);
-        if (storedPricing) pricing = JSON.parse(storedPricing);
+        // DON'T load pricing from localStorage - always use current default values
+        // if (storedPricing) pricing = JSON.parse(storedPricing);
         if (storedAnalysisHistory) analysisHistory = JSON.parse(storedAnalysisHistory);
     }
     
