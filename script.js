@@ -4067,7 +4067,9 @@ function updateProductAnalytics() {
                 const pricingInfo = pricing[productName];
                 if (pricingInfo && item.weight) {
                     productStats[productName].cost += pricingInfo.cost * item.weight;
-                }
+                    console.log(`💰 Cost calculated for ${productName}: R${pricingInfo.cost}/kg × ${item.weight}kg = R${(pricingInfo.cost * item.weight).toFixed(2)}`);
+                } else {
+                    console.log(`❌ No cost data found for product: "${productName}" (pricing available: ${Object.keys(pricing).join(', ')})`);</                }
                 
                 productStats[productName].orders++;
                 totalItems++;
@@ -4156,6 +4158,9 @@ function updateProfitAnalytics() {
                 if (pricingInfo && item.weight) {
                     itemCost = pricingInfo.cost * item.weight;
                     totalCost += itemCost;
+                    console.log(`💰 Profit calc - Cost for ${productName}: R${pricingInfo.cost}/kg × ${item.weight}kg = R${itemCost.toFixed(2)}`);
+                } else {
+                    console.log(`❌ Profit calc - No cost data for: "${productName}"`);
                 }
                 
                 if (!productProfits[productName]) {
@@ -4344,7 +4349,11 @@ function generateProductAnalyticsData() {
                 // Calculate cost using pricing data
                 const pricingInfo = pricing[productName];
                 if (pricingInfo && item.weight) {
-                    data.totalCost += pricingInfo.cost * item.weight;
+                    const itemCost = pricingInfo.cost * item.weight;
+                    data.totalCost += itemCost;
+                    console.log(`💰 Export calc - Cost for ${productName}: R${pricingInfo.cost}/kg × ${item.weight}kg = R${itemCost.toFixed(2)}`);
+                } else {
+                    console.log(`❌ Export calc - No cost data for: "${productName}"`);
                 }
             });
         }
