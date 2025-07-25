@@ -521,7 +521,8 @@ function generateEmailBody(orderData) {
         .replace('{orderNumber}', orderData.orderId)
         .replace('{productName}', orderData.product)
         .replace('{quantity}', orderData.quantity)
-        .replace('{total}', orderData.total);
+        .replace('{total}', orderData.total)
+        .replace(/\n/g, '<br>'); // Convert line breaks to HTML
 }
 
 // Multi-product email generation functions
@@ -545,7 +546,8 @@ function generateEmailBodyMultiProduct(orderData) {
         .replace('{orderNumber}', orderData.orderId)
         .replace('{productName}', `Multiple items:\n${productList}`)
         .replace('{quantity}', orderData.products.length + ' items')
-        .replace('{total}', orderData.total.toFixed(2));
+        .replace('{total}', orderData.total.toFixed(2))
+        .replace(/\n/g, '<br>'); // Convert line breaks to HTML
 }
 
 async function sendQueuedEmails() {
