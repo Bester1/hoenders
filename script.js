@@ -774,27 +774,38 @@ function generateInvoice(orderId) {
     let subtotal = 0;
     
     if (order.products && order.products.length > 0) {
-        // New multi-product format
-        invoiceItems = order.products.map(product => ({
-            product: product.product,
-            quantity: product.quantity,
-            weight: product.weight || (product.quantity * 2.0), // Default 2kg per item if not specified
-            unitPrice: product.unitPrice,
-            total: product.total,
-            specialInstructions: product.specialInstructions
-        }));
-        subtotal = order.total;
+        // New multi-product format - ALWAYS use current selling prices
+        invoiceItems = order.products.map(product => {
+            const currentPricing = pricing[product.product];
+            const unitPrice = currentPricing ? currentPricing.selling : product.unitPrice;
+            const weight = product.weight || (product.quantity * 2.0); // Default 2kg per item if not specified
+            const total = unitPrice * weight; // Recalculate with current selling price
+            
+            return {
+                product: product.product,
+                quantity: product.quantity,
+                weight: weight,
+                unitPrice: unitPrice,
+                total: total,
+                specialInstructions: product.specialInstructions
+            };
+        });
+        subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
     } else {
-        // Old single-product format - estimate weight based on product type
+        // Old single-product format - ALWAYS use current selling prices
+        const currentPricing = pricing[order.product];
+        const unitPrice = currentPricing ? currentPricing.selling : order.unitPrice;
         const estimatedWeight = estimateProductWeight(order.product, order.quantity);
+        const total = unitPrice * estimatedWeight; // Recalculate with current selling price
+        
         invoiceItems = [{
             product: order.product,
             quantity: order.quantity,
             weight: estimatedWeight,
-            unitPrice: order.unitPrice,
-            total: order.total
+            unitPrice: unitPrice,
+            total: total
         }];
-        subtotal = order.total;
+        subtotal = total;
     }
     
     const invoice = {
