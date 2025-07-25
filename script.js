@@ -1711,37 +1711,34 @@ async function simulateAIAnalysis(filename) {
     // Simulate processing time
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Simulate extracted invoice data from butchery PDF
+    // Simulate extracted invoice data from butchery PDF - EXACT FORMAT
     const extractedItems = [
         {
             description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
             quantity: 4,
             weight: 8.47,
-            unitPrice: 65,
-            total: 550.55,
-            itemNumber: 1
+            price: 65,
+            total: 550.55
         },
         {
             description: 'Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg',
             quantity: 4,
             weight: 3.32,
-            unitPrice: 79,
-            total: 262.28,
-            itemNumber: 2
+            price: 79,
+            total: 262.28
         },
         {
             description: 'Guns (Boude en dye aan mekaar vas) R79/kg. 3 in pak',
             quantity: 2,
             weight: 2.22,
-            unitPrice: 79,
-            total: 175.38,
-            itemNumber: 3
+            price: 79,
+            total: 175.38
         }
     ];
     
     const subtotal = extractedItems.reduce((sum, item) => sum + item.total, 0);
-    const vat = subtotal * 0.15;
-    const total = subtotal + vat;
+    // NO VAT - butchery invoice doesn't have VAT
+    const total = subtotal;
     
     // Simulate AI analysis results with extracted data
     const mockAnalysis = {
@@ -1750,8 +1747,7 @@ async function simulateAIAnalysis(filename) {
         extractedData: {
             items: extractedItems,
             subtotal: subtotal,
-            vat: vat,
-            total: total,
+            total: total, // NO VAT on butchery invoices
             customerInfo: {
                 reference: 'JEAN DREYER', // Extracted from Reference field
                 name: 'JEAN DREYER',
@@ -1845,38 +1841,28 @@ function displayAnalysisResults(analysis, filename) {
             <table class="extracted-data-table">
                 <thead>
                     <tr>
-                        <th>Item</th>
                         <th>Description</th>
-                        <th>Qty</th>
-                        <th>Weight (KG)</th>
-                        <th>Unit Price</th>
+                        <th>Quantity</th>
+                        <th>KG</th>
+                        <th>Price</th>
                         <th>Total</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${analysis.extractedData.items.map(item => `
                         <tr>
-                            <td>${item.itemNumber}</td>
                             <td>${item.description}</td>
                             <td>${item.quantity}</td>
                             <td>${item.weight}</td>
-                            <td>R${item.unitPrice}</td>
-                            <td>R${item.total.toFixed(2)}</td>
+                            <td>${item.price}</td>
+                            <td>${item.total.toFixed(2)}</td>
                         </tr>
                     `).join('')}
                 </tbody>
                 <tfoot>
-                    <tr class="total-row">
-                        <td colspan="5"><strong>Subtotal:</strong></td>
-                        <td><strong>R${analysis.extractedData.subtotal.toFixed(2)}</strong></td>
-                    </tr>
-                    <tr class="total-row">
-                        <td colspan="5"><strong>VAT (15%):</strong></td>
-                        <td><strong>R${analysis.extractedData.vat.toFixed(2)}</strong></td>
-                    </tr>
                     <tr class="total-row final-total">
-                        <td colspan="5"><strong>Total:</strong></td>
-                        <td><strong>R${analysis.extractedData.total.toFixed(2)}</strong></td>
+                        <td colspan="4"><strong>TOTAL:</strong></td>
+                        <td><strong>${analysis.extractedData.total.toFixed(2)}</strong></td>
                     </tr>
                 </tfoot>
             </table>
@@ -1983,7 +1969,7 @@ async function importPDFAsOrders(filename) {
                 product: mappedProduct,
                 quantity: item.quantity,
                 weight: item.weight, // This is the key - weight from PDF!
-                unitPrice: item.unitPrice,
+                unitPrice: item.price, // Fixed field name
                 total: item.total,
                 status: 'pending',
                 originalDescription: item.description // Keep original for reference
@@ -2089,8 +2075,8 @@ function generateInvoiceFromPDFData(order) {
             total: order.total
         }],
         subtotal: order.total,
-        tax: order.total * 0.15,
-        total: order.total * 1.15,
+        tax: 0, // NO VAT on butchery invoices
+        total: order.total, // Total = subtotal (no VAT)
         status: 'generated',
         source: 'PDF'
     };
@@ -2121,12 +2107,10 @@ Items to import: ${data.items.length}
 Items:
 ${data.items.map((item, i) => 
     `${i+1}. ${item.description}
-   Quantity: ${item.quantity} | Weight: ${item.weight}kg | Price: R${item.unitPrice} | Total: R${item.total.toFixed(2)}`
+   Quantity: ${item.quantity} | Weight: ${item.weight}kg | Price: R${item.price} | Total: R${item.total.toFixed(2)}`
 ).join('\n\n')}
 
-Subtotal: R${data.subtotal.toFixed(2)}
-VAT: R${data.vat.toFixed(2)}
-Total: R${data.total.toFixed(2)}
+TOTAL: R${data.total.toFixed(2)} (No VAT on butchery invoices)
 
 Click "Import as Orders" to create these orders with proper invoice generation.
     `;
