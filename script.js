@@ -516,12 +516,50 @@ function generateEmailSubject(orderData) {
 
 function generateEmailBody(orderData) {
     const template = document.getElementById('emailTemplate').value;
+    
+    // Find the invoice for this order
+    const invoice = invoices.find(inv => inv.orderId === orderData.orderId);
+    let invoiceDetails = '';
+    
+    if (invoice && invoice.items) {
+        // Generate detailed invoice table
+        invoiceDetails = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
+        invoiceDetails += '<tr style="background-color: #f0f0f0;"><th>Description</th><th>Quantity</th>';
+        if (invoice.source === 'PDF') {
+            invoiceDetails += '<th>KG</th>';
+        }
+        invoiceDetails += '<th>Unit Price</th><th>Total</th></tr>';
+        
+        invoice.items.forEach(item => {
+            invoiceDetails += '<tr>';
+            invoiceDetails += `<td>${item.originalDescription || item.product}</td>`;
+            invoiceDetails += `<td>${item.quantity}</td>`;
+            if (invoice.source === 'PDF' && item.weight) {
+                invoiceDetails += `<td>${item.weight.toFixed(2)}</td>`;
+            }
+            invoiceDetails += `<td>R${item.unitPrice.toFixed(2)}</td>`;
+            invoiceDetails += `<td>R${item.total.toFixed(2)}</td>`;
+            invoiceDetails += '</tr>';
+        });
+        
+        invoiceDetails += `<tr style="font-weight: bold; background-color: #f9f9f9;"><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">Subtotal</td><td>R${invoice.subtotal.toFixed(2)}</td></tr>`;
+        if (invoice.tax > 0) {
+            invoiceDetails += `<tr><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">VAT (15%)</td><td>R${invoice.tax.toFixed(2)}</td></tr>`;
+        }
+        invoiceDetails += `<tr style="font-weight: bold; background-color: #e0e0e0;"><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">Total</td><td>R${invoice.total.toFixed(2)}</td></tr>`;
+        invoiceDetails += '</table>';
+    } else {
+        // Fallback for orders without detailed invoice
+        invoiceDetails = `<strong>Order Details:</strong><br>`;
+        invoiceDetails += `Product: ${orderData.product}<br>`;
+        invoiceDetails += `Quantity: ${orderData.quantity}<br>`;
+        invoiceDetails += `Total: R${orderData.total}<br>`;
+    }
+    
     return template
         .replace('{customerName}', orderData.name)
         .replace('{orderNumber}', orderData.orderId)
-        .replace('{productName}', orderData.product)
-        .replace('{quantity}', orderData.quantity)
-        .replace('{total}', orderData.total)
+        .replace('{invoiceDetails}', invoiceDetails)
         .replace(/\n/g, '<br>'); // Convert line breaks to HTML
 }
 
@@ -536,17 +574,52 @@ function generateEmailSubjectMultiProduct(orderData) {
 function generateEmailBodyMultiProduct(orderData) {
     const template = document.getElementById('emailTemplate').value;
     
-    // Build product list for multi-product orders
-    const productList = orderData.products.map(product => 
-        `- ${product.originalDescription || product.product}: ${product.quantity} qty, ${product.weight}kg @ R${product.unitPrice}/kg = R${product.total.toFixed(2)}`
-    ).join('\n');
+    // Find the invoice for this order
+    const invoice = invoices.find(inv => inv.orderId === orderData.orderId);
+    let invoiceDetails = '';
+    
+    if (invoice && invoice.items) {
+        // Generate detailed invoice table
+        invoiceDetails = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
+        invoiceDetails += '<tr style="background-color: #f0f0f0;"><th>Description</th><th>Quantity</th>';
+        if (invoice.source === 'PDF') {
+            invoiceDetails += '<th>KG</th>';
+        }
+        invoiceDetails += '<th>Unit Price</th><th>Total</th></tr>';
+        
+        invoice.items.forEach(item => {
+            invoiceDetails += '<tr>';
+            invoiceDetails += `<td>${item.originalDescription || item.product}</td>`;
+            invoiceDetails += `<td>${item.quantity}</td>`;
+            if (invoice.source === 'PDF' && item.weight) {
+                invoiceDetails += `<td>${item.weight.toFixed(2)}</td>`;
+            }
+            invoiceDetails += `<td>R${item.unitPrice.toFixed(2)}</td>`;
+            invoiceDetails += `<td>R${item.total.toFixed(2)}</td>`;
+            invoiceDetails += '</tr>';
+        });
+        
+        invoiceDetails += `<tr style="font-weight: bold; background-color: #f9f9f9;"><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">Subtotal</td><td>R${invoice.subtotal.toFixed(2)}</td></tr>`;
+        if (invoice.tax > 0) {
+            invoiceDetails += `<tr><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">VAT (15%)</td><td>R${invoice.tax.toFixed(2)}</td></tr>`;
+        }
+        invoiceDetails += `<tr style="font-weight: bold; background-color: #e0e0e0;"><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">Total</td><td>R${invoice.total.toFixed(2)}</td></tr>`;
+        invoiceDetails += '</table>';
+    } else {
+        // Fallback for orders without detailed invoice
+        invoiceDetails = `<strong>Order Details:</strong><br>`;
+        orderData.products.forEach(product => {
+            invoiceDetails += `${product.originalDescription || product.product}: ${product.quantity} qty`;
+            if (product.weight) invoiceDetails += `, ${product.weight}kg`;
+            invoiceDetails += ` @ R${product.unitPrice}/kg = R${product.total.toFixed(2)}<br>`;
+        });
+        invoiceDetails += `<strong>Total: R${orderData.total.toFixed(2)}</strong>`;
+    }
     
     return template
         .replace('{customerName}', orderData.name)
         .replace('{orderNumber}', orderData.orderId)
-        .replace('{productName}', `Multiple items:\n${productList}`)
-        .replace('{quantity}', orderData.products.length + ' items')
-        .replace('{total}', orderData.total.toFixed(2))
+        .replace('{invoiceDetails}', invoiceDetails)
         .replace(/\n/g, '<br>'); // Convert line breaks to HTML
 }
 
@@ -642,13 +715,42 @@ async function testEmail() {
             address: '123 Test Street, Test Town, 1234',
             product: 'HEEL HOENDER',
             quantity: 2,
-            total: 'R268.00'
+            total: 134.00
         };
+
+        // Create a test invoice for this order
+        const testInvoice = {
+            invoiceId: 'INV-TEST-' + Date.now(),
+            orderId: testOrder.orderId,
+            customerName: testOrder.name,
+            items: [
+                {
+                    originalDescription: 'HEEL HOENDER',
+                    product: 'HEEL HOENDER',
+                    quantity: 2,
+                    weight: 2.0,
+                    unitPrice: 67.00,
+                    total: 134.00
+                }
+            ],
+            subtotal: 134.00,
+            tax: 0, // No VAT
+            total: 134.00,
+            source: 'PDF',
+            status: 'generated'
+        };
+
+        // Temporarily add test invoice to invoices array
+        invoices.push(testInvoice);
 
         const subject = generateEmailSubject(testOrder);
         const body = generateEmailBody(testOrder);
         
         await sendEmailViaGoogleScript(testEmailAddress, subject, body);
+        
+        // Remove test invoice after sending
+        const testIndex = invoices.findIndex(inv => inv.invoiceId === testInvoice.invoiceId);
+        if (testIndex > -1) invoices.splice(testIndex, 1);
         
         alert('Test email sent successfully with invoice template!');
         addActivity(`Test email sent to ${testEmailAddress} with invoice template`);
