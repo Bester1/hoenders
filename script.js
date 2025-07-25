@@ -17,6 +17,33 @@ function getCurrentImportInvoices() {
     return currentImportId && imports[currentImportId] ? imports[currentImportId].invoices : [];
 }
 
+// Estimate product weight based on typical butchery weights
+function estimateProductWeight(product, quantity) {
+    const weightEstimates = {
+        'HEEL HOENDER': 1.8, // Full chicken ~1.8kg average
+        'HEEL HALWE HOENDERS': 0.9, // Half chicken ~0.9kg
+        'PLAT HOENDER (FLATTY\'S)': 1.2, // Flattened chicken ~1.2kg
+        'BRAAIPAKKE': 1.8, // Cut up chicken ~1.8kg
+        'BORSSTUKKE MET BEEN EN VEL': 0.8, // Breast pieces ~0.8kg per pack
+        'BOUDE EN DYE': 0.8, // Thighs and drumsticks ~0.8kg per pack
+        'GUNS Boud en dy aanmekaar': 0.7, // Connected thigh/drum ~0.7kg
+        'FILETTE (sonder vel)': 0.9, // Breast fillets ~0.9kg per pack
+        'STRIPS': 0.5, // Chicken strips ~0.5kg per pack
+        'ONTBEENDE HOENDER': 1.3, // Deboned chicken ~1.3kg
+        'VLERKIES': 0.5, // Wings ~0.5kg per pack
+        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': 1.4, // Stuffed rolls ~1.4kg
+        'LEWER': 0.5, // Liver ~0.5kg per pack
+        'NEKKIES': 0.5, // Necks ~0.5kg per pack
+        'HOENDER KAASWORS': 0.5, // Chicken cheese sausage ~0.5kg
+        'HOENDER PATTIES': 0.5, // Chicken patties ~0.5kg per pack
+        'INGELEGDE GROEN VYE': 0.375, // Pickled figs ~375g per jar
+        'SUIWER HEUNING': 0.5 // Honey ~500g per jar
+    };
+    
+    const baseWeight = weightEstimates[product] || 1.0; // Default 1kg if not found
+    return parseFloat((baseWeight * quantity).toFixed(2));
+}
+
 // Product mapping for CSV columns to standardized names
 const productMapping = {
     'Heel Hoender - Full Chicken 1.5kg - 2.2kg R67/kg': 'HEEL HOENDER',
@@ -529,13 +556,25 @@ async function testEmail() {
     if (!testEmailAddress) return;
 
     try {
-        const subject = 'Test Email from Plaas Hoenders Admin';
-        const body = '<h2>Test Email</h2><p>This is a test email from your Plaas Hoenders admin panel. Email integration is working correctly!</p>';
+        // Create a realistic test invoice using the email template
+        const testOrder = {
+            orderId: 'ORD-TEST-' + Date.now(),
+            name: 'Test Customer',
+            email: testEmailAddress,
+            phone: '072 123 4567',
+            address: '123 Test Street, Test Town, 1234',
+            product: 'HEEL HOENDER',
+            quantity: 2,
+            total: 'R268.00'
+        };
+
+        const subject = generateEmailSubject(testOrder);
+        const body = generateEmailBody(testOrder);
         
         await sendEmailViaGoogleScript(testEmailAddress, subject, body);
         
-        alert('Test email sent successfully!');
-        addActivity(`Test email sent to ${testEmailAddress}`);
+        alert('Test email sent successfully with invoice template!');
+        addActivity(`Test email sent to ${testEmailAddress} with invoice template`);
     } catch (error) {
         alert(`Failed to send test email: ${error.message}`);
     }
@@ -665,16 +704,19 @@ function generateInvoice(orderId) {
         invoiceItems = order.products.map(product => ({
             product: product.product,
             quantity: product.quantity,
+            weight: product.weight || (product.quantity * 2.0), // Default 2kg per item if not specified
             unitPrice: product.unitPrice,
             total: product.total,
             specialInstructions: product.specialInstructions
         }));
         subtotal = order.total;
     } else {
-        // Old single-product format
+        // Old single-product format - estimate weight based on product type
+        const estimatedWeight = estimateProductWeight(order.product, order.quantity);
         invoiceItems = [{
             product: order.product,
             quantity: order.quantity,
+            weight: estimatedWeight,
             unitPrice: order.unitPrice,
             total: order.total
         }];
