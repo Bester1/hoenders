@@ -202,3 +202,31 @@ Guns (Boude en dye aan mekaar vas) R79/kg. 3 in pak | 2 | 2.22 | 79 | 175.38
 - Handle stock shortages/surpluses
 - Generate invoices based on ACTUAL delivered amounts
 - Flag discrepancies for review
+
+## SCANNED PDF REALITY (UPDATED 2025-07-25)
+
+### USER'S PDF IS SCANNED/IMAGE-BASED
+- **NOT TEXT-BASED**: PDF contains scanned images, not selectable text
+- **PDF.js FAILS**: Cannot extract text from image-based PDFs
+- **NEED OCR**: Optical Character Recognition required for scanned documents
+- **TESSERACT.JS INTEGRATED**: Real AI/OCR processing implemented
+
+### OCR Processing Flow
+1. **PDF.js loads PDF** → Detects no extractable text (scanned)
+2. **Switch to OCR mode** → Render each page as high-res canvas image
+3. **Tesseract.js OCR** → Extract text from each scanned page image
+4. **Parse extracted text** → Find Reference fields and invoice data
+5. **Multi-customer processing** → Each page = different customer
+6. **Generate invoices** → From actual OCR-extracted data
+
+### NEVER SUGGEST MANUAL ENTRY
+- **USER EXPECTS AI PROCESSING** - not manual bullshit
+- **OCR IS THE SOLUTION** for scanned PDFs
+- **TESSERACT.JS IMPLEMENTED** - no more excuses
+- **REAL AI/OCR WORKFLOW** - not manual forms
+
+### Memory Update Protocol
+- **ALWAYS UPDATE MEMORY** when user requests it
+- **CHECK MEMORY FIRST** before making assumptions  
+- **DOCUMENT DISCOVERIES** immediately when found
+- **USER TESTS ON LIVE SITE** - push changes to GitHub
