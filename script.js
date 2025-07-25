@@ -3115,7 +3115,7 @@ function generateInvoiceFromPDFDataMultiProduct(order) {
         customerAddress: order.address,
         items: order.products, // Multiple items from PDF
         subtotal: order.total,
-        tax: 0, // NO VAT on butchery invoices
+        tax: 0, // NO VAT
         total: order.total, // Total = subtotal (no VAT)
         status: 'generated',
         source: 'PDF'
@@ -3149,7 +3149,7 @@ function generateInvoiceFromPDFData(order) {
             total: order.total
         }],
         subtotal: order.total,
-        tax: 0, // NO VAT on butchery invoices
+        tax: 0, // NO VAT
         total: order.total, // Total = subtotal (no VAT)
         status: 'generated',
         source: 'PDF'
@@ -3202,7 +3202,7 @@ SUMMARY:
 • ${data.allItems.length} total items will be imported
 • Each customer gets separate orders and invoices
 • Weights and quantities are from actual delivered amounts
-• No VAT applied (butchery invoice format)
+• No VAT applied
 
 Click "Import All Customers as Orders" to proceed.
         `;
@@ -3222,7 +3222,7 @@ ${(data.items || []).map((item, i) =>
    Quantity: ${item.quantity} | Weight: ${item.weight}kg | Price: R${item.price} | Total: R${item.total.toFixed(2)}`
 ).join('\n\n')}
 
-TOTAL: R${data.total.toFixed(2)} (No VAT on butchery invoices)
+TOTAL: R${data.total.toFixed(2)} (No VAT)
 
 Click "Import as Orders" to create these orders with proper invoice generation.
         `;
