@@ -1836,6 +1836,15 @@ async function analyzePDFContent(arrayBuffer, filename) {
         
         console.log(`✅ Extracted ${extractedCustomers.length} customers from PDF`);
         
+        // Check if this is a scanned PDF (no text extracted)
+        if (extractedCustomers.length === 0) {
+            console.log('⚠️ Scanned PDF detected - switching to AI/OCR processing...');
+            
+            // Process with AI instead of manual bullshit
+            await processScannedPDFWithAI(pdfDoc, filename, numPages);
+            return;
+        }
+        
         // Create analysis result in expected format
         const analysisResult = createAnalysisResult(extractedCustomers, filename);
         
@@ -3098,13 +3107,163 @@ function loadCurrentRatesTable() {
     tableBody.innerHTML = ratesHTML;
 }
 
-function showLoadingState(show) {
+// Show interface for scanned PDFs that need manual entry
+function showScannedPDFInterface(filename, numPages) {
+    const resultsContainer = document.getElementById('analysisResults');
+    const summaryContainer = document.getElementById('resultsSummary');
+    const detailsContainer = document.getElementById('resultsDetails');
+    
+    // Make sure we're on the PDF analysis section
+    const currentSection = document.querySelector('.content-section.active');
+    if (currentSection && currentSection.id !== 'pdf-analysis') {
+        showSection('pdf-analysis');
+    }
+    
+    resultsContainer.style.display = 'block';
+    
+    // Create summary for scanned PDF
+    const summaryHTML = `
+        <div class="analysis-summary">
+            <div class="summary-header">
+                <h4>📄 ${filename}</h4>
+                <span class="analysis-date">${new Date().toLocaleString()}</span>
+            </div>
+            <div class="summary-stats">
+                <div class="summary-stat warning">
+                    <span class="stat-label">Status</span>
+                    <span class="stat-value">Scanned PDF</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-label">Pages</span>
+                    <span class="stat-value">${numPages}</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const detailsHTML = `
+        <div class="scanned-pdf-notice">
+            <h3>📸 Scanned PDF Detected</h3>
+            <p>This PDF contains scanned images, not text. We need to use OCR (Optical Character Recognition) to read it.</p>
+            
+            <div class="ocr-options">
+                <h4>What would you like to do?</h4>
+                
+                <div class="option-card">
+                    <h5>✍️ Manual Entry (Available Now)</h5>
+                    <p>Enter invoice data manually for each customer page.</p>
+                    <button onclick="startManualPDFEntry('${filename}', ${numPages})" class="btn-primary">
+                        <i class="fas fa-keyboard"></i> Enter Data Manually
+                    </button>
+                </div>
+                
+                <div class="option-card">
+                    <h5>🤖 AI/OCR Processing (Coming Soon)</h5>
+                    <p>Automatic extraction using AI services like Claude or Google Vision.</p>
+                    <button class="btn-secondary" disabled>
+                        <i class="fas fa-robot"></i> Use AI (Not Yet Available)
+                    </button>
+                </div>
+                
+                <div class="option-card">
+                    <h5>📄 Upload Different PDF</h5>
+                    <p>Try a text-based PDF if available.</p>
+                    <button onclick="resetPDFUpload()" class="btn-secondary">
+                        <i class="fas fa-redo"></i> Choose Another File
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    summaryContainer.innerHTML = summaryHTML;
+    detailsContainer.innerHTML = detailsHTML;
+}
+
+// Process scanned PDF with AI/OCR
+async function processScannedPDFWithAI(pdfDoc, filename, numPages) {
+    try {
+        console.log('🤖 Starting AI/OCR processing...');
+        showLoadingState(true, 'Processing with AI/OCR...');
+        
+        const extractedCustomers = [];
+        
+        // Process each page with OCR
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+            console.log(`🔍 OCR processing page ${pageNum}/${numPages}...`);
+            
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
+            
+            // Create canvas to render PDF page as image
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            // Render PDF page to canvas
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+            
+            // Convert canvas to image and run OCR
+            const imageDataURL = canvas.toDataURL();
+            
+            console.log(`🔤 Running OCR on page ${pageNum}...`);
+            const ocrResult = await Tesseract.recognize(imageDataURL, 'eng', {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+                    }
+                }
+            });
+            
+            const pageText = ocrResult.data.text;
+            console.log(`📄 OCR extracted ${pageText.length} characters from page ${pageNum}`);
+            
+            // Parse customer data from OCR text
+            const customerData = parseInvoicePage(pageText, pageNum);
+            if (customerData) {
+                extractedCustomers.push(customerData);
+                console.log(`✅ Found customer: ${customerData.reference} on page ${pageNum}`);
+            }
+        }
+        
+        console.log(`🎉 AI/OCR extracted ${extractedCustomers.length} customers from PDF`);
+        
+        if (extractedCustomers.length === 0) {
+            throw new Error('No customer data could be extracted from the scanned PDF');
+        }
+        
+        // Create analysis result and display
+        const analysisResult = createAnalysisResult(extractedCustomers, filename);
+        displayAnalysisResults(analysisResult, filename);
+        saveAnalysisToHistory(analysisResult, filename);
+        
+        showLoadingState(false);
+        
+    } catch (error) {
+        console.error('❌ AI/OCR processing failed:', error);
+        showLoadingState(false);
+        alert(`AI/OCR processing failed: ${error.message}\n\nPlease try a different PDF or contact support.`);
+    }
+}
+
+// Reset PDF upload
+function resetPDFUpload() {
+    document.getElementById('analysisResults').style.display = 'none';
+    document.getElementById('pdfFileInput').value = '';
+    showLoadingState(false);
+}
+
+function showLoadingState(show, customMessage = 'Analyzing PDF with AI...') {
     const uploadArea = document.getElementById('pdfUploadArea');
     if (show) {
         uploadArea.innerHTML = `
             <div class="loading-state">
                 <i class="fas fa-spinner fa-spin"></i>
-                <p>Analyzing PDF with AI...</p>
+                <p>${customMessage}</p>
                 <small>This may take a few moments</small>
             </div>
         `;
