@@ -1866,8 +1866,12 @@ async function analyzePDFContent(arrayBuffer, filename) {
 // Parse invoice page text to extract customer and items
 function parseInvoicePage(pageText, pageNumber) {
     try {
-        // Debug: Log the first 500 characters of page text to see structure
-        console.log(`📄 Page ${pageNumber} text sample:`, pageText.substring(0, 500));
+        // Debug: Log the first 1000 characters of page text to see structure
+        console.log(`📄 Page ${pageNumber} text sample:`, pageText.substring(0, 1000));
+        
+        // Also check if "Reference" exists anywhere in the text (case insensitive)
+        const hasReference = pageText.toLowerCase().includes('reference');
+        console.log(`📄 Page ${pageNumber} contains "reference": ${hasReference}`);
         
         // Look for Reference field with more flexible pattern
         // Try multiple patterns to find customer name
