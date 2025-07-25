@@ -65,7 +65,26 @@ const productMapping = {
     'INGELEGDE GROEN VYE  R75 PER POTJIE 375ml potjie': 'INGELEGDE GROEN VYE',
     'Hoender Kaaswors 1kg Vacuum verpak R148/kg': 'HOENDER KAASWORS',
     'Hoender Patties 4 in pak (120-140gr/patty) R120/kg': 'HOENDER PATTIES',
-    'Heuning 500ml R70': 'SUIWER HEUNING'
+    'Heuning 500ml R70': 'SUIWER HEUNING',
+    // Additional mappings for butchery invoice items (simplified names)
+    'heuning': 'SUIWER HEUNING',
+    'fillets': 'FILETTE (sonder vel)',
+    'vlerke': 'VLERKIES',
+    '4bors': 'BORSSTUKKE MET BEEN EN VEL',
+    '2bors': 'BORSSTUKKE MET BEEN EN VEL', 
+    'boud/dy': 'BOUDE EN DYE',
+    'heel': 'HEEL HOENDER',
+    'halwe hoender': 'HEEL HALWE HOENDERS',
+    'strips': 'STRIPS',
+    'ontbeen': 'ONTBEENDE HOENDER',
+    'lewer': 'LEWER',
+    'patties': 'HOENDER PATTIES',
+    'guns': 'GUNS Boud en dy aanmekaar',
+    'kaaswors': 'HOENDER KAASWORS',
+    'plat': 'PLAT HOENDER (FLATTY\'S)',
+    'braaipak': 'BRAAIPAKKE',
+    'pep rol': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+    'groen vye': 'INGELEGDE GROEN VYE'
 };
 
 // March 2025 Braaikuikens - EXACT COST and SELLING prices from supplier
@@ -2640,6 +2659,30 @@ async function importPDFAsOrders(filename) {
             }
             
             // Create ONE order per customer with multiple items (better approach)
+            const products = customer.items.map(item => {
+                const mappedProduct = findMappedProduct(item.description);
+                let unitPrice = item.price; // Default to butchery price
+                let total = item.total;      // Default to butchery total
+                
+                // Use your rate card pricing if available
+                if (mappedProduct && pricing[mappedProduct]) {
+                    unitPrice = pricing[mappedProduct].selling;
+                    total = unitPrice * item.weight; // Your price × delivered weight
+                    console.log(`💰 Applied rate card pricing for ${mappedProduct}: R${unitPrice}/kg × ${item.weight}kg = R${total.toFixed(2)}`);
+                } else {
+                    console.log(`⚠️ No rate card pricing found for "${item.description}" (mapped to "${mappedProduct}") - using butchery price R${item.price}`);
+                }
+                
+                return {
+                    product: mappedProduct,
+                    originalDescription: item.description,
+                    quantity: item.quantity,
+                    weight: item.weight, // Actual delivered weight from PDF!
+                    unitPrice: unitPrice,
+                    total: parseFloat(total.toFixed(2))
+                };
+            });
+            
             const customerOrder = {
                 orderId: `ORD-PDF-${Date.now()}-P${customer.pageNumber}`,
                 date: new Date().toISOString().split('T')[0],
@@ -2647,15 +2690,8 @@ async function importPDFAsOrders(filename) {
                 email: customerEmail,
                 phone: customerPhone || '000 000 0000',
                 address: customerAddress || 'Address not provided',
-                products: customer.items.map(item => ({
-                    product: findMappedProduct(item.description),
-                    originalDescription: item.description,
-                    quantity: item.quantity,
-                    weight: item.weight, // Actual delivered weight from PDF!
-                    unitPrice: item.price,
-                    total: item.total
-                })),
-                total: customer.items.reduce((sum, item) => sum + item.total, 0),
+                products: products,
+                total: products.reduce((sum, product) => sum + product.total, 0),
                 status: 'pending',
                 pdfReference: referenceName,
                 pageNumber: customer.pageNumber,
