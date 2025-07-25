@@ -447,12 +447,9 @@ async function sendQueuedEmails() {
         return;
     }
 
-    // Check which email service to use
-    if (useGoogleScript && !GOOGLE_SCRIPT_URL) {
+    // Check if Google Apps Script is configured
+    if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'YOUR_SCRIPT_URL_HERE') {
         alert('Please configure Google Apps Script URL first. See GOOGLE_APPS_SCRIPT_SETUP.md');
-        return;
-    } else if (!useGoogleScript && !gapi.client.getToken()) {
-        alert('Please connect Gmail first.');
         return;
     }
 
@@ -517,12 +514,9 @@ function updateEmailQueueDisplay() {
 }
 
 async function testEmail() {
-    // Check which email service to use
-    if (useGoogleScript && !GOOGLE_SCRIPT_URL) {
+    // Check if Google Apps Script is configured
+    if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'YOUR_SCRIPT_URL_HERE') {
         alert('Please configure Google Apps Script URL first. See GOOGLE_APPS_SCRIPT_SETUP.md');
-        return;
-    } else if (!useGoogleScript && !gapi.client.getToken()) {
-        alert('Please connect Gmail first.');
         return;
     }
 
