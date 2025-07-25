@@ -2008,9 +2008,10 @@ function parseInvoicePage(pageText, pageNumber) {
         // So: "Item"=description, "Description"=count, "Quantity"=weight
         const items = [];
         
-        // Look for table rows after headers
+        // Look for table rows after headers - HANDLE MULTI-LINE PRODUCT NAMES
         const lines = pageText.split('\n');
         let inTableData = false;
+        let pendingDescription = '';
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -2027,34 +2028,60 @@ function parseInvoicePage(pageText, pageNumber) {
             // Skip table separator lines or subtotal/total lines
             if (line.includes('---') || line.toLowerCase().includes('subtotal') || 
                 line.toLowerCase().includes('total vat') || line.toLowerCase().includes('total zar')) {
+                inTableData = false; // Stop processing when we hit totals
                 continue;
             }
             
             // If we're in table data, try to parse the line
             if (inTableData) {
-                // Parse OCR line format: "halwe hoender 4 4.05 60.00 243.00" or "Fillets 3 2.99 88.50 264.62"
                 const parts = line.split(/\s+/);
                 
-                if (parts.length >= 5) {
-                    // The last 4 parts are always: quantity, weight, unitPrice, total
-                    const total = parseFloat(parts[parts.length - 1]);     // Amount ZAR (last)
-                    const unitPrice = parseFloat(parts[parts.length - 2]); // Unit Price (2nd last)
-                    const weight = parseFloat(parts[parts.length - 3]);    // Weight in kg (3rd last) 
-                    const quantity = parseInt(parts[parts.length - 4]);    // Count (4th last)
+                // Check if this line has the 4 number pattern at the end (quantity, weight, price, total)
+                if (parts.length >= 4) {
+                    const lastFour = parts.slice(-4);
+                    const quantity = parseInt(lastFour[0]);
+                    const weight = parseFloat(lastFour[1]);
+                    const unitPrice = parseFloat(lastFour[2]);
+                    const total = parseFloat(lastFour[3]);
                     
-                    // Everything before the last 4 parts is the product description
-                    const description = parts.slice(0, parts.length - 4).join(' ');
-                    
-                    if (description && !isNaN(quantity) && !isNaN(weight) && !isNaN(unitPrice) && !isNaN(total)) {
-                        items.push({
-                            description: description,
-                            quantity: quantity,     // Actual count (3, 1, 4)
-                            weight: weight,         // Weight in kg (2.99, 1.00, 4.05)
-                            price: unitPrice,       // Price per unit (88.50, 60.00)
-                            total: total           // Total amount (264.62, 60.00, 243.00)
-                        });
+                    // Check if the last 4 parts are all valid numbers
+                    if (!isNaN(quantity) && !isNaN(weight) && !isNaN(unitPrice) && !isNaN(total)) {
+                        // This line has the numbers - extract the description part
+                        const descriptionParts = parts.slice(0, -4);
+                        const currentDescription = descriptionParts.join(' ');
                         
-                        console.log(`📦 Found item: ${description} - Count: ${quantity}, Weight: ${weight}kg, Price: R${unitPrice}, Total: R${total}`);
+                        // Combine with any pending description from previous lines
+                        const fullDescription = pendingDescription ? 
+                            `${pendingDescription} ${currentDescription}`.trim() : currentDescription;
+                        
+                        if (fullDescription) {
+                            items.push({
+                                description: fullDescription,
+                                quantity: quantity,     // Actual count (3, 1, 4)
+                                weight: weight,         // Weight in kg (2.99, 1.00, 4.05)
+                                price: unitPrice,       // Price per unit (88.50, 60.00)
+                                total: total           // Total amount (264.62, 60.00, 243.00)
+                            });
+                            
+                            console.log(`📦 Found item: ${fullDescription} - Count: ${quantity}, Weight: ${weight}kg, Price: R${unitPrice}, Total: R${total}`);
+                        }
+                        
+                        // Reset pending description
+                        pendingDescription = '';
+                    } else {
+                        // This line doesn't end with valid numbers - might be part of a multi-line product name
+                        if (pendingDescription) {
+                            pendingDescription += ' ' + line;
+                        } else {
+                            pendingDescription = line;
+                        }
+                    }
+                } else {
+                    // Line has less than 4 parts - likely part of a multi-line product name
+                    if (pendingDescription) {
+                        pendingDescription += ' ' + line;
+                    } else {
+                        pendingDescription = line;
                     }
                 }
             }
