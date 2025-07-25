@@ -2032,24 +2032,26 @@ function parseInvoicePage(pageText, pageNumber) {
             
             // If we're in table data, try to parse the line
             if (inTableData) {
-                // Parse OCR line format: Fillets 3 2.99 88.50 264.62
+                // Parse OCR line format: "halwe hoender 4 4.05 60.00 243.00" or "Fillets 3 2.99 88.50 264.62"
                 const parts = line.split(/\s+/);
                 
                 if (parts.length >= 5) {
-                    // Extract fields based on ACTUAL meaning (not headers):
-                    const description = parts[0];           // "Item" column = product name
-                    const quantity = parseInt(parts[1]);    // "Description" column = count
-                    const weight = parseFloat(parts[2]);    // "Quantity" column = weight in kg
-                    const unitPrice = parseFloat(parts[3]); // "Unit Price" column = correct
-                    const total = parseFloat(parts[4]);     // "Amount ZAR" column = correct
+                    // The last 4 parts are always: quantity, weight, unitPrice, total
+                    const total = parseFloat(parts[parts.length - 1]);     // Amount ZAR (last)
+                    const unitPrice = parseFloat(parts[parts.length - 2]); // Unit Price (2nd last)
+                    const weight = parseFloat(parts[parts.length - 3]);    // Weight in kg (3rd last) 
+                    const quantity = parseInt(parts[parts.length - 4]);    // Count (4th last)
+                    
+                    // Everything before the last 4 parts is the product description
+                    const description = parts.slice(0, parts.length - 4).join(' ');
                     
                     if (description && !isNaN(quantity) && !isNaN(weight) && !isNaN(unitPrice) && !isNaN(total)) {
                         items.push({
                             description: description,
-                            quantity: quantity,     // Actual count (3, 1)
-                            weight: weight,         // Weight in kg (2.99, 1.00)
+                            quantity: quantity,     // Actual count (3, 1, 4)
+                            weight: weight,         // Weight in kg (2.99, 1.00, 4.05)
                             price: unitPrice,       // Price per unit (88.50, 60.00)
-                            total: total           // Total amount (264.62, 60.00)
+                            total: total           // Total amount (264.62, 60.00, 243.00)
                         });
                         
                         console.log(`📦 Found item: ${description} - Count: ${quantity}, Weight: ${weight}kg, Price: R${unitPrice}, Total: R${total}`);
