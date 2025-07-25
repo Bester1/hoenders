@@ -20,13 +20,7 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({
         status: 'error',
         message: 'Missing required fields: to, subject, body'
-      }))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders({
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
-      });
+      })).setMimeType(ContentService.MimeType.JSON);
     }
     
     // Prepare email options
@@ -69,13 +63,7 @@ function doPost(e) {
       status: 'success',
       message: 'Email sent successfully',
       timestamp: new Date().toISOString()
-    }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    });
+    })).setMimeType(ContentService.MimeType.JSON);
     
   } catch (error) {
     // Return error response
@@ -83,26 +71,13 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({
       status: 'error',
       message: error.toString()
-    }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    });
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
 // Handle preflight OPTIONS requests for CORS
 function doOptions(e) {
-  return ContentService.createTextOutput('')
-    .setMimeType(ContentService.MimeType.TEXT)
-    .setHeaders({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Max-Age': '86400'
-    });
+  return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
 }
 
 // Test function to verify the script is working
@@ -110,14 +85,8 @@ function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({
     status: 'ready',
     message: 'Plaas Hoenders Email Service is running',
-    version: '1.2'
-  }))
-  .setMimeType(ContentService.MimeType.JSON)
-  .setHeaders({
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
-  });
+    version: '1.3'
+  })).setMimeType(ContentService.MimeType.JSON);
 }
 
 // Function to send test email (for testing in Apps Script editor)
