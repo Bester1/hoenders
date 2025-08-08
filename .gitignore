@@ -1,0 +1,316 @@
+# Plaas Hoenders Admin Dashboard - .gitignore
+
+# ========================================
+# Project-Specific Ignores
+# ========================================
+
+# Local environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Local configuration files
+config.local.js
+config.local.json
+
+# Database backups and exports
+backups/
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded files and user data
+uploads/
+user-data/
+temp-files/
+*.pdf
+*.csv
+*.xlsx
+invoice-pdfs/
+
+# Local development server files
+*.log
+logs/
+
+# ========================================
+# IDE and Editor Files
+# ========================================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Cursor IDE
+.cursor/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ========================================
+# System Files
+# ========================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.tmp
+*.temp
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ========================================
+# Web Development
+# ========================================
+
+# Node.js (if you add it later)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+.pnp.*
+.yarn/
+package-lock.json
+yarn.lock
+
+# Build directories
+dist/
+build/
+out/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+.nyc_output
+
+# ESLint cache
+.eslintcache
+
+# Prettier cache
+.prettier-cache
+
+# ========================================
+# Sensitive Information
+# ========================================
+
+# API keys and secrets
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.cert
+*.crt
+private/
+confidential/
+
+# Google Apps Script credentials
+credentials.json
+token.json
+client_secret.json
+
+# OAuth tokens
+oauth-tokens/
+.oauth/
+
+# Email configuration with sensitive data
+email-config.json
+smtp-config.json
+
+# Customer data exports with personal information
+customer-exports/
+personal-data/
+
+# ========================================
+# Backup and Archive Files
+# ========================================
+
+# Compressed files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+
+# ========================================
+# Temporary and Cache Files
+# ========================================
+
+# Cache directories
+.cache/
+.tmp/
+tmp/
+temp/
+
+# Runtime caches
+.sass-cache/
+.parcel-cache/
+.webpack-cache/
+
+# Thumbnails and previews
+.thumbnails/
+thumbs/
+
+# ========================================
+# Development Tools
+# ========================================
+
+# Debugging
+.debug/
+debug.log
+
+# Testing
+test-results/
+coverage/
+.coverage
+
+# Linting
+.eslint-cache
+.stylelint-cache
+
+# ========================================
+# Project-Specific BMad/Claude/AI Tools
+# ========================================
+
+# BMad core files - ENABLED FOR DEVELOPMENT
+# .bmad-core/
+
+# Claude development artifacts
+.claude/
+
+# Kilocode IDE files
+.kilocode/
+.kilocodemodes
+
+# AI-generated temporary files
+ai-temp/
+claude-temp/
+
+# ========================================
+# Ignore Folder (as requested)
+# ========================================
+
+# Generic ignore folder
+ignore/
+_ignore/
+.ignore/
+
+# ========================================
+# Documentation Build Artifacts
+# ========================================
+
+# Markdown processing
+.markdown-cache/
+docs-build/
+
+# Static site generators
+_site/
+.jekyll-cache/
+.next/
+.nuxt/
+
+# ========================================
+# Server and Hosting
+# ========================================
+
+# Local server files
+.htaccess.local
+.htpasswd
+
+# FTP deployment
+.ftpconfig
+.ftpsync
+
+# Vercel
+.vercel
+
+# Netlify
+.netlify
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# ========================================
+# End of .gitignore
+# ========================================
