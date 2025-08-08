@@ -560,33 +560,99 @@ async function navigateToSection(sectionName) {
             return;
         }
 
+        // Don't navigate if already on this section
+        if (currentSection === sectionName) {
+            return;
+        }
+
         // Update navigation state
         currentSection = sectionName;
         updateNavigationState();
 
-        // Hide all sections
-        const sections = document.querySelectorAll('.customer-section:not(#auth-section)');
-        sections.forEach(section => {
-            section.classList.remove('active');
-        });
+        // Apply smooth transition effect
+        await performSectionTransition(sectionName);
 
-        // Show target section with smooth transition
-        const targetSection = document.getElementById(`${sectionName}-section`);
-        if (targetSection) {
-            targetSection.classList.add('active');
-
-            // Load section data if needed
-            await loadSectionData(sectionName);
-        }
-
-        // Update URL hash for navigation state (optional enhancement)
-        if (window.history && window.history.replaceState) {
-            window.history.replaceState(null, null, `#${sectionName}`);
-        }
+        // Update URL hash for navigation state and browser history
+        updateNavigationUrl(sectionName);
 
     } catch (error) {
         console.error('Error navigating to section:', error);
         showSectionError(sectionName, 'Navigation failed. Please try again.');
+    }
+}
+
+/**
+ * Perform smooth transition between sections
+ * @async
+ * @function performSectionTransition
+ * @param {string} targetSectionName - Target section to show
+ * @returns {Promise<void>}
+ */
+async function performSectionTransition(targetSectionName) {
+    const allSections = document.querySelectorAll('.customer-section:not(#auth-section)');
+    const targetSection = document.getElementById(`${targetSectionName}-section`);
+
+    if (!targetSection) {
+        throw new Error(`Target section not found: ${targetSectionName}`);
+    }
+
+    // Add transitioning class to prevent multiple rapid clicks
+    document.body.classList.add('section-transitioning');
+
+    try {
+        // Step 1: Fade out current section
+        const currentActiveSection = document.querySelector('.customer-section.active:not(#auth-section)');
+        if (currentActiveSection && currentActiveSection !== targetSection) {
+            currentActiveSection.style.opacity = '0';
+            await new Promise(resolve => setTimeout(resolve, 150)); // Wait for fade out
+            currentActiveSection.classList.remove('active');
+        }
+
+        // Step 2: Prepare target section (hidden, positioned)
+        targetSection.style.opacity = '0';
+        targetSection.classList.add('active');
+        
+        // Step 3: Load section data while transition happens
+        const dataLoadPromise = loadSectionData(targetSectionName);
+        
+        // Step 4: Small delay to ensure DOM updates, then fade in
+        await new Promise(resolve => setTimeout(resolve, 50));
+        targetSection.style.opacity = '1';
+        
+        // Step 5: Wait for data loading to complete
+        await dataLoadPromise;
+        
+        // Step 6: Clean up transition state
+        await new Promise(resolve => setTimeout(resolve, 200)); // Complete fade in
+        
+    } finally {
+        // Always remove transitioning class
+        document.body.classList.remove('section-transitioning');
+        
+        // Reset opacity for all sections
+        allSections.forEach(section => {
+            if (!section.classList.contains('active')) {
+                section.style.opacity = '';
+            }
+        });
+    }
+}
+
+/**
+ * Update URL and browser history for navigation
+ * @function updateNavigationUrl  
+ * @param {string} sectionName - Current section name
+ */
+function updateNavigationUrl(sectionName) {
+    // Update URL hash for navigation state (maintains browser history)
+    if (window.history && window.history.pushState) {
+        const newUrl = `${window.location.pathname}${window.location.search}#${sectionName}`;
+        const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        
+        // Only update if URL actually changed
+        if (newUrl !== currentUrl) {
+            window.history.pushState({ section: sectionName }, '', newUrl);
+        }
     }
 }
 
@@ -631,7 +697,7 @@ async function loadSectionData(sectionName) {
 }
 
 /**
- * Update customer name in all UI locations
+ * Update customer name and personalization in all UI locations
  * @function updateCustomerNameInUI
  */
 function updateCustomerNameInUI() {
@@ -647,6 +713,168 @@ function updateCustomerNameInUI() {
     const navCustomerName = document.getElementById('navCustomerName');
     if (navCustomerName) {
         navCustomerName.textContent = currentCustomer.name;
+    }
+
+    // Update page title with customer name
+    document.title = `Plaas Hoenders - ${currentCustomer.name}'s Portal`;
+
+    // Update personalized content in dashboard
+    updateDashboardPersonalization();
+}
+
+/**
+ * Update dashboard with customer-specific information
+ * @function updateDashboardPersonalization
+ */
+function updateDashboardPersonalization() {
+    if (!currentCustomer) return;
+
+    // Update dashboard subtitle with personalized greeting
+    const sectionSubtitle = document.querySelector('#dashboard-section .section-subtitle');
+    if (sectionSubtitle) {
+        const timeOfDay = getGreetingTimeOfDay();
+        sectionSubtitle.innerHTML = `${timeOfDay}, <strong>${currentCustomer.name}</strong>! Manage your orders and account`;
+    }
+
+    // Show customer-specific information if available
+    updateCustomerInfo();
+}
+
+/**
+ * Get appropriate greeting based on time of day
+ * @function getGreetingTimeOfDay
+ * @returns {string} Time-appropriate greeting
+ */
+function getGreetingTimeOfDay() {
+    const hour = new Date().getHours();
+    
+    if (hour < 6) {
+        return 'Good evening'; // Late night
+    } else if (hour < 12) {
+        return 'Good morning';
+    } else if (hour < 17) {
+        return 'Good afternoon';
+    } else {
+        return 'Good evening';
+    }
+}
+
+/**
+ * Update customer-specific information display
+ * @function updateCustomerInfo
+ */
+function updateCustomerInfo() {
+    if (!currentCustomer) return;
+
+    // Show customer details in dashboard if needed
+    const customerInfo = {
+        name: currentCustomer.name,
+        email: currentCustomer.email,
+        phone: currentCustomer.phone || 'Not provided',
+        address: currentCustomer.address || 'Not provided',
+        memberSince: currentCustomer.created_at ? formatMemberSinceDate(currentCustomer.created_at) : 'Recently',
+        lastLogin: currentCustomer.last_login ? formatLastLoginDate(currentCustomer.last_login) : 'First visit'
+    };
+
+    // Add customer info to dashboard if there's a designated area
+    const customerInfoElement = document.getElementById('customerInfo');
+    if (customerInfoElement) {
+        customerInfoElement.innerHTML = `
+            <div class="customer-info-card">
+                <h4><i class="fas fa-user"></i> Account Information</h4>
+                <div class="info-item">
+                    <span class="label">Email:</span>
+                    <span class="value">${customerInfo.email}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Phone:</span>
+                    <span class="value">${customerInfo.phone}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Delivery Address:</span>
+                    <span class="value">${customerInfo.address}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Member Since:</span>
+                    <span class="value">${customerInfo.memberSince}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Last Visit:</span>
+                    <span class="value">${customerInfo.lastLogin}</span>
+                </div>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Format member since date for display
+ * @function formatMemberSinceDate
+ * @param {string} dateString - ISO date string
+ * @returns {string} Formatted date
+ */
+function formatMemberSinceDate(dateString) {
+    try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffTime = Math.abs(now - date);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 1) {
+            return 'Yesterday';
+        } else if (diffDays < 7) {
+            return `${diffDays} days ago`;
+        } else if (diffDays < 30) {
+            const weeks = Math.floor(diffDays / 7);
+            return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+        } else if (diffDays < 365) {
+            const months = Math.floor(diffDays / 30);
+            return months === 1 ? '1 month ago' : `${months} months ago`;
+        } else {
+            return date.toLocaleDateString('en-ZA', { 
+                year: 'numeric', 
+                month: 'long' 
+            });
+        }
+    } catch (error) {
+        console.error('Error formatting member since date:', error);
+        return 'Recently';
+    }
+}
+
+/**
+ * Format last login date for display
+ * @function formatLastLoginDate
+ * @param {string} dateString - ISO date string
+ * @returns {string} Formatted date
+ */
+function formatLastLoginDate(dateString) {
+    try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffTime = Math.abs(now - date);
+        const diffMinutes = Math.floor(diffTime / (1000 * 60));
+
+        if (diffMinutes < 1) {
+            return 'Just now';
+        } else if (diffMinutes < 60) {
+            return `${diffMinutes} minutes ago`;
+        } else if (diffMinutes < 1440) { // Less than 24 hours
+            const hours = Math.floor(diffMinutes / 60);
+            return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+        } else if (diffMinutes < 10080) { // Less than 7 days
+            const days = Math.floor(diffMinutes / 1440);
+            return days === 1 ? 'Yesterday' : `${days} days ago`;
+        } else {
+            return date.toLocaleDateString('en-ZA', { 
+                month: 'short', 
+                day: 'numeric',
+                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+            });
+        }
+    } catch (error) {
+        console.error('Error formatting last login date:', error);
+        return 'Recently';
     }
 }
 
@@ -775,6 +1003,13 @@ function showSectionLoading(sectionName, show) {
     const loadingElement = document.getElementById(`${sectionName}Loading`);
     if (loadingElement) {
         loadingElement.style.display = show ? 'block' : 'none';
+        
+        // Add loading animation class
+        if (show) {
+            loadingElement.classList.add('loading-active');
+        } else {
+            loadingElement.classList.remove('loading-active');
+        }
     }
 
     // Hide other states when showing loading
@@ -788,6 +1023,81 @@ function showSectionLoading(sectionName, show) {
         if (contentElement) contentElement.style.display = 'none';
         if (errorElement) errorElement.style.display = 'none';
         if (emptyElement) emptyElement.style.display = 'none';
+    }
+
+    // Show global loading indicator during section transitions
+    showGlobalLoading(show && sectionName !== 'dashboard');
+}
+
+/**
+ * Show or hide global loading overlay
+ * @function showGlobalLoading
+ * @param {boolean} show - Whether to show global loading
+ */
+function showGlobalLoading(show) {
+    const globalSpinner = document.getElementById('loadingSpinner');
+    if (globalSpinner) {
+        globalSpinner.className = show ? 'loading-spinner active' : 'loading-spinner';
+    }
+}
+
+/**
+ * Show toast notification for user feedback
+ * @function showToast
+ * @param {string} message - Message to display
+ * @param {string} type - Toast type (success, error, info, warning)
+ * @param {number} duration - Duration to show toast in ms (default: 4000)
+ */
+function showToast(message, type = 'info', duration = 4000) {
+    // Remove any existing toasts
+    const existingToast = document.querySelector('.toast-notification');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    toast.innerHTML = `
+        <div class="toast-content">
+            <i class="fas ${getToastIcon(type)}"></i>
+            <span class="toast-message">${message}</span>
+            <button class="toast-close" onclick="this.parentElement.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+
+    // Add to page
+    document.body.appendChild(toast);
+
+    // Show with animation
+    setTimeout(() => toast.classList.add('toast-show'), 100);
+
+    // Auto-hide after duration
+    setTimeout(() => {
+        toast.classList.remove('toast-show');
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.remove();
+            }
+        }, 300);
+    }, duration);
+}
+
+/**
+ * Get appropriate icon for toast type
+ * @function getToastIcon
+ * @param {string} type - Toast type
+ * @returns {string} FontAwesome icon class
+ */
+function getToastIcon(type) {
+    switch (type) {
+        case 'success': return 'fa-check-circle';
+        case 'error': return 'fa-exclamation-triangle';
+        case 'warning': return 'fa-exclamation-circle';
+        case 'info': 
+        default: return 'fa-info-circle';
     }
 }
 
@@ -818,13 +1128,36 @@ window.addEventListener('hashchange', function() {
     const hash = window.location.hash.substring(1);
     if (hash && ['dashboard', 'products', 'orders', 'profile'].includes(hash)) {
         navigateToSection(hash);
+    } else if (currentCustomer && customerSession) {
+        // Default to dashboard if hash is invalid but user is logged in
+        navigateToSection('dashboard');
     }
 });
 
-// Set initial hash if customer is logged in
+// Handle browser popstate (back/forward buttons)
+window.addEventListener('popstate', function(event) {
+    if (event.state && event.state.section) {
+        navigateToSection(event.state.section);
+    } else {
+        // Handle direct hash navigation
+        const hash = window.location.hash.substring(1);
+        if (hash && ['dashboard', 'products', 'orders', 'profile'].includes(hash)) {
+            navigateToSection(hash);
+        } else if (currentCustomer && customerSession) {
+            navigateToSection('dashboard');
+        }
+    }
+});
+
+// Initialize navigation from URL on page load
 window.addEventListener('load', function() {
-    if (currentCustomer && !window.location.hash) {
-        window.location.hash = 'dashboard';
+    if (currentCustomer && customerSession) {
+        const hash = window.location.hash.substring(1);
+        if (hash && ['dashboard', 'products', 'orders', 'profile'].includes(hash)) {
+            navigateToSection(hash);
+        } else {
+            navigateToSection('dashboard');
+        }
     }
 });
 

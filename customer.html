@@ -284,26 +284,39 @@
                     <p class="section-subtitle">Welcome back, <span id="customerName">Customer</span>! Manage your orders and account</p>
                 </div>
 
-                <div class="dashboard-actions">
-                    <div class="action-card" onclick="navigateToSection('products')">
-                        <i class="fas fa-shopping-cart"></i>
-                        <h3>Browse Products</h3>
-                        <p>View our fresh chicken products and prices</p>
-                        <button class="btn btn-primary">Start Shopping</button>
+                <div class="dashboard-grid">
+                    <!-- Quick Actions -->
+                    <div class="dashboard-section">
+                        <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+                        <div class="dashboard-actions">
+                            <div class="action-card" onclick="navigateToSection('products')">
+                                <i class="fas fa-shopping-cart"></i>
+                                <h4>Browse Products</h4>
+                                <p>View our fresh chicken products and prices</p>
+                                <button class="btn btn-primary">Start Shopping</button>
+                            </div>
+
+                            <div class="action-card" onclick="navigateToSection('orders')">
+                                <i class="fas fa-history"></i>
+                                <h4>Order History</h4>
+                                <p>View your past orders and invoices</p>
+                                <button class="btn btn-secondary">View Orders</button>
+                            </div>
+
+                            <div class="action-card" onclick="navigateToSection('profile')">
+                                <i class="fas fa-user-cog"></i>
+                                <h4>Account Settings</h4>
+                                <p>Update your profile and delivery details</p>
+                                <button class="btn btn-secondary">Manage Account</button>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="action-card" onclick="navigateToSection('orders')">
-                        <i class="fas fa-history"></i>
-                        <h3>Order History</h3>
-                        <p>View your past orders and invoices</p>
-                        <button class="btn btn-secondary">View Orders</button>
-                    </div>
-
-                    <div class="action-card" onclick="navigateToSection('profile')">
-                        <i class="fas fa-user-cog"></i>
-                        <h3>Account Settings</h3>
-                        <p>Update your profile and delivery details</p>
-                        <button class="btn btn-secondary">Manage Account</button>
+                    <!-- Customer Information -->
+                    <div class="dashboard-section">
+                        <div id="customerInfo">
+                            <!-- Customer info will be dynamically loaded here -->
+                        </div>
                     </div>
                 </div>
             </section>
