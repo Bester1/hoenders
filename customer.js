@@ -913,21 +913,263 @@ async function loadProducts() {
     showSectionLoading('products', true);
     
     try {
-        // TODO: Load products from pricing data
-        // For now, show placeholder
-        setTimeout(() => {
-            const productsGrid = document.getElementById('productsGrid');
-            if (productsGrid) {
-                productsGrid.innerHTML = '<p class="placeholder-text">Products will be loaded here</p>';
-                productsGrid.style.display = 'block';
-            }
-            showSectionLoading('products', false);
-        }, 1000);
+        // Get pricing data and categories
+        const pricing = getCustomerPricing();
+        const categories = getProductCategories();
+        
+        // Build product catalog HTML
+        const productsGrid = document.getElementById('productsGrid');
+        if (!productsGrid) {
+            throw new Error('Products grid element not found');
+        }
+
+        // Create category filter buttons
+        const categoryFilters = createCategoryFilters(categories);
+        
+        // Create product cards grouped by category
+        const productCards = createProductCards(pricing, categories);
+        
+        // Combine filters and cards
+        productsGrid.innerHTML = `
+            <div class="product-filters">
+                <h3><i class="fas fa-filter"></i> Filter by Category</h3>
+                <div class="filter-buttons">
+                    ${categoryFilters}
+                </div>
+            </div>
+            <div class="product-categories">
+                ${productCards}
+            </div>
+        `;
+        
+        productsGrid.style.display = 'block';
+        
+        // Add event listeners for category filtering
+        setupCategoryFiltering();
+        
+        // Add event listeners for product interactions
+        setupProductInteractions();
+        
+        showSectionLoading('products', false);
 
     } catch (error) {
         console.error('Error loading products:', error);
         showSectionError('products', 'Unable to load products. Please try again.');
     }
+}
+
+/**
+ * Create category filter buttons HTML
+ * @function createCategoryFilters
+ * @param {Object} categories - Product categories
+ * @returns {string} HTML string for category filters
+ */
+function createCategoryFilters(categories) {
+    let filtersHTML = `
+        <button class="filter-btn active" data-category="all">
+            <i class="fas fa-th-large"></i>
+            All Products
+        </button>
+    `;
+    
+    Object.entries(categories).forEach(([categoryKey, category]) => {
+        filtersHTML += `
+            <button class="filter-btn" data-category="${categoryKey}">
+                <i class="${category.icon}"></i>
+                ${category.name}
+            </button>
+        `;
+    });
+    
+    return filtersHTML;
+}
+
+/**
+ * Create product cards HTML grouped by category
+ * @function createProductCards
+ * @param {Object} pricing - Product pricing data
+ * @param {Object} categories - Product categories
+ * @returns {string} HTML string for product cards
+ */
+function createProductCards(pricing, categories) {
+    let cardsHTML = '';
+    
+    Object.entries(categories).forEach(([categoryKey, category]) => {
+        cardsHTML += `
+            <div class="product-category" data-category="${categoryKey}">
+                <div class="category-header">
+                    <h3><i class="${category.icon}"></i> ${category.name}</h3>
+                    <p class="category-description">${category.description}</p>
+                </div>
+                <div class="category-products">
+                    ${createCategoryProductCards(category.products, pricing)}
+                </div>
+            </div>
+        `;
+    });
+    
+    return cardsHTML;
+}
+
+/**
+ * Create product cards for a specific category
+ * @function createCategoryProductCards
+ * @param {Array} products - Product names in category
+ * @param {Object} pricing - Product pricing data
+ * @returns {string} HTML string for category product cards
+ */
+function createCategoryProductCards(products, pricing) {
+    return products.map(productName => {
+        const priceData = pricing[productName];
+        const displayInfo = getProductDisplayInfo(productName);
+        
+        if (!priceData) {
+            console.warn(`No pricing data found for product: ${productName}`);
+            return '';
+        }
+        
+        // Pass pricing cache to avoid redundant calls
+        const availability = getProductAvailability(productName, pricing);
+        const availabilityClass = availability.available ? 'available' : 'unavailable';
+        const availabilityIcon = availability.available ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
+        
+        return `
+            <div class="product-card ${availabilityClass}" data-product="${productName}">
+                <div class="product-header">
+                    <h4 class="product-name">${displayInfo.displayName}</h4>
+                    <div class="product-availability ${availabilityClass}">
+                        <i class="${availabilityIcon}"></i>
+                        <span class="availability-text">${availability.text}</span>
+                    </div>
+                </div>
+                
+                <div class="product-description">
+                    <p>${displayInfo.description}</p>
+                </div>
+                
+                <div class="product-pricing">
+                    <div class="price-display">
+                        <span class="price-amount">${formatCurrency(priceData.selling)}</span>
+                        <span class="price-unit">${priceData.unit}</span>
+                    </div>
+                </div>
+                
+                <div class="product-packaging">
+                    <i class="fas fa-box"></i>
+                    <span class="packaging-info">${priceData.packaging || 'Standard packaging'}</span>
+                </div>
+                
+                <div class="product-actions">
+                    ${availability.available ? `
+                        <button class="btn btn-primary add-to-cart" data-product="${productName}">
+                            <i class="fas fa-shopping-cart"></i>
+                            Add to Cart
+                        </button>
+                    ` : `
+                        <button class="btn btn-secondary" disabled>
+                            <i class="fas fa-ban"></i>
+                            Not Available
+                        </button>
+                    `}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Determine product availability status
+ * @function getProductAvailability
+ * @param {string} productName - Product name
+ * @param {Object} [pricingCache] - Optional pricing cache to avoid redundant calls
+ * @returns {Object} Availability information
+ */
+function getProductAvailability(productName, pricingCache = null) {
+    // Use cached pricing or fetch if not provided
+    const pricing = pricingCache || getCustomerPricing();
+    const product = pricing[productName];
+    
+    if (product && product.packaging) {
+        const packaging = product.packaging.toUpperCase();
+        if (packaging.includes('NIE ALTYD BESKIKBAAR')) {
+            return {
+                available: true,
+                limited: true,
+                text: 'Limited availability'
+            };
+        }
+    }
+    
+    // Default to available
+    return {
+        available: true,
+        limited: false,
+        text: 'Available'
+    };
+}
+
+/**
+ * Setup category filtering functionality
+ * @function setupCategoryFiltering
+ */
+function setupCategoryFiltering() {
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const productCategories = document.querySelectorAll('.product-category');
+    
+    filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const category = this.getAttribute('data-category');
+            
+            // Update active filter button
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Show/hide product categories
+            productCategories.forEach(categoryEl => {
+                if (category === 'all') {
+                    categoryEl.style.display = 'block';
+                } else {
+                    const categoryKey = categoryEl.getAttribute('data-category');
+                    categoryEl.style.display = categoryKey === category ? 'block' : 'none';
+                }
+            });
+            
+            // Smooth scroll to products
+            const productsGrid = document.getElementById('productsGrid');
+            if (productsGrid) {
+                productsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+}
+
+/**
+ * Setup product interaction functionality (cart, favorites, etc.)
+ * @function setupProductInteractions
+ */
+function setupProductInteractions() {
+    const addToCartButtons = document.querySelectorAll('.add-to-cart');
+    
+    addToCartButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const productName = this.getAttribute('data-product');
+            handleAddToCart(productName);
+        });
+    });
+}
+
+/**
+ * Handle adding product to cart
+ * @function handleAddToCart
+ * @param {string} productName - Product to add to cart
+ */
+function handleAddToCart(productName) {
+    // TODO: Implement cart functionality in future story
+    const displayInfo = getProductDisplayInfo(productName);
+    showToast(`${displayInfo.displayName} added to cart!`, 'success');
+    
+    // For now, just show success message
+    console.log('Added to cart:', productName);
 }
 
 /**

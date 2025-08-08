@@ -4,6 +4,197 @@
  */
 
 /**
+ * Get customer-safe pricing data (selling prices only, no cost information)
+ * @function getCustomerPricing
+ * @returns {Object} Customer-safe pricing object with selling prices only
+ */
+function getCustomerPricing() {
+    // Default pricing data (synchronized with admin system)
+    const adminPricing = {
+        'HEEL HOENDER': { cost: 59.00, selling: 67.00, packaging: '' },
+        'PLAT HOENDER (FLATTY\'S)': { cost: 69.00, selling: 79.00, packaging: 'VACUUM VERPAK' },
+        'BRAAIPAKKE': { cost: 65.00, selling: 74.00, packaging: '1 Heel hoender opgesnye VACUUM VERPAK' },
+        'HEEL HALWE HOENDERS': { cost: 60.00, selling: 68.00, packaging: '1 Heel hoender deurgesny' },
+        'BORSSTUKKE MET BEEN EN VEL': { cost: 64.00, selling: 73.00, packaging: '4 in pak OF 2 in pak MELD KEUSE IN BESTELLING' },
+        'VLERKIES': { cost: 79.00, selling: 90.00, packaging: '8 IN PAK NIE ALTYD BESKIKBAAR' },
+        'BOUDE EN DYE': { cost: 71.00, selling: 81.00, packaging: '2 boude en 2 dye in pak' },
+        'GUNS Boud en dy aanmekaar': { cost: 71.00, selling: 81.00, packaging: '3 IN PAK' },
+        'LEWER': { cost: 27.00, selling: 31.00, packaging: 'In 500g bakkies verpak' },
+        'NEKKIES': { cost: 25.00, selling: 30.00, packaging: 'In 500g sakkies verpak NIE ALTYD BESKIKBAAR' },
+        'FILETTE (sonder vel)': { cost: 86.50, selling: 100.00, packaging: '4 fillets per pak' },
+        'STRIPS': { cost: 86.50, selling: 100.00, packaging: '± 500g per pak' },
+        'ONTBEENDE HOENDER': { cost: 110.00, selling: 125.00, packaging: 'VACUUM VERPAK' },
+        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 166.00, selling: 193.00, packaging: 'Opsie 1: Vye, feta, cheddar, sweet chilly. Opsie 2: Peppadew, mozzarella, cheddar, pynappel.' },
+        'INGELEGDE GROEN VYE': { cost: 55, selling: 75, packaging: '375ml potjie', unit: 'per potjie' },
+        'HOENDER PATTIES': { cost: 105.00, selling: 120.00, packaging: '4 in pak (120-140g patty)' },
+        'HOENDER KAASWORS': { cost: 140.00, selling: 148.00, packaging: '500gr VACUUM VERPAK' },
+        'SUIWER HEUNING': { cost: 60, selling: 70, packaging: '500g potjie', unit: 'per potjie' }
+    };
+
+    // Create customer-safe version with only selling prices and packaging info
+    const customerPricing = {};
+    Object.keys(adminPricing).forEach(productName => {
+        const product = adminPricing[productName];
+        // Defensive check to prevent runtime errors if admin pricing structure changes
+        if (product && typeof product.selling === 'number') {
+            customerPricing[productName] = {
+                selling: product.selling,
+                packaging: product.packaging || '',
+                unit: product.unit || 'per kg'
+            };
+        } else {
+            console.warn(`Invalid pricing data for product: ${productName}`);
+        }
+    });
+
+    return customerPricing;
+}
+
+/**
+ * Get product categories mapping for customer display
+ * @function getProductCategories
+ * @returns {Object} Product categories with associated products
+ */
+function getProductCategories() {
+    return {
+        'whole': {
+            name: 'Hele Hoenders',
+            description: 'Hele hoenders perfek vir gesinne',
+            icon: 'fas fa-drumstick-bite',
+            products: [
+                'HEEL HOENDER',
+                'PLAT HOENDER (FLATTY\'S)',
+                'ONTBEENDE HOENDER'
+            ]
+        },
+        'cuts': {
+            name: 'Hoender Snye',
+            description: 'Hoender dele en spesialiteit snye',
+            icon: 'fas fa-cut',
+            products: [
+                'HEEL HALWE HOENDERS', 
+                'BORSSTUKKE MET BEEN EN VEL',
+                'BOUDE EN DYE',
+                'GUNS Boud en dy aanmekaar',
+                'VLERKIES',
+                'FILETTE (sonder vel)',
+                'STRIPS'
+            ]
+        },
+        'specialty': {
+            name: 'Spesialiteit Items',
+            description: 'Braai pakkette en voorbereide items',
+            icon: 'fas fa-star',
+            products: [
+                'BRAAIPAKKE',
+                'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+                'HOENDER PATTIES',
+                'HOENDER KAASWORS'
+            ]
+        },
+        'other': {
+            name: 'Ander Produkte', 
+            description: 'Newe produkte en byvoegings',
+            icon: 'fas fa-plus-circle',
+            products: [
+                'LEWER',
+                'NEKKIES', 
+                'INGELEGDE GROEN VYE',
+                'SUIWER HEUNING'
+            ]
+        }
+    };
+}
+
+/**
+ * Map product names to customer-friendly display names and descriptions
+ * @function getProductDisplayInfo
+ * @param {string} productName - Internal product name
+ * @returns {Object} Display information for product
+ */
+function getProductDisplayInfo(productName) {
+    const displayMap = {
+        'HEEL HOENDER': {
+            displayName: 'Heel Hoender',
+            description: 'Hele vers hoender, perfek vir gesinne'
+        },
+        'PLAT HOENDER (FLATTY\'S)': {
+            displayName: 'Plat Hoender (Flatty\'s)',
+            description: 'Plat hoenders, ideaal vir die braai'
+        },
+        'BRAAIPAKKE': {
+            displayName: 'Braai Pakke',
+            description: 'Hele hoender opgesnye, gereed vir die braai'
+        },
+        'HEEL HALWE HOENDERS': {
+            displayName: 'Hele Halwe Hoenders',
+            description: 'Hele hoender deurgesny, perfek vir kleiner gesinne'
+        },
+        'BORSSTUKKE MET BEEN EN VEL': {
+            displayName: 'Borsstukke met Been en Vel',
+            description: 'Sappige borsstukke, perfek vir braai of bak'
+        },
+        'VLERKIES': {
+            displayName: 'Vlerkies',
+            description: 'Hoender vlerkies, gewild by kinders'
+        },
+        'BOUDE EN DYE': {
+            displayName: 'Boude en Dye',
+            description: 'Dons en sappige hoender boude en dye'
+        },
+        'GUNS Boud en dy aanmekaar': {
+            displayName: 'Boude en Dye Aanmekaar',
+            description: 'Boude en dye nog aanmekaar, maklik om te braai'
+        },
+        'LEWER': {
+            displayName: 'Hoender Lewer',
+            description: 'Vars hoender lewer, ryk aan yster'
+        },
+        'NEKKIES': {
+            displayName: 'Hoender Nekkies',
+            description: 'Hoender nekkies, perfek vir sop of honde kos'
+        },
+        'FILETTE (sonder vel)': {
+            displayName: 'Filette (sonder vel)',
+            description: 'Skoon hoender filette, sonder vel'
+        },
+        'STRIPS': {
+            displayName: 'Hoender Strips',
+            description: 'Hoender strips, perfek vir roerbraai'
+        },
+        'ONTBEENDE HOENDER': {
+            displayName: 'Ontbeende Hoender',
+            description: 'Hele hoender sonder bene, maklik om te snye'
+        },
+        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': {
+            displayName: 'Gevulde Hoender Rolle',
+            description: 'Hoender rolle gevul met kaas en kruie'
+        },
+        'INGELEGDE GROEN VYE': {
+            displayName: 'Ingelegde Groen Vye',
+            description: 'Huis-ingelegde groen vye, perfekte bysmaak'
+        },
+        'HOENDER PATTIES': {
+            displayName: 'Hoender Patties',
+            description: 'Vars hoender patties, maklik om te braai'
+        },
+        'HOENDER KAASWORS': {
+            displayName: 'Hoender Kaaswors',
+            description: 'Hoender wors met kaas, 500g verpak'
+        },
+        'SUIWER HEUNING': {
+            displayName: 'Suiwer Heuning',
+            description: 'Plaas vars heuning, 500g potjie'
+        }
+    };
+
+    return displayMap[productName] || {
+        displayName: productName,
+        description: 'Vars plaas produk'
+    };
+}
+
+/**
  * Format currency value to South African Rand
  * @function formatCurrency
  * @param {number} amount - Amount to format
