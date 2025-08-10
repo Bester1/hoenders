@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plaas Hoenders - Customer Portal</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
+</head>
+<body>
+    <div class="customer-portal">
+        <!-- Header -->
+        <header class="customer-header">
+            <div class="header-content">
+                <h1 class="customer-logo">🐔 Plaas Hoenders</h1>
+                <div class="customer-auth" id="customerAuth">
+                    <!-- Login/Register buttons will be shown here -->
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="customer-main">
+            <!-- Authentication Section -->
+            <section id="auth-section" class="customer-section active">
+                <div class="auth-container">
+                    <div class="auth-tabs">
+                        <button class="auth-tab active" id="login-tab" onclick="showAuthForm('login')">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </button>
+                        <button class="auth-tab" id="register-tab" onclick="showAuthForm('register')">
+                            <i class="fas fa-user-plus"></i> Register
+                        </button>
+                    </div>
+
+                    <!-- Login Form -->
+                    <div id="login-form" class="auth-form active">
+                        <h2>Customer Login</h2>
+                        <p class="auth-subtitle">Access your account to place orders</p>
+                        
+                        <form id="customerLoginForm" onsubmit="handleLogin(event)">
+                            <div class="form-group">
+                                <label for="loginEmail">
+                                    <i class="fas fa-envelope"></i> Email Address
+                                </label>
+                                <input 
+                                    type="email" 
+                                    id="loginEmail" 
+                                    name="email" 
+                                    required 
+                                    pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+                                    placeholder="Enter your email address"
+                                    autocomplete="username"
+                                >
+                                <div class="field-error" id="loginEmailError"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="loginPassword">
+                                    <i class="fas fa-lock"></i> Password
+                                </label>
+                                <input 
+                                    type="password" 
+                                    id="loginPassword" 
+                                    name="password" 
+                                    required 
+                                    minlength="8"
+                                    placeholder="Enter your password"
+                                    autocomplete="current-password"
+                                >
+                                <div class="field-error" id="loginPasswordError"></div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="loginBtn">
+                                    <i class="fas fa-sign-in-alt"></i> Login
+                                </button>
+                            </div>
+
+                            <div class="auth-divider">
+                                <span>or</span>
+                            </div>
+
+                            <div class="social-login">
+                                <button type="button" class="btn btn-google" onclick="handleGoogleLogin()">
+                                    <i class="fab fa-google"></i> Continue with Google
+                                </button>
+                            </div>
+
+                            <div class="form-message" id="loginMessage"></div>
+                        </form>
+                    </div>
+
+                    <!-- Registration Form -->
+                    <div id="register-form" class="auth-form">
+                        <h2>Create Account</h2>
+                        <p class="auth-subtitle">Register to start placing orders with Plaas Hoenders</p>
+                        
+                        <form id="customerRegisterForm" onsubmit="handleRegister(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="registerName">
+                                        <i class="fas fa-user"></i> Full Name *
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        id="registerName" 
+                                        name="name" 
+                                        required 
+                                        minlength="2"
+                                        maxlength="255"
+                                        pattern="[A-Za-z\s]+"
+                                        placeholder="Enter your full name"
+                                        autocomplete="name"
+                                    >
+                                    <div class="field-error" id="registerNameError"></div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="registerPhone">
+                                        <i class="fas fa-phone"></i> Phone Number
+                                    </label>
+                                    <input 
+                                        type="tel" 
+                                        id="registerPhone" 
+                                        name="phone" 
+                                        pattern="^(\+27|0)[0-9]{9}$"
+                                        placeholder="e.g. 079 123 4567"
+                                        autocomplete="tel"
+                                    >
+                                    <div class="field-error" id="registerPhoneError"></div>
+                                    <small class="field-help">South African format (optional)</small>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="registerEmail">
+                                    <i class="fas fa-envelope"></i> Email Address *
+                                </label>
+                                <input 
+                                    type="email" 
+                                    id="registerEmail" 
+                                    name="email" 
+                                    required 
+                                    pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+                                    placeholder="Enter your email address"
+                                    autocomplete="username"
+                                >
+                                <div class="field-error" id="registerEmailError"></div>
+                                <small class="field-help">This will be your login email</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="registerAddress">
+                                    <i class="fas fa-map-marker-alt"></i> Delivery Address
+                                </label>
+                                <textarea 
+                                    id="registerAddress" 
+                                    name="address" 
+                                    rows="3"
+                                    maxlength="500"
+                                    placeholder="Enter your delivery address (optional)"
+                                    autocomplete="address"
+                                ></textarea>
+                                <div class="field-error" id="registerAddressError"></div>
+                                <small class="field-help">Where should we deliver your orders? (optional)</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="registerPassword">
+                                    <i class="fas fa-lock"></i> Password *
+                                </label>
+                                <input 
+                                    type="password" 
+                                    id="registerPassword" 
+                                    name="password" 
+                                    required 
+                                    minlength="8"
+                                    placeholder="Create a strong password"
+                                    autocomplete="new-password"
+                                >
+                                <div class="field-error" id="registerPasswordError"></div>
+                                <small class="field-help">Minimum 8 characters</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="registerConfirmPassword">
+                                    <i class="fas fa-lock"></i> Confirm Password *
+                                </label>
+                                <input 
+                                    type="password" 
+                                    id="registerConfirmPassword" 
+                                    name="confirmPassword" 
+                                    required 
+                                    minlength="8"
+                                    placeholder="Confirm your password"
+                                    autocomplete="new-password"
+                                >
+                                <div class="field-error" id="registerConfirmPasswordError"></div>
+                            </div>
+
+                            <div class="form-group checkbox-group">
+                                <label class="checkbox-label">
+                                    <input 
+                                        type="checkbox" 
+                                        id="emailNotifications" 
+                                        name="emailNotifications" 
+                                        checked
+                                    >
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-envelope"></i> Receive email notifications about my orders
+                                </label>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="registerBtn">
+                                    <i class="fas fa-user-plus"></i> Create Account
+                                </button>
+                            </div>
+
+                            <div class="auth-divider">
+                                <span>or</span>
+                            </div>
+
+                            <div class="social-login">
+                                <button type="button" class="btn btn-google" onclick="handleGoogleLogin()">
+                                    <i class="fab fa-google"></i> Sign up with Google
+                                </button>
+                            </div>
+
+                            <div class="form-message" id="registerMessage"></div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Customer Portal Navigation (Hidden initially) -->
+            <nav id="customer-navigation" class="customer-nav" style="display: none;">
+                <div class="nav-container">
+                    <div class="nav-welcome">
+                        <div class="nav-customer-info">
+                            <i class="fas fa-user-circle"></i>
+                            <span class="nav-customer-name" id="navCustomerName">Customer</span>
+                        </div>
+                        <button class="btn btn-outline nav-logout" onclick="handleLogout()" title="Logout">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span class="nav-text">Logout</span>
+                        </button>
+                    </div>
+                    <ul class="nav-menu">
+                        <li>
+                            <button class="nav-item active" data-section="dashboard" onclick="navigateToSection('dashboard')">
+                                <i class="fas fa-tachometer-alt"></i>
+                                <span class="nav-text">Dashboard</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="nav-item" data-section="products" onclick="navigateToSection('products')">
+                                <i class="fas fa-drumstick-bite"></i>
+                                <span class="nav-text">Products</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="nav-item" data-section="orders" onclick="navigateToSection('orders')">
+                                <i class="fas fa-shopping-bag"></i>
+                                <span class="nav-text">Orders</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="nav-item" data-section="profile" onclick="navigateToSection('profile')">
+                                <i class="fas fa-user-cog"></i>
+                                <span class="nav-text">Profile</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Customer Dashboard Section -->
+            <section id="dashboard-section" class="customer-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
+                    <p class="section-subtitle">Welcome back, <span id="customerName">Customer</span>! Manage your orders and account</p>
+                </div>
+
+                <div class="dashboard-grid">
+                    <!-- Quick Actions -->
+                    <div class="dashboard-section">
+                        <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+                        <div class="dashboard-actions">
+                            <div class="action-card" onclick="navigateToSection('products')">
+                                <i class="fas fa-shopping-cart"></i>
+                                <h4>Browse Products</h4>
+                                <p>View our fresh chicken products and prices</p>
+                                <button class="btn btn-primary">Start Shopping</button>
+                            </div>
+
+                            <div class="action-card" onclick="navigateToSection('orders')">
+                                <i class="fas fa-history"></i>
+                                <h4>Order History</h4>
+                                <p>View your past orders and invoices</p>
+                                <button class="btn btn-secondary">View Orders</button>
+                            </div>
+
+                            <div class="action-card" onclick="navigateToSection('profile')">
+                                <i class="fas fa-user-cog"></i>
+                                <h4>Account Settings</h4>
+                                <p>Update your profile and delivery details</p>
+                                <button class="btn btn-secondary">Manage Account</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Customer Information -->
+                    <div class="dashboard-section">
+                        <div id="customerInfo">
+                            <!-- Customer info will be dynamically loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Products Section -->
+            <section id="products-section" class="customer-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-drumstick-bite"></i> Products</h2>
+                    <p class="section-subtitle">Fresh chicken products delivered to your door</p>
+                </div>
+
+                <div class="products-content">
+                    <div class="loading-state" id="productsLoading">
+                        <div class="spinner"></div>
+                        <p>Loading products...</p>
+                    </div>
+                    <div class="products-grid" id="productsGrid" style="display: none;">
+                        <!-- Products will be dynamically loaded here -->
+                    </div>
+                    <div class="error-state" id="productsError" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Unable to load products. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadProducts()">Retry</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Orders Section -->
+            <section id="orders-section" class="customer-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-shopping-bag"></i> Orders</h2>
+                    <p class="section-subtitle">Track your order history and status</p>
+                </div>
+
+                <div class="orders-content">
+                    <!-- Order Filtering Controls -->
+                    <div class="order-filters" id="orderFilters" style="display: none;">
+                        <div class="filter-buttons">
+                            <button class="filter-btn active" onclick="filterOrders('all')" data-status="all">
+                                <i class="fas fa-list"></i> All Orders
+                            </button>
+                            <button class="filter-btn" onclick="filterOrders('pending')" data-status="pending">
+                                <i class="fas fa-clock"></i> Pending
+                            </button>
+                            <button class="filter-btn" onclick="filterOrders('confirmed')" data-status="confirmed">
+                                <i class="fas fa-check-circle"></i> Confirmed
+                            </button>
+                            <button class="filter-btn" onclick="filterOrders('processing')" data-status="processing">
+                                <i class="fas fa-cog"></i> Processing
+                            </button>
+                            <button class="filter-btn" onclick="filterOrders('delivered')" data-status="delivered">
+                                <i class="fas fa-truck"></i> Delivered
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-state" id="ordersLoading">
+                        <div class="spinner"></div>
+                        <p>Loading your orders...</p>
+                    </div>
+                    <div class="orders-list" id="ordersList" style="display: none;">
+                        <!-- Orders will be dynamically loaded here -->
+                    </div>
+                    <div class="empty-state" id="ordersEmpty" style="display: none;">
+                        <i class="fas fa-shopping-bag"></i>
+                        <h3>No orders yet</h3>
+                        <p>You haven't placed any orders yet. Browse our products to get started!</p>
+                        <button class="btn btn-primary" onclick="navigateToSection('products')">
+                            <i class="fas fa-drumstick-bite"></i> Browse Products
+                        </button>
+                    </div>
+                    <div class="error-state" id="ordersError" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Unable to load orders. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadOrders()">Retry</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Profile Section -->
+            <section id="profile-section" class="customer-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-user-cog"></i> Profile</h2>
+                    <p class="section-subtitle">Manage your account details and preferences</p>
+                </div>
+
+                <div class="profile-content">
+                    <div class="loading-state" id="profileLoading">
+                        <div class="spinner"></div>
+                        <p>Loading your profile...</p>
+                    </div>
+                    <div class="profile-form" id="profileForm" style="display: none;">
+                        <!-- Profile form will be dynamically loaded here -->
+                    </div>
+                    <div class="error-state" id="profileError" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Unable to load profile. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadProfile()">Retry</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="customer-footer">
+            <div class="footer-content">
+                <p>&copy; 2024 Plaas Hoenders. Farm-fresh chicken delivered to your door.</p>
+                <div class="footer-links">
+                    <a href="mailto:info@plaashoenders.co.za">Contact Us</a>
+                    <span>•</span>
+                    <a href="tel:+27796167761">079 616 7761</a>
+                    <span>•</span>
+                    <a href="index.html" target="_blank">Admin Dashboard</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Please wait...</p>
+    </div>
+
+    <script src="shared-utils.js"></script>
+    <script src="customer.js"></script>
+</body>
+</html>
