@@ -1263,19 +1263,46 @@ async function saveCustomerChanges() {
             // Try to save to database (gracefully handle errors)
             try {
                 if (currentCustomer.id) {
-                    await supabaseClient
+                    // Update existing customer record
+                    const { data, error } = await supabaseClient
                         .from('customers')
                         .update({
                             name: currentCustomer.name,
                             full_name: currentCustomer.full_name,
                             phone: currentCustomer.phone,
                             address: currentCustomer.address,
-                            delivery_instructions: currentCustomer.delivery_instructions
+                            delivery_instructions: currentCustomer.delivery_instructions,
+                            updated_at: new Date().toISOString()
                         })
                         .eq('id', currentCustomer.id);
+                        
+                    if (error) throw error;
+                    console.log('✅ Customer profile updated in database');
+                } else if (customerSession?.user) {
+                    // Create new customer record if doesn't exist
+                    const { data, error } = await supabaseClient
+                        .from('customers')
+                        .insert({
+                            auth_user_id: customerSession.user.id,
+                            name: currentCustomer.name,
+                            full_name: currentCustomer.full_name,
+                            phone: currentCustomer.phone,
+                            address: currentCustomer.address,
+                            email: currentCustomer.email,
+                            delivery_instructions: currentCustomer.delivery_instructions
+                        })
+                        .select()
+                        .single();
+                        
+                    if (error) throw error;
+                    
+                    // Update current customer with new ID
+                    currentCustomer.id = data.id;
+                    console.log('✅ New customer profile created in database');
                 }
             } catch (dbError) {
-                console.warn('Could not save to database, changes saved locally:', dbError);
+                console.warn('🚫 Could not save to database (table may not exist), changes saved locally:', dbError);
+                console.log('💡 Run the database migration to enable persistent customer profiles');
             }
             
             // Show success message
