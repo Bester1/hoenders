@@ -238,7 +238,7 @@ function getEstimatedWeight(productName) {
 function getProductCategories() {
     return {
         'whole': {
-            name: 'Hele Hoenders',
+            name: 'Heel Hoenders',
             description: 'Hele hoenders perfek vir gesinne',
             icon: 'fas fa-drumstick-bite',
             products: [

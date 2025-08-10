@@ -801,12 +801,20 @@ function setupBeautifulPortalEventListeners() {
     const editDetailsBtn = document.getElementById('editDetailsBtn');
     if (editDetailsBtn) {
         editDetailsBtn.addEventListener('click', () => {
+            console.log('Edit details button clicked');
             // Hide display mode, show edit mode
             const detailsDisplay = document.getElementById('detailsDisplay');
             const detailsEdit = document.getElementById('detailsEdit');
             
-            if (detailsDisplay) detailsDisplay.style.display = 'none';
-            if (detailsEdit) detailsEdit.style.display = 'block';
+            if (detailsDisplay) {
+                detailsDisplay.style.display = 'none';
+                console.log('Hidden display mode');
+            }
+            if (detailsEdit) {
+                detailsEdit.classList.remove('hidden');
+                detailsEdit.style.display = 'block';
+                console.log('Shown edit mode');
+            }
         });
     }
     
@@ -814,12 +822,20 @@ function setupBeautifulPortalEventListeners() {
     const cancelEditBtn = document.getElementById('cancelEditBtn');
     if (cancelEditBtn) {
         cancelEditBtn.addEventListener('click', () => {
+            console.log('Cancel edit button clicked');
             // Show display mode, hide edit mode
             const detailsDisplay = document.getElementById('detailsDisplay');
             const detailsEdit = document.getElementById('detailsEdit');
             
-            if (detailsDisplay) detailsDisplay.style.display = 'block';
-            if (detailsEdit) detailsEdit.style.display = 'none';
+            if (detailsDisplay) {
+                detailsDisplay.style.display = 'block';
+                console.log('Shown display mode');
+            }
+            if (detailsEdit) {
+                detailsEdit.style.display = 'none';
+                detailsEdit.classList.add('hidden');
+                console.log('Hidden edit mode');
+            }
             
             // Restore original values
             populateEditForm();
