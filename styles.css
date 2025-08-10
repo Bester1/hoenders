@@ -109,6 +109,31 @@ body {
     gap: 20px;
 }
 
+.portal-links {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-right: 16px;
+}
+
+.portal-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--primary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+}
+
+.portal-link:hover {
+    background: var(--primary-hover);
+    color: white;
+}
+
 .email-status {
     display: flex;
     align-items: center;
