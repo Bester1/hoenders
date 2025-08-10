@@ -1577,20 +1577,38 @@ async function saveOrderToDatabase(orderData) {
             
         if (orderError) {
             console.error('❌ Error saving order:', orderError);
-            throw new Error('Failed to save order');
+            
+            // Check if it's a table doesn't exist error
+            if (orderError.message.includes('relation "orders" does not exist') || 
+                orderError.message.includes('table') || 
+                orderError.code === '42P01') {
+                throw new Error('Database tables not set up yet. Please go to the Admin Panel → Settings → Database Setup and run the SQL commands to create the required tables.');
+            } else {
+                throw new Error(`Database error: ${orderError.message}`);
+            }
         }
         console.log('✅ Main order saved successfully');
         
         // Save order items
         if (orderItems.length > 0) {
+            console.log('💾 Saving order items:', orderItems);
             const { error: itemsError } = await supabaseClient
                 .from('order_items')
                 .insert(orderItems);
                 
             if (itemsError) {
-                console.error('Error saving order items:', itemsError);
-                // Order was saved but items failed - log but don't throw
-                console.warn('Order saved but items may be incomplete');
+                console.error('❌ Error saving order items:', itemsError);
+                
+                // Check if it's a table doesn't exist error
+                if (itemsError.message.includes('relation "order_items" does not exist') || 
+                    itemsError.message.includes('table') || 
+                    itemsError.code === '42P01') {
+                    console.warn('⚠️ Order items table not set up - order saved without detailed items');
+                } else {
+                    console.warn('⚠️ Order saved but items may be incomplete due to error:', itemsError.message);
+                }
+            } else {
+                console.log('✅ Order items saved successfully');
             }
         }
         
