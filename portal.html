@@ -173,12 +173,24 @@
     </div>
     
     <script>
-        // Auto-redirect based on URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('portal') === 'customer') {
-            window.location.href = 'customer.html';
-        } else if (urlParams.get('portal') === 'admin') {
-            window.location.href = 'index.html';
+        // Handle authentication tokens from Supabase redirects
+        const currentURL = window.location.href;
+        
+        // Check if we have auth tokens in the URL hash (from redirects)
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+            console.log('Auth tokens detected, redirecting to customer portal...');
+            
+            // Redirect to customer portal with auth tokens
+            const customerPortalURL = 'customer-portal-main.html' + window.location.hash;
+            window.location.href = customerPortalURL;
+        } else {
+            // Auto-redirect based on URL parameters (normal flow)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('portal') === 'customer') {
+                window.location.href = 'customer-portal-main.html';
+            } else if (urlParams.get('portal') === 'admin') {
+                window.location.href = 'index.html';
+            }
         }
     </script>
 </body>
