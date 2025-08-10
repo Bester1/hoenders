@@ -85,7 +85,8 @@ function getCustomerPricing() {
         'FILETTE (sonder vel)': { cost: 86.50, selling: 100.00, packaging: '4 fillets per pak' },
         'STRIPS': { cost: 86.50, selling: 100.00, packaging: '± 500g per pak' },
         'ONTBEENDE HOENDER': { cost: 110.00, selling: 125.00, packaging: 'VACUUM VERPAK' },
-        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 166.00, selling: 193.00, packaging: 'Opsie 1: Vye, feta, cheddar, sweet chilly. Opsie 2: Peppadew, mozzarella, cheddar, pynappel.' },
+        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 166.00, selling: 193.00, packaging: 'Opsie 1: Vye, feta, cheddar, sweet chilly.' },
+        'GEVULDE HOENDER ROLLE OPSIE 2': { cost: 166.00, selling: 193.00, packaging: 'Opsie 2: Peppadew, mozzarella, cheddar, pynappel.' },
         'INGELEGDE GROEN VYE': { cost: 55, selling: 75, packaging: '375ml potjie', unit: 'per potjie' },
         'HOENDER PATTIES': { cost: 105.00, selling: 120.00, packaging: '4 in pak (120-140g patty)' },
         'HOENDER KAASWORS': { cost: 140.00, selling: 148.00, packaging: '500gr VACUUM VERPAK' },
@@ -121,7 +122,7 @@ function getProductDisplayInfo(productName) {
     const displayMap = {
         'HEEL HOENDER': {
             displayName: 'Heel Hoender',
-            description: 'Hele vars hoender, perfek vir gesinne'
+            description: 'Heel vars hoender, perfek vir gesinne'
         },
         'PLAT HOENDER (FLATTY\'S)': {
             displayName: 'Plat Hoender (Flatty\'s)',
@@ -129,11 +130,11 @@ function getProductDisplayInfo(productName) {
         },
         'BRAAIPAKKE': {
             displayName: 'Braaipakke',
-            description: 'Hele hoender opgesnye in braai stukke'
+            description: 'Heel hoender opgesnye in braai stukke'
         },
         'HEEL HALWE HOENDERS': {
             displayName: 'Heel Halwe Hoenders', 
-            description: 'Hele hoender deurgesny in helftes'
+            description: 'Heel hoender deurgesny in helftes'
         },
         'BORSSTUKKE MET BEEN EN VEL': {
             displayName: 'Borsstukke met Been en Vel',
@@ -148,8 +149,8 @@ function getProductDisplayInfo(productName) {
             description: 'Boude en dye porties'
         },
         'GUNS Boud en dy aanmekaar': {
-            displayName: 'GUNS Boud en Dy Aanmekaar',
-            description: 'Spesiale boud en dy kombinasie'
+            displayName: 'Boude en Dye Aanmekaar (Guns)',
+            description: 'Boude en dye nog aanmekaar, maklik om te braai'
         },
         'FILETTE (sonder vel)': {
             displayName: 'Filette (sonder vel)',
@@ -157,7 +158,7 @@ function getProductDisplayInfo(productName) {
         },
         'ONTBEENDE HOENDER': {
             displayName: 'Ontbeende Hoender',
-            description: 'Hele hoender sonder bene'
+            description: 'Heel hoender sonder bene, maklik om te sny'
         },
         'SOSATIE': {
             displayName: 'Sosatie',
@@ -182,6 +183,10 @@ function getProductDisplayInfo(productName) {
         'TITTES (borsstukke sonder been en vel)': {
             displayName: 'Tittes (borsstukke sonder been en vel)',
             description: 'Borsstukke sonder been en vel'
+        },
+        'GEVULDE HOENDER ROLLE OPSIE 2': {
+            displayName: 'Gevulde Hoender Rolle Opsie 2',
+            description: 'Spesiaal gevulde hoender rolle'
         },
         'SUIWER HEUNING': {
             displayName: 'Suiwer Heuning',
@@ -223,6 +228,7 @@ function getEstimatedWeight(productName) {
         'DIE BOUDE ALLEEN': '0.4kg',
         'DIE DYE ALLEEN': '0.3kg',
         'TITTES (borsstukke sonder been en vel)': '0.6kg',
+        'GEVULDE HOENDER ROLLE OPSIE 2': '0.5kg',
         'SUIWER HEUNING': '1.0kg',
         'EIERS': '0.6kg'
     };
@@ -239,7 +245,7 @@ function getProductCategories() {
     return {
         'whole': {
             name: 'Heel Hoenders',
-            description: 'Hele hoenders perfek vir gesinne',
+            description: 'Heel hoenders perfek vir gesinne',
             icon: 'fas fa-drumstick-bite',
             products: [
                 'HEEL HOENDER',
@@ -248,8 +254,8 @@ function getProductCategories() {
             ]
         },
         'cuts': {
-            name: 'Hoender Snye',
-            description: 'Hoender dele en spesialiteit snye',
+            name: 'Hoender Snitte',
+            description: 'Hoender dele en spesialiteit snitte',
             icon: 'fas fa-cut',
             products: [
                 'HEEL HALWE HOENDERS', 
@@ -268,6 +274,7 @@ function getProductCategories() {
             products: [
                 'BRAAIPAKKE',
                 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+                'GEVULDE HOENDER ROLLE OPSIE 2',
                 'HOENDER PATTIES',
                 'HOENDER KAASWORS'
             ]
@@ -347,8 +354,8 @@ function getProductDisplayInfo(productName) {
             description: 'Hele hoender sonder bene, maklik om te snye'
         },
         'GEVULDE HOENDER ROLLE VAKUUM VERPAK': {
-            displayName: 'Gevulde Hoender Rolle',
-            description: 'Hoender rolle gevul met kaas en kruie'
+            displayName: 'Gevulde Hoender Rolle Opsie 1',
+            description: 'Vye, feta, cheddar, sweet chilly'
         },
         'INGELEGDE GROEN VYE': {
             displayName: 'Ingelegde Groen Vye',
