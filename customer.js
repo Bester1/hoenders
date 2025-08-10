@@ -24,6 +24,55 @@ let sectionData = {
 };
 
 /**
+ * Handle authentication callback from email confirmation or password reset
+ * @async
+ * @function handleAuthCallback
+ * @returns {Promise<void>}
+ * @since 1.7.1
+ */
+async function handleAuthCallback() {
+    try {
+        // Check for auth tokens in URL hash (email confirmation, password reset, etc.)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const type = hashParams.get('type');
+
+        if (accessToken && refreshToken) {
+            console.info('Processing auth callback:', type);
+            
+            // Set the session with the tokens from the URL
+            const { data, error } = await supabaseClient.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken
+            });
+
+            if (error) {
+                console.error('Error setting session from callback:', error);
+                showFormMessage('Authentication failed. Please try logging in again.', 'error', 'loginMessage');
+            } else {
+                console.info('Authentication callback successful:', type);
+                
+                // Clear the hash from URL for security
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // Show success message based on callback type
+                if (type === 'signup') {
+                    showToast('Email confirmed! Welcome to Plaas Hoenders!', 'success');
+                } else if (type === 'recovery') {
+                    showToast('Email confirmed! You can now reset your password.', 'success');
+                } else {
+                    showToast('Authentication successful!', 'success');
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error handling auth callback:', error);
+        // Don't show error to user as this might be a normal page load without auth callback
+    }
+}
+
+/**
  * Initialize the customer portal on page load
  * @async
  * @function initializeCustomerPortal
@@ -32,6 +81,9 @@ let sectionData = {
 async function initializeCustomerPortal() {
     try {
         showLoadingSpinner(true);
+        
+        // Handle auth tokens from email confirmation or password reset
+        await handleAuthCallback();
         
         // Check if user is already authenticated
         const { data: session } = await supabaseClient.auth.getSession();
