@@ -186,6 +186,44 @@
             background-color: rgba(63, 63, 70, 0.5);
             color: white;
         }
+
+        /* Ensure auth section shows by default */
+        .customer-section {
+            display: none;
+        }
+        .customer-section.active {
+            display: block !important;
+        }
+        
+        /* Auth form styling */
+        .auth-tab {
+            transition: all 0.2s;
+        }
+        .auth-tab:not(.active) {
+            background: none;
+            color: rgb(161, 161, 170);
+        }
+        .auth-tab:not(.active):hover {
+            background-color: rgba(63, 63, 70, 0.5);
+        }
+        
+        .form-message {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            font-size: 0.875rem;
+        }
+        .form-message.success {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: rgb(34, 197, 94);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .form-message.error {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: rgb(239, 68, 68);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
     </style>
 </head>
 <body class="min-h-screen bg-black text-zinc-100 antialiased">
@@ -193,8 +231,8 @@
     <div class="fixed top-0 w-full h-screen bg-cover bg-center -z-10" 
          style="background-image: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.4)), url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=2532&q=80');"></div>
 
-    <!-- Authentication Section (Hidden when authenticated) -->
-    <section id="auth-section" class="customer-section active" style="display: none;">
+    <!-- Authentication Section (Shows first when not authenticated) -->
+    <section id="auth-section" class="customer-section active" style="display: block;">
         <div class="fixed inset-0 flex items-center justify-center z-50 bg-black/80">
             <div class="bg-zinc-900/90 backdrop-blur-lg border border-zinc-800/50 rounded-3xl p-8 max-w-md w-full mx-4">
                 <div class="text-center mb-8">
@@ -209,8 +247,8 @@
 
                 <!-- Auth Tabs -->
                 <div class="flex mb-6 bg-zinc-800/50 rounded-xl p-1">
-                    <button id="login-tab" class="auth-tab flex-1 py-2 text-center rounded-lg text-white bg-orange-500 font-medium">Login</button>
-                    <button id="register-tab" class="auth-tab flex-1 py-2 text-center rounded-lg text-zinc-400">Register</button>
+                    <button id="login-tab" class="auth-tab flex-1 py-2 text-center rounded-lg text-white bg-orange-500 font-medium active" onclick="showAuthForm('login')">Login</button>
+                    <button id="register-tab" class="auth-tab flex-1 py-2 text-center rounded-lg text-zinc-400" onclick="showAuthForm('register')">Register</button>
                 </div>
 
                 <!-- Login Form -->

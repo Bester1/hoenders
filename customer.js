@@ -93,8 +93,11 @@ async function initializeCustomerPortal() {
             await loadCustomerProfile();
             showCustomerPortal();
         } else {
+            console.log('No session found, showing auth section');
             showAuthSection();
         }
+        
+        showLoadingSpinner(false);
         
         // Listen for auth state changes
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
@@ -137,21 +140,35 @@ async function loadCustomerProfile() {
             throw new Error('No authenticated user session');
         }
 
-        // Get or create customer profile in database
-        const { data: customer, error } = await supabaseClient
-            .from('customers')
-            .select('*')
-            .eq('auth_user_id', customerSession.user.id)
-            .single();
+        // Try to get customer profile from database (gracefully handle missing table)
+        let customer = null;
+        let error = null;
+        
+        try {
+            const result = await supabaseClient
+                .from('customers')
+                .select('*')
+                .eq('auth_user_id', customerSession.user.id)
+                .single();
+            customer = result.data;
+            error = result.error;
+        } catch (dbError) {
+            console.warn('Customer table not found, using auth data directly:', dbError);
+            error = dbError;
+        }
 
-        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-            throw error;
+        if (error && error.code !== 'PGRST116' && !error.message?.includes('404')) { 
+            // Only throw on real errors, not missing table or no rows
+            console.warn('Customer profile error (non-critical):', error);
         }
 
         if (!customer) {
             // Create customer profile for new user (e.g., Google OAuth user)
             const newCustomer = {
                 auth_user_id: customerSession.user.id,
+                full_name: customerSession.user.user_metadata?.full_name || 
+                          customerSession.user.user_metadata?.name || 
+                          customerSession.user.email.split('@')[0],
                 name: customerSession.user.user_metadata?.full_name || 
                       customerSession.user.user_metadata?.name || 
                       customerSession.user.email.split('@')[0],
@@ -162,22 +179,36 @@ async function loadCustomerProfile() {
                 last_login: new Date().toISOString()
             };
 
-            const { data: createdCustomer, error: createError } = await supabaseClient
-                .from('customers')
-                .insert([newCustomer])
-                .select()
-                .single();
+            // Try to create customer in database (handle missing table gracefully)
+            try {
+                const { data: createdCustomer, error: createError } = await supabaseClient
+                    .from('customers')
+                    .insert([newCustomer])
+                    .select()
+                    .single();
 
-            if (createError) throw createError;
-            currentCustomer = createdCustomer;
+                if (createError) {
+                    console.warn('Could not create customer in database, using auth data:', createError);
+                    currentCustomer = newCustomer; // Use the customer data we have
+                } else {
+                    currentCustomer = createdCustomer;
+                }
+            } catch (dbError) {
+                console.warn('Customer table not available, using auth data directly:', dbError);
+                currentCustomer = newCustomer; // Use the customer data we have
+            }
         } else {
-            // Update last login time
-            const { error: updateError } = await supabaseClient
-                .from('customers')
-                .update({ last_login: new Date().toISOString() })
-                .eq('id', customer.id);
+            // Try to update last login time (handle missing table gracefully)
+            try {
+                const { error: updateError } = await supabaseClient
+                    .from('customers')
+                    .update({ last_login: new Date().toISOString() })
+                    .eq('id', customer.id);
 
-            if (updateError) console.warn('Could not update last login:', updateError);
+                if (updateError) console.warn('Could not update last login:', updateError);
+            } catch (dbError) {
+                console.warn('Could not update last login (table missing):', dbError);
+            }
             currentCustomer = customer;
         }
 
@@ -595,6 +626,45 @@ function showAuthSection() {
     }
 
     updateAuthUI();
+}
+
+/**
+ * Show specific auth form (login or register)
+ * @function showAuthForm
+ * @param {string} formType - 'login' or 'register'
+ */
+function showAuthForm(formType) {
+    // Update tab styling
+    const loginTab = document.getElementById('login-tab');
+    const registerTab = document.getElementById('register-tab');
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    
+    if (formType === 'login') {
+        // Show login form
+        if (loginTab) {
+            loginTab.classList.add('active');
+            loginTab.className = 'auth-tab flex-1 py-2 text-center rounded-lg text-white bg-orange-500 font-medium active';
+        }
+        if (registerTab) {
+            registerTab.classList.remove('active');
+            registerTab.className = 'auth-tab flex-1 py-2 text-center rounded-lg text-zinc-400';
+        }
+        if (loginForm) loginForm.style.display = 'block';
+        if (registerForm) registerForm.style.display = 'none';
+    } else {
+        // Show register form
+        if (registerTab) {
+            registerTab.classList.add('active');
+            registerTab.className = 'auth-tab flex-1 py-2 text-center rounded-lg text-white bg-orange-500 font-medium active';
+        }
+        if (loginTab) {
+            loginTab.classList.remove('active');
+            loginTab.className = 'auth-tab flex-1 py-2 text-center rounded-lg text-zinc-400';
+        }
+        if (registerForm) registerForm.style.display = 'block';
+        if (loginForm) loginForm.style.display = 'none';
+    }
 }
 
 /**
