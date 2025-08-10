@@ -3,6 +3,67 @@
  * Common functions used by both admin and customer portals
  */
 
+// Google Apps Script Email Configuration
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBN3lIbR-ZW9ybqb5E6e0XNa7wdrfKmO8d6pQeSVXAd0WM7tT-n9M4jFO42mC1vcS1/exec';
+
+/**
+ * Send email via Google Apps Script service
+ * @async
+ * @function sendEmailViaGoogleScript
+ * @param {string} to - Recipient email address
+ * @param {string} subject - Email subject line
+ * @param {string} body - Email body content (HTML supported)
+ * @param {Array} attachments - Optional email attachments (default: empty)
+ * @returns {Promise<boolean>} True if email sent successfully, false otherwise
+ * @throws {Error} When email service is unavailable or network error occurs
+ * @since 1.5.0
+ * @example
+ * const success = await sendEmailViaGoogleScript('test@example.com', 'Subject', 'Body');
+ * if (success) {
+ *   console.log('Email sent successfully');
+ * }
+ */
+async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
+    if (!GOOGLE_SCRIPT_URL) {
+        console.error('Google Apps Script URL not configured');
+        return false;
+    }
+
+    try {
+        // Use form data to avoid CORS preflight request
+        const formData = new FormData();
+        formData.append('to', to);
+        formData.append('subject', subject);
+        formData.append('body', body);
+        formData.append('fromName', 'Plaas Hoenders');
+        if (attachments && attachments.length > 0) {
+            formData.append('attachments', JSON.stringify(attachments));
+        }
+        
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            console.log('Email sent successfully via Google Apps Script to:', to);
+            return true;
+        } else {
+            console.error('Email failed:', result.message);
+            return false;
+        }
+    } catch (error) {
+        console.error('Error sending email via Google Apps Script:', error);
+        return false;
+    }
+}
+
 /**
  * Get customer-safe pricing data (selling prices only, no cost information)
  * @function getCustomerPricing

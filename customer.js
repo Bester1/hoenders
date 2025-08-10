@@ -126,6 +126,11 @@ async function loadCustomerProfile() {
         // Update UI with customer name in multiple places
         updateCustomerNameInUI();
         updateAuthUI();
+        
+        // Set up real-time order status subscriptions
+        if (typeof setupOrderStatusSubscription === 'function') {
+            await setupOrderStatusSubscription();
+        }
 
     } catch (error) {
         console.error('Error loading customer profile:', error);
@@ -347,6 +352,11 @@ async function handleLogout() {
             throw error;
         }
 
+        // Clean up real-time subscriptions
+        if (typeof cleanupOrderStatusSubscription === 'function') {
+            cleanupOrderStatusSubscription();
+        }
+        
         // Clear local state
         currentCustomer = null;
         customerSession = null;
@@ -1218,20 +1228,812 @@ async function loadProfile() {
             throw new Error('No customer data available');
         }
 
-        // TODO: Build profile form with current customer data
-        // For now, show placeholder
-        setTimeout(() => {
-            const profileForm = document.getElementById('profileForm');
-            if (profileForm) {
-                profileForm.innerHTML = '<p class="placeholder-text">Profile form will be loaded here</p>';
-                profileForm.style.display = 'block';
-            }
-            showSectionLoading('profile', false);
-        }, 1000);
+        // Build profile form with current customer data
+        const profileForm = document.getElementById('profileForm');
+        if (!profileForm) {
+            throw new Error('Profile form element not found');
+        }
+
+        // Create profile management form HTML
+        profileForm.innerHTML = `
+            <div class="profile-tabs">
+                <button class="profile-tab active" data-tab="general" onclick="switchProfileTab('general')">
+                    <i class="fas fa-user"></i> General Information
+                </button>
+                <button class="profile-tab" data-tab="password" onclick="switchProfileTab('password')">
+                    <i class="fas fa-key"></i> Password
+                </button>
+                <button class="profile-tab" data-tab="preferences" onclick="switchProfileTab('preferences')">
+                    <i class="fas fa-cog"></i> Communication Preferences
+                </button>
+                <button class="profile-tab" data-tab="account" onclick="switchProfileTab('account')">
+                    <i class="fas fa-user-slash"></i> Account Settings
+                </button>
+            </div>
+
+            <!-- General Information Tab -->
+            <div id="general-tab" class="profile-tab-content active">
+                <form id="profileUpdateForm" onsubmit="handleProfileUpdate(event)">
+                    <div class="form-section">
+                        <h3><i class="fas fa-user"></i> Personal Details</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profileName">
+                                    <i class="fas fa-user"></i> Full Name *
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="profileName" 
+                                    name="name" 
+                                    required 
+                                    minlength="2"
+                                    maxlength="255"
+                                    pattern="[A-Za-z\\s\\-']+"
+                                    value="${escapeHtml(currentCustomer.name || '')}"
+                                    placeholder="Enter your full name"
+                                    autocomplete="name"
+                                >
+                                <div class="field-error" id="profileNameError"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="profileEmail">
+                                    <i class="fas fa-envelope"></i> Email Address *
+                                </label>
+                                <input 
+                                    type="email" 
+                                    id="profileEmail" 
+                                    name="email" 
+                                    required 
+                                    pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$"
+                                    value="${escapeHtml(currentCustomer.email || '')}"
+                                    placeholder="Enter your email address"
+                                    autocomplete="email"
+                                >
+                                <div class="field-error" id="profileEmailError"></div>
+                                <small class="field-help">This is your login email</small>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profilePhone">
+                                    <i class="fas fa-phone"></i> Phone Number
+                                </label>
+                                <input 
+                                    type="tel" 
+                                    id="profilePhone" 
+                                    name="phone" 
+                                    pattern="^(\\+27|0)[0-9]{9}$"
+                                    value="${escapeHtml(currentCustomer.phone || '')}"
+                                    placeholder="e.g. 079 123 4567"
+                                    autocomplete="tel"
+                                >
+                                <div class="field-error" id="profilePhoneError"></div>
+                                <small class="field-help">South African format (optional)</small>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="profileAddress">
+                                <i class="fas fa-map-marker-alt"></i> Delivery Address
+                            </label>
+                            <textarea 
+                                id="profileAddress" 
+                                name="address" 
+                                rows="3"
+                                maxlength="500"
+                                placeholder="Enter your delivery address (optional)"
+                                autocomplete="address"
+                            >${escapeHtml(currentCustomer.address || '')}</textarea>
+                            <div class="field-error" id="profileAddressError"></div>
+                            <small class="field-help">Where should we deliver your orders?</small>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="profileUpdateBtn">
+                            <i class="fas fa-save"></i> Update Profile
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="resetProfileForm()">
+                            <i class="fas fa-undo"></i> Reset Changes
+                        </button>
+                    </div>
+
+                    <div class="form-message" id="profileUpdateMessage"></div>
+                </form>
+            </div>
+
+            <!-- Password Change Tab -->
+            <div id="password-tab" class="profile-tab-content">
+                <form id="passwordChangeForm" onsubmit="handlePasswordChange(event)">
+                    <div class="form-section">
+                        <h3><i class="fas fa-key"></i> Change Password</h3>
+                        <p class="section-description">Update your password to keep your account secure.</p>
+                        
+                        <div class="form-group">
+                            <label for="currentPassword">
+                                <i class="fas fa-lock"></i> Current Password *
+                            </label>
+                            <input 
+                                type="password" 
+                                id="currentPassword" 
+                                name="currentPassword" 
+                                required 
+                                minlength="8"
+                                placeholder="Enter your current password"
+                                autocomplete="current-password"
+                            >
+                            <div class="field-error" id="currentPasswordError"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="newPassword">
+                                <i class="fas fa-key"></i> New Password *
+                            </label>
+                            <input 
+                                type="password" 
+                                id="newPassword" 
+                                name="newPassword" 
+                                required 
+                                minlength="8"
+                                placeholder="Enter your new password"
+                                autocomplete="new-password"
+                            >
+                            <div class="field-error" id="newPasswordError"></div>
+                            <small class="field-help">Minimum 8 characters</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirmNewPassword">
+                                <i class="fas fa-key"></i> Confirm New Password *
+                            </label>
+                            <input 
+                                type="password" 
+                                id="confirmNewPassword" 
+                                name="confirmNewPassword" 
+                                required 
+                                minlength="8"
+                                placeholder="Confirm your new password"
+                                autocomplete="new-password"
+                            >
+                            <div class="field-error" id="confirmNewPasswordError"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="passwordChangeBtn">
+                            <i class="fas fa-key"></i> Change Password
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="resetPasswordForm()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+
+                    <div class="form-message" id="passwordChangeMessage"></div>
+                </form>
+            </div>
+
+            <!-- Communication Preferences Tab -->
+            <div id="preferences-tab" class="profile-tab-content">
+                <form id="preferencesForm" onsubmit="handlePreferencesUpdate(event)">
+                    <div class="form-section">
+                        <h3><i class="fas fa-bell"></i> Email Notifications</h3>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input 
+                                    type="checkbox" 
+                                    id="emailNotificationsPref" 
+                                    name="emailNotifications" 
+                                    ${(currentCustomer.communication_preferences?.email_notifications !== false) ? 'checked' : ''}
+                                >
+                                <span class="checkmark"></span>
+                                <i class="fas fa-envelope"></i> Receive email notifications about my orders
+                            </label>
+                            <small class="field-help">Get notified about order confirmations and delivery updates</small>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3><i class="fas fa-truck"></i> Delivery Instructions</h3>
+                        <div class="form-group">
+                            <label for="deliveryInstructions">
+                                <i class="fas fa-clipboard-list"></i> Special Instructions
+                            </label>
+                            <textarea 
+                                id="deliveryInstructions" 
+                                name="deliveryInstructions" 
+                                rows="3"
+                                maxlength="500"
+                                placeholder="Any special delivery instructions? (e.g. gate code, safe place, contact person)"
+                            >${escapeHtml(currentCustomer.communication_preferences?.delivery_instructions || '')}</textarea>
+                            <div class="field-error" id="deliveryInstructionsError"></div>
+                            <small class="field-help">Help our delivery team find you</small>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="preferencesUpdateBtn">
+                            <i class="fas fa-save"></i> Save Preferences
+                        </button>
+                    </div>
+
+                    <div class="form-message" id="preferencesUpdateMessage"></div>
+                </form>
+            </div>
+
+            <!-- Account Settings Tab -->
+            <div id="account-tab" class="profile-tab-content">
+                <div class="form-section danger-zone">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+                    <p class="section-description danger-text">
+                        These actions cannot be undone. Please proceed with caution.
+                    </p>
+                    
+                    <div class="danger-action">
+                        <div class="danger-info">
+                            <h4>Delete Account</h4>
+                            <p>
+                                Permanently delete your account and remove your personal information. 
+                                Your order history will be preserved for business records but will no longer be accessible to you.
+                            </p>
+                        </div>
+                        <button type="button" class="btn btn-danger" onclick="showAccountDeleteConfirmation()">
+                            <i class="fas fa-trash-alt"></i> Delete Account
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Deletion Confirmation Modal -->
+            <div id="deleteConfirmationModal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3><i class="fas fa-exclamation-triangle"></i> Confirm Account Deletion</h3>
+                        <button class="modal-close" onclick="hideAccountDeleteConfirmation()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="warning-text">
+                            <strong>This action cannot be undone.</strong> Your account will be permanently deleted and you will lose access to:
+                        </p>
+                        <ul class="warning-list">
+                            <li>Your order history and invoices</li>
+                            <li>Saved delivery information</li>
+                            <li>Communication preferences</li>
+                            <li>Account access</li>
+                        </ul>
+                        <p class="confirmation-prompt">
+                            Type <strong>DELETE</strong> to confirm:
+                        </p>
+                        <input type="text" id="deleteConfirmationInput" placeholder="Type DELETE to confirm" class="form-control">
+                        <div class="field-error" id="deleteConfirmationError"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-danger" onclick="handleAccountDeletion()" id="confirmDeleteBtn">
+                            <i class="fas fa-trash-alt"></i> Delete My Account
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="hideAccountDeleteConfirmation()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        profileForm.style.display = 'block';
+        showSectionLoading('profile', false);
 
     } catch (error) {
         console.error('Error loading profile:', error);
         showSectionError('profile', 'Unable to load profile. Please try again.');
+    }
+}
+
+/**
+ * HTML escape function to prevent XSS in profile data
+ * @function escapeHtml
+ * @param {string} text - Text to escape
+ * @returns {string} Escaped HTML text
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Switch between profile management tabs
+ * @function switchProfileTab
+ * @param {string} tabName - Tab to switch to (general, password, preferences, account)
+ */
+function switchProfileTab(tabName) {
+    // Update tab buttons
+    const tabButtons = document.querySelectorAll('.profile-tab');
+    tabButtons.forEach(button => {
+        button.classList.remove('active');
+        if (button.getAttribute('data-tab') === tabName) {
+            button.classList.add('active');
+        }
+    });
+
+    // Update tab content
+    const tabContents = document.querySelectorAll('.profile-tab-content');
+    tabContents.forEach(content => {
+        content.classList.remove('active');
+    });
+
+    const targetTab = document.getElementById(`${tabName}-tab`);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+
+    // Clear any form errors when switching tabs
+    clearProfileFormErrors();
+}
+
+/**
+ * Handle profile update form submission
+ * @async
+ * @function handleProfileUpdate
+ * @param {Event} event - Form submission event
+ * @returns {Promise<void>}
+ */
+async function handleProfileUpdate(event) {
+    event.preventDefault();
+    clearProfileFormErrors();
+
+    const formData = new FormData(event.target);
+    const profileData = {
+        name: formData.get('name').trim(),
+        email: formData.get('email').trim().toLowerCase(),
+        phone: formData.get('phone')?.trim() || null,
+        address: formData.get('address')?.trim() || null
+    };
+
+    // Client-side validation
+    const validationErrors = validateProfileData(profileData);
+    if (validationErrors.length > 0) {
+        displayProfileValidationErrors(validationErrors);
+        return;
+    }
+
+    try {
+        showLoadingSpinner(true);
+        const updateBtn = document.getElementById('profileUpdateBtn');
+        updateBtn.disabled = true;
+        updateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating Profile...';
+
+        // Update customer profile in database
+        const { error } = await supabaseClient
+            .from('customers')
+            .update({
+                name: profileData.name,
+                email: profileData.email,
+                phone: profileData.phone,
+                address: profileData.address,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', currentCustomer.id);
+
+        if (error) {
+            throw error;
+        }
+
+        // Update local customer data
+        currentCustomer = {
+            ...currentCustomer,
+            name: profileData.name,
+            email: profileData.email,
+            phone: profileData.phone,
+            address: profileData.address
+        };
+
+        // Update UI elements with new data
+        updateCustomerNameInUI();
+
+        showFormMessage('Profile updated successfully!', 'success', 'profileUpdateMessage');
+        
+        // Show success notification
+        showToast('Profile updated successfully!', 'success');
+
+    } catch (error) {
+        console.error('Profile update error:', error);
+        let errorMessage = 'Failed to update profile. Please try again.';
+        
+        if (error.message?.includes('duplicate key')) {
+            errorMessage = 'This email address is already in use by another account.';
+        }
+        
+        showFormMessage(errorMessage, 'error', 'profileUpdateMessage');
+    } finally {
+        showLoadingSpinner(false);
+        const updateBtn = document.getElementById('profileUpdateBtn');
+        updateBtn.disabled = false;
+        updateBtn.innerHTML = '<i class="fas fa-save"></i> Update Profile';
+    }
+}
+
+/**
+ * Handle password change form submission
+ * @async
+ * @function handlePasswordChange
+ * @param {Event} event - Form submission event
+ * @returns {Promise<void>}
+ */
+async function handlePasswordChange(event) {
+    event.preventDefault();
+    clearProfileFormErrors();
+
+    const formData = new FormData(event.target);
+    const passwordData = {
+        currentPassword: formData.get('currentPassword'),
+        newPassword: formData.get('newPassword'),
+        confirmNewPassword: formData.get('confirmNewPassword')
+    };
+
+    // Client-side validation
+    const validationErrors = validatePasswordChangeData(passwordData);
+    if (validationErrors.length > 0) {
+        displayProfileValidationErrors(validationErrors);
+        return;
+    }
+
+    try {
+        showLoadingSpinner(true);
+        const changeBtn = document.getElementById('passwordChangeBtn');
+        changeBtn.disabled = true;
+        changeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Changing Password...';
+
+        // Update password with Supabase Auth
+        const { error } = await supabaseClient.auth.updateUser({
+            password: passwordData.newPassword
+        });
+
+        if (error) {
+            throw error;
+        }
+
+        // Log security event in customer_sessions table
+        await logSecurityEvent('password_change');
+
+        showFormMessage('Password changed successfully!', 'success', 'passwordChangeMessage');
+        showToast('Password changed successfully!', 'success');
+
+        // Reset password form
+        document.getElementById('passwordChangeForm').reset();
+
+    } catch (error) {
+        console.error('Password change error:', error);
+        let errorMessage = 'Failed to change password. Please try again.';
+        
+        if (error.message?.includes('New password should be different')) {
+            errorMessage = 'New password must be different from current password.';
+        } else if (error.message?.includes('Password')) {
+            errorMessage = 'Password must be at least 8 characters long.';
+        }
+        
+        showFormMessage(errorMessage, 'error', 'passwordChangeMessage');
+    } finally {
+        showLoadingSpinner(false);
+        const changeBtn = document.getElementById('passwordChangeBtn');
+        changeBtn.disabled = false;
+        changeBtn.innerHTML = '<i class="fas fa-key"></i> Change Password';
+    }
+}
+
+/**
+ * Handle communication preferences update
+ * @async
+ * @function handlePreferencesUpdate
+ * @param {Event} event - Form submission event
+ * @returns {Promise<void>}
+ */
+async function handlePreferencesUpdate(event) {
+    event.preventDefault();
+    clearProfileFormErrors();
+
+    const formData = new FormData(event.target);
+    const preferences = {
+        email_notifications: formData.get('emailNotifications') === 'on',
+        delivery_instructions: formData.get('deliveryInstructions')?.trim() || ''
+    };
+
+    try {
+        showLoadingSpinner(true);
+        const updateBtn = document.getElementById('preferencesUpdateBtn');
+        updateBtn.disabled = true;
+        updateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving Preferences...';
+
+        // Update communication preferences in database
+        const { error } = await supabaseClient
+            .from('customers')
+            .update({
+                communication_preferences: preferences,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', currentCustomer.id);
+
+        if (error) {
+            throw error;
+        }
+
+        // Update local customer data
+        currentCustomer = {
+            ...currentCustomer,
+            communication_preferences: preferences
+        };
+
+        showFormMessage('Communication preferences saved successfully!', 'success', 'preferencesUpdateMessage');
+        showToast('Preferences updated successfully!', 'success');
+
+    } catch (error) {
+        console.error('Preferences update error:', error);
+        showFormMessage('Failed to save preferences. Please try again.', 'error', 'preferencesUpdateMessage');
+    } finally {
+        showLoadingSpinner(false);
+        const updateBtn = document.getElementById('preferencesUpdateBtn');
+        updateBtn.disabled = false;
+        updateBtn.innerHTML = '<i class="fas fa-save"></i> Save Preferences';
+    }
+}
+
+/**
+ * Show account deletion confirmation modal
+ * @function showAccountDeleteConfirmation
+ */
+function showAccountDeleteConfirmation() {
+    const modal = document.getElementById('deleteConfirmationModal');
+    if (modal) {
+        modal.style.display = 'block';
+        document.getElementById('deleteConfirmationInput').value = '';
+        document.getElementById('deleteConfirmationError').textContent = '';
+    }
+}
+
+/**
+ * Hide account deletion confirmation modal
+ * @function hideAccountDeleteConfirmation
+ */
+function hideAccountDeleteConfirmation() {
+    const modal = document.getElementById('deleteConfirmationModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Handle account deletion
+ * @async
+ * @function handleAccountDeletion
+ * @returns {Promise<void>}
+ */
+async function handleAccountDeletion() {
+    const confirmationInput = document.getElementById('deleteConfirmationInput');
+    const errorElement = document.getElementById('deleteConfirmationError');
+    
+    if (confirmationInput.value !== 'DELETE') {
+        errorElement.textContent = 'Please type "DELETE" to confirm account deletion.';
+        return;
+    }
+
+    try {
+        showLoadingSpinner(true);
+        const deleteBtn = document.getElementById('confirmDeleteBtn');
+        deleteBtn.disabled = true;
+        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting Account...';
+
+        // Soft delete customer account (set is_active to false)
+        const { error: updateError } = await supabaseClient
+            .from('customers')
+            .update({
+                is_active: false,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', currentCustomer.id);
+
+        if (updateError) {
+            throw updateError;
+        }
+
+        // Log security event
+        await logSecurityEvent('account_deletion');
+
+        // Sign out user
+        const { error: signOutError } = await supabaseClient.auth.signOut();
+        if (signOutError) {
+            console.warn('Sign out error after account deletion:', signOutError);
+        }
+
+        // Show success message and redirect
+        showToast('Account deleted successfully. You have been signed out.', 'success', 8000);
+        
+        // Clear local state and redirect to auth
+        currentCustomer = null;
+        customerSession = null;
+        hideAccountDeleteConfirmation();
+        showAuthSection();
+
+    } catch (error) {
+        console.error('Account deletion error:', error);
+        errorElement.textContent = 'Failed to delete account. Please try again.';
+    } finally {
+        showLoadingSpinner(false);
+        const deleteBtn = document.getElementById('confirmDeleteBtn');
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Delete My Account';
+    }
+}
+
+/**
+ * Reset profile form to original customer data
+ * @function resetProfileForm
+ */
+function resetProfileForm() {
+    if (!currentCustomer) return;
+
+    document.getElementById('profileName').value = currentCustomer.name || '';
+    document.getElementById('profileEmail').value = currentCustomer.email || '';
+    document.getElementById('profilePhone').value = currentCustomer.phone || '';
+    document.getElementById('profileAddress').value = currentCustomer.address || '';
+    
+    clearProfileFormErrors();
+    showToast('Form reset to original values', 'info');
+}
+
+/**
+ * Reset password change form
+ * @function resetPasswordForm
+ */
+function resetPasswordForm() {
+    document.getElementById('passwordChangeForm').reset();
+    clearProfileFormErrors();
+}
+
+/**
+ * Clear all profile form error messages
+ * @function clearProfileFormErrors
+ */
+function clearProfileFormErrors() {
+    const errorSelectors = [
+        '#profileNameError', '#profileEmailError', '#profilePhoneError', '#profileAddressError',
+        '#currentPasswordError', '#newPasswordError', '#confirmNewPasswordError',
+        '#deliveryInstructionsError', '#deleteConfirmationError'
+    ];
+    
+    errorSelectors.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.textContent = '';
+        }
+    });
+
+    const messageSelectors = [
+        '#profileUpdateMessage', '#passwordChangeMessage', '#preferencesUpdateMessage'
+    ];
+    
+    messageSelectors.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.style.display = 'none';
+            element.className = 'form-message';
+        }
+    });
+}
+
+/**
+ * Validate profile update data
+ * @function validateProfileData
+ * @param {Object} data - Profile form data
+ * @returns {Array<Object>} Array of validation errors
+ */
+function validateProfileData(data) {
+    const errors = [];
+
+    // Name validation
+    if (!data.name || data.name.length < 2) {
+        errors.push({ field: 'profileName', message: 'Name must be at least 2 characters long.' });
+    } else if (data.name.length > 255) {
+        errors.push({ field: 'profileName', message: 'Name must be less than 255 characters.' });
+    } else if (!/^[A-Za-z\s\-']+$/.test(data.name)) {
+        errors.push({ field: 'profileName', message: 'Name can only contain letters, spaces, hyphens, and apostrophes.' });
+    }
+
+    // Email validation
+    const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+    if (!data.email || !emailRegex.test(data.email)) {
+        errors.push({ field: 'profileEmail', message: 'Please enter a valid email address.' });
+    }
+
+    // Phone validation (if provided)
+    if (data.phone) {
+        const phoneRegex = /^(\+27|0)[0-9]{9}$/;
+        if (!phoneRegex.test(data.phone.replace(/\s/g, ''))) {
+            errors.push({ field: 'profilePhone', message: 'Please enter a valid South African phone number.' });
+        }
+    }
+
+    return errors;
+}
+
+/**
+ * Validate password change data
+ * @function validatePasswordChangeData
+ * @param {Object} data - Password change form data
+ * @returns {Array<Object>} Array of validation errors
+ */
+function validatePasswordChangeData(data) {
+    const errors = [];
+
+    // Current password validation
+    if (!data.currentPassword) {
+        errors.push({ field: 'currentPassword', message: 'Current password is required.' });
+    }
+
+    // New password validation
+    if (!data.newPassword || data.newPassword.length < 8) {
+        errors.push({ field: 'newPassword', message: 'New password must be at least 8 characters long.' });
+    }
+
+    // Password confirmation
+    if (data.newPassword !== data.confirmNewPassword) {
+        errors.push({ field: 'confirmNewPassword', message: 'New passwords do not match.' });
+    }
+
+    // Check if new password is different from current password
+    if (data.currentPassword && data.newPassword && data.currentPassword === data.newPassword) {
+        errors.push({ field: 'newPassword', message: 'New password must be different from current password.' });
+    }
+
+    return errors;
+}
+
+/**
+ * Display profile validation errors in form
+ * @function displayProfileValidationErrors
+ * @param {Array<Object>} errors - Array of validation errors
+ */
+function displayProfileValidationErrors(errors) {
+    errors.forEach(error => {
+        const errorElement = document.getElementById(`${error.field}Error`);
+        if (errorElement) {
+            errorElement.textContent = error.message;
+        }
+    });
+
+    // Focus on first error field
+    if (errors.length > 0) {
+        const firstErrorField = document.getElementById(errors[0].field);
+        if (firstErrorField) {
+            firstErrorField.focus();
+        }
+    }
+}
+
+/**
+ * Log security event for audit trail
+ * @async
+ * @function logSecurityEvent
+ * @param {string} eventType - Type of security event
+ * @returns {Promise<void>}
+ */
+async function logSecurityEvent(eventType) {
+    try {
+        if (!currentCustomer || !customerSession) return;
+
+        const { error } = await supabaseClient
+            .from('customer_sessions')
+            .insert([{
+                customer_id: currentCustomer.id,
+                session_id: customerSession.access_token.substring(0, 10), // First 10 chars for identification
+                event_type: eventType,
+                ip_address: null, // Would need server-side implementation
+                user_agent: navigator.userAgent,
+                created_at: new Date().toISOString()
+            }]);
+
+        if (error) {
+            console.warn('Could not log security event:', error);
+        }
+    } catch (error) {
+        console.warn('Error logging security event:', error);
     }
 }
 

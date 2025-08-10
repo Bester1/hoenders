@@ -352,6 +352,27 @@
                 </div>
 
                 <div class="orders-content">
+                    <!-- Order Filtering Controls -->
+                    <div class="order-filters" id="orderFilters" style="display: none;">
+                        <div class="filter-buttons">
+                            <button class="filter-btn active" onclick="filterOrders('all')" data-status="all">
+                                <i class="fas fa-list"></i> All Orders
+                            </button>
+                            <button class="filter-btn" onclick="filterOrders('pending')" data-status="pending">
+                                <i class="fas fa-clock"></i> Pending
+                            </button>
+                            <button class="filter-btn" onclick="filterOrders('confirmed')" data-status="confirmed">
+                                <i class="fas fa-check-circle"></i> Confirmed
+                            </button>
+                            <button class="filter-btn" onclick="filterOrders('processing')" data-status="processing">
+                                <i class="fas fa-cog"></i> Processing
+                            </button>
+                            <button class="filter-btn" onclick="filterOrders('delivered')" data-status="delivered">
+                                <i class="fas fa-truck"></i> Delivered
+                            </button>
+                        </div>
+                    </div>
+                    
                     <div class="loading-state" id="ordersLoading">
                         <div class="spinner"></div>
                         <p>Loading your orders...</p>
