@@ -408,7 +408,7 @@ async function handleGoogleLogin() {
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: window.location.origin + '/customer.html'
+                redirectTo: window.location.origin + '/hoenders/customer-portal.html'
             }
         });
 
@@ -3540,5 +3540,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 errorElement.textContent = '';
             }
         });
+    }
+
+    // Google Sign In Button
+    const googleSignInBtn = document.getElementById('googleSignInBtn');
+    if (googleSignInBtn) {
+        googleSignInBtn.addEventListener('click', handleGoogleLogin);
     }
 });
