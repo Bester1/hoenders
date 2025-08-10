@@ -576,6 +576,12 @@ function showAuthSection() {
         navigation.style.display = 'none';
     }
 
+    // Hide beautiful modal
+    const modal = document.getElementById('modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+
     // Show only auth section
     const sections = document.querySelectorAll('.customer-section');
     sections.forEach(section => {
@@ -585,6 +591,7 @@ function showAuthSection() {
     const authSection = document.getElementById('auth-section');
     if (authSection) {
         authSection.classList.add('active');
+        authSection.style.display = 'block';
     }
 
     updateAuthUI();
@@ -599,17 +606,410 @@ function showCustomerPortal() {
     const authSection = document.getElementById('auth-section');
     if (authSection) {
         authSection.classList.remove('active');
+        authSection.style.display = 'none';
     }
 
-    // Show navigation
+    // Show beautiful glassmorphism modal instead of navigation
+    const modal = document.getElementById('modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        
+        // Initialize the beautiful portal
+        initializeBeautifulPortal();
+    }
+
+    // Keep navigation hidden for beautiful design
     const navigation = document.getElementById('customer-navigation');
     if (navigation) {
-        navigation.style.display = 'block';
+        navigation.style.display = 'none';
     }
 
     // Navigate to dashboard by default
     navigateToSection('dashboard');
     updateAuthUI();
+}
+
+/**
+ * Initialize the beautiful glassmorphism portal after authentication
+ * @function initializeBeautifulPortal
+ */
+function initializeBeautifulPortal() {
+    // Populate customer data from authenticated user
+    if (currentCustomer) {
+        // Update display elements with real customer data
+        const displayName = document.getElementById('displayName');
+        const displayPhone = document.getElementById('displayPhone');
+        const displayAddress = document.getElementById('displayAddress');
+        const displayEmail = document.getElementById('displayEmail');
+        
+        if (displayName) displayName.textContent = currentCustomer.full_name || currentCustomer.name || '';
+        if (displayPhone) displayPhone.textContent = currentCustomer.phone || '';
+        if (displayAddress) displayAddress.textContent = currentCustomer.address || '';
+        if (displayEmail) displayEmail.textContent = currentCustomer.email || '';
+        
+        // Update form fields as well
+        const customerName = document.getElementById('customerName');
+        const customerPhone = document.getElementById('customerPhone');
+        const customerAddress = document.getElementById('customerAddress');
+        const customerEmail = document.getElementById('customerEmail');
+        
+        if (customerName) customerName.value = currentCustomer.full_name || currentCustomer.name || '';
+        if (customerPhone) customerPhone.value = currentCustomer.phone || '';
+        if (customerAddress) customerAddress.value = currentCustomer.address || '';
+        if (customerEmail) customerEmail.value = currentCustomer.email || '';
+    }
+    
+    // Initialize the beautiful portal components
+    setupBeautifulPortalEventListeners();
+    populateProducts();
+}
+
+/**
+ * Setup event listeners for the beautiful portal
+ * @function setupBeautifulPortalEventListeners
+ */
+function setupBeautifulPortalEventListeners() {
+    // Close modal
+    const closeBtn = document.getElementById('closeModal');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            const modal = document.getElementById('modal');
+            if (modal) {
+                modal.style.opacity = '0';
+                setTimeout(() => modal.style.display = 'none', 300);
+            }
+        });
+    }
+    
+    // Step navigation
+    const confirmDetails = document.getElementById('confirmDetails');
+    if (confirmDetails) {
+        confirmDetails.addEventListener('click', () => {
+            showBeautifulStep(2);
+        });
+    }
+    
+    const backToStep1 = document.getElementById('backToStep1');
+    if (backToStep1) {
+        backToStep1.addEventListener('click', () => {
+            showBeautifulStep(1);
+        });
+    }
+    
+    const proceedToReview = document.getElementById('proceedToReview');
+    if (proceedToReview) {
+        proceedToReview.addEventListener('click', () => {
+            showBeautifulStep(3);
+        });
+    }
+    
+    const backToProducts = document.getElementById('backToProducts');
+    if (backToProducts) {
+        backToProducts.addEventListener('click', () => {
+            showBeautifulStep(2);
+        });
+    }
+    
+    const placeOrder = document.getElementById('placeOrder');
+    if (placeOrder) {
+        placeOrder.addEventListener('click', () => {
+            handleOrderPlacement();
+        });
+    }
+    
+    const newOrder = document.getElementById('newOrder');
+    if (newOrder) {
+        newOrder.addEventListener('click', () => {
+            showBeautifulStep(1);
+        });
+    }
+}
+
+/**
+ * Show a step in the beautiful portal
+ * @function showBeautifulStep
+ * @param {number} stepNumber - Step to show
+ */
+function showBeautifulStep(stepNumber) {
+    // Hide all steps
+    for (let i = 1; i <= 4; i++) {
+        const step = document.getElementById(`step-${i}`);
+        if (step) {
+            step.classList.remove('active');
+        }
+    }
+    
+    // Show current step
+    const currentStepEl = document.getElementById(`step-${stepNumber}`);
+    if (currentStepEl) {
+        currentStepEl.classList.add('active');
+    }
+    
+    // Update step indicators
+    updateBeautifulStepIndicators(stepNumber);
+}
+
+/**
+ * Update step indicators in beautiful portal
+ * @function updateBeautifulStepIndicators
+ * @param {number} currentStep - Current active step
+ */
+function updateBeautifulStepIndicators(currentStep) {
+    for (let i = 1; i <= 4; i++) {
+        const indicator = document.getElementById(`step-indicator-${i}`);
+        const span = indicator?.querySelector('span');
+        
+        if (indicator && span) {
+            if (i < currentStep) {
+                // Completed step
+                indicator.className = 'flex items-center justify-center w-8 h-8 bg-green-500 rounded-full border border-green-400';
+                span.innerHTML = '✓';
+            } else if (i === currentStep) {
+                // Current step
+                indicator.className = 'flex items-center justify-center w-8 h-8 bg-orange-500 rounded-full border border-orange-400';
+                span.textContent = i;
+            } else {
+                // Future step
+                indicator.className = 'flex items-center justify-center w-8 h-8 bg-zinc-800/50 rounded-full border border-zinc-800/30';
+                span.textContent = i;
+            }
+        }
+    }
+}
+
+/**
+ * Populate products in the beautiful portal from rate card
+ * @function populateProducts
+ */
+function populateProducts() {
+    // Get products from the admin system's rate card
+    const products = {
+        'HEEL_HOENDER': { name: 'Heel Hoender', price: 67.00, estimatedWeight: 2.5, description: 'Hele hoender, vars van die plaas' },
+        'PLAT_HOENDER': { name: 'Plat Hoender (Flatty\'s)', price: 79.00, estimatedWeight: 1.8, description: 'Plat hoenders, perfek vir braai' },
+        'BRAAIPAKKE': { name: 'Braaipakke', price: 74.00, estimatedWeight: 1.0, description: 'Gemengde braai pakke' },
+        'HEEL_HALWE': { name: 'Hele Halwe Hoenders', price: 68.00, estimatedWeight: 1.25, description: 'Halwe hoenders, perfek vir kleiner gesinne' },
+        'BORSSTUKKE': { name: 'Borsstukke met Been en Vel', price: 73.00, estimatedWeight: 0.6, description: 'Hoender borsstukke met been en vel' },
+        'VLERKIES': { name: 'Vlerkies', price: 90.00, estimatedWeight: 0.3, description: 'Hoender vlerkies' },
+        'BOUDE_DYE': { name: 'Boude en Dye', price: 81.00, estimatedWeight: 0.8, description: 'Hoender boude en dye' },
+        'FILETTE': { name: 'Filette (sonder vel)', price: 100.00, estimatedWeight: 0.5, description: 'Hoender filette sonder vel' },
+        'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0, description: 'Vars suiwer heuning' }
+    };
+    
+    const productGrid = document.getElementById('productGrid');
+    if (productGrid) {
+        productGrid.innerHTML = '';
+        
+        Object.entries(products).forEach(([key, product]) => {
+            const productCard = document.createElement('div');
+            productCard.className = 'bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
+            
+            productCard.innerHTML = `
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold text-white mb-2">${product.name}</h3>
+                    <p class="text-zinc-400 text-sm mb-3">${product.description}</p>
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-orange-400 font-semibold">~R${product.price}/kg</span>
+                        <span class="text-xs text-zinc-500">Est. ~${product.estimatedWeight}kg each</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <button onclick="updateQuantity('${key}', -1)" class="w-10 h-10 rounded-full bg-zinc-700/50 hover:bg-zinc-600/50 text-white flex items-center justify-center transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14"></path>
+                            </svg>
+                        </button>
+                        <input type="number" id="qty-${key}" value="0" min="0" class="quantity-input w-16 h-10 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-center focus:outline-none focus:border-orange-500/50" onchange="setQuantity('${key}', this.value)">
+                        <button onclick="updateQuantity('${key}', 1)" class="w-10 h-10 rounded-full bg-zinc-700/50 hover:bg-zinc-600/50 text-white flex items-center justify-center transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 5v14"></path><path d="M5 12h14"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-zinc-400">Est. totaal</p>
+                        <p class="text-orange-400 font-semibold" id="total-${key}">R0.00</p>
+                    </div>
+                </div>
+            `;
+            
+            productGrid.appendChild(productCard);
+        });
+    }
+}
+
+// Cart management for beautiful portal
+let cart = {};
+
+/**
+ * Update product quantity in cart
+ * @function updateQuantity
+ * @param {string} productKey - Product identifier
+ * @param {number} change - Change in quantity (+1 or -1)
+ */
+function updateQuantity(productKey, change) {
+    const qtyInput = document.getElementById(`qty-${productKey}`);
+    if (qtyInput) {
+        const currentQty = parseInt(qtyInput.value) || 0;
+        const newQty = Math.max(0, currentQty + change);
+        qtyInput.value = newQty;
+        setQuantity(productKey, newQty);
+    }
+}
+
+/**
+ * Set product quantity directly
+ * @function setQuantity
+ * @param {string} productKey - Product identifier
+ * @param {number} quantity - New quantity
+ */
+function setQuantity(productKey, quantity) {
+    const qty = Math.max(0, parseInt(quantity) || 0);
+    
+    if (qty > 0) {
+        cart[productKey] = qty;
+    } else {
+        delete cart[productKey];
+    }
+    
+    updateCartDisplay();
+    updateCartSummary();
+}
+
+/**
+ * Update cart badge and summary
+ * @function updateCartDisplay
+ */
+function updateCartDisplay() {
+    const totalItems = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+    
+    // Update cart badge
+    const cartBadge = document.getElementById('cartBadge');
+    if (cartBadge) {
+        cartBadge.textContent = totalItems;
+        if (totalItems > 0) {
+            cartBadge.classList.remove('opacity-0', 'scale-0');
+            cartBadge.classList.add('opacity-100', 'scale-100');
+        } else {
+            cartBadge.classList.add('opacity-0', 'scale-0');
+            cartBadge.classList.remove('opacity-100', 'scale-100');
+        }
+    }
+    
+    // Enable/disable proceed button
+    const proceedBtn = document.getElementById('proceedToReview');
+    if (proceedBtn) {
+        proceedBtn.disabled = totalItems === 0;
+    }
+}
+
+/**
+ * Update cart summary section
+ * @function updateCartSummary
+ */
+function updateCartSummary() {
+    const cartItems = document.getElementById('cartItems');
+    const cartTotal = document.getElementById('cartTotal');
+    const cartWeight = document.getElementById('cartWeight');
+    const cartItemCount = document.getElementById('cartItemCount');
+    
+    const products = {
+        'HEEL_HOENDER': { name: 'Heel Hoender', price: 67.00, estimatedWeight: 2.5 },
+        'PLAT_HOENDER': { name: 'Plat Hoender (Flatty\'s)', price: 79.00, estimatedWeight: 1.8 },
+        'BRAAIPAKKE': { name: 'Braaipakke', price: 74.00, estimatedWeight: 1.0 },
+        'HEEL_HALWE': { name: 'Hele Halwe Hoenders', price: 68.00, estimatedWeight: 1.25 },
+        'BORSSTUKKE': { name: 'Borsstukke met Been en Vel', price: 73.00, estimatedWeight: 0.6 },
+        'VLERKIES': { name: 'Vlerkies', price: 90.00, estimatedWeight: 0.3 },
+        'BOUDE_DYE': { name: 'Boude en Dye', price: 81.00, estimatedWeight: 0.8 },
+        'FILETTE': { name: 'Filette (sonder vel)', price: 100.00, estimatedWeight: 0.5 },
+        'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0 }
+    };
+    
+    let totalAmount = 0;
+    let totalWeight = 0;
+    let totalItems = 0;
+    
+    if (cartItems) {
+        cartItems.innerHTML = '';
+        
+        if (Object.keys(cart).length === 0) {
+            cartItems.innerHTML = '<p class="text-zinc-400 text-center py-4">Geen items in mandjie nie</p>';
+        } else {
+            Object.entries(cart).forEach(([productKey, qty]) => {
+                const product = products[productKey];
+                if (product) {
+                    const weight = product.estimatedWeight * qty;
+                    const amount = product.price * weight;
+                    
+                    totalWeight += weight;
+                    totalAmount += amount;
+                    totalItems += qty;
+                    
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'flex justify-between items-center py-2 border-b border-zinc-700/30';
+                    itemDiv.innerHTML = `
+                        <div>
+                            <p class="text-white font-medium">${product.name}</p>
+                            <p class="text-zinc-400 text-sm">${qty}x (~${weight.toFixed(1)}kg)</p>
+                        </div>
+                        <p class="text-orange-400 font-semibold">R${amount.toFixed(2)}</p>
+                    `;
+                    cartItems.appendChild(itemDiv);
+                }
+            });
+        }
+    }
+    
+    if (cartTotal) cartTotal.textContent = `R${totalAmount.toFixed(2)}`;
+    if (cartWeight) cartWeight.textContent = `${totalWeight.toFixed(1)}kg`;
+    if (cartItemCount) cartItemCount.textContent = `${totalItems} items`;
+    
+    // Update final total as well
+    const finalTotal = document.getElementById('finalTotal');
+    if (finalTotal) finalTotal.textContent = `R${totalAmount.toFixed(2)}`;
+}
+
+/**
+ * Handle order placement from beautiful portal
+ * @function handleOrderPlacement
+ */
+async function handleOrderPlacement() {
+    try {
+        if (Object.keys(cart).length === 0) {
+            alert('Voeg items by jou mandjie om voort te gaan');
+            return;
+        }
+
+        // Create order from cart
+        const orderData = {
+            customer: currentCustomer,
+            items: cart,
+            timestamp: new Date().toISOString(),
+            status: 'pending'
+        };
+
+        // Save order (you can connect this to your existing order saving logic)
+        console.log('Order placed:', orderData);
+        
+        // Show confirmation step
+        showBeautifulStep(4);
+        
+        // Update order number
+        const orderNumber = document.getElementById('orderNumber');
+        if (orderNumber) {
+            orderNumber.textContent = `#ORD-${Date.now()}`;
+        }
+        
+        // Clear cart
+        cart = {};
+        updateCartDisplay();
+        updateCartSummary();
+        
+    } catch (error) {
+        console.error('Error placing order:', error);
+        alert('Fout met bestelling. Probeer asseblief weer.');
+    }
 }
 
 /**
