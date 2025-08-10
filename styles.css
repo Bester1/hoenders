@@ -485,6 +485,28 @@ body {
     color: #004085;
 }
 
+/* Source badge styles */
+.source-badge {
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.source-badge.portal {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #bbdefb;
+}
+
+.source-badge.import {
+    background: #f3e5f5;
+    color: #6a1b9a;
+    border: 1px solid #e1bee7;
+}
+
 /* Email section styles */
 .email-actions {
     display: flex;
@@ -2399,13 +2421,6 @@ body {
     color: #495057 !important;
 }
 
-.nav-menu {
-    display: flex;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    gap: 0;
-}
 
 .nav-menu li {
     margin: 0;

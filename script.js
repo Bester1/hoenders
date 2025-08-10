@@ -11,7 +11,9 @@ let isInitializing = true; // Prevent saves during initialization
 
 // Helper functions for import management
 function getCurrentOrders() {
-    return currentImportId && imports[currentImportId] ? imports[currentImportId].orders : [];
+    const importOrders = currentImportId && imports[currentImportId] ? imports[currentImportId].orders : [];
+    const customerOrders = window.customerPortalOrders || [];
+    return [...importOrders, ...customerOrders];
 }
 
 function getCurrentImportInvoices() {
@@ -279,6 +281,59 @@ async function loadFromDatabase() {
     } catch (error) {
         console.error('Database load error:', error);
         return false;
+    }
+}
+
+// Load customer portal orders from the database
+async function loadCustomerPortalOrders() {
+    try {
+        console.log('Loading customer portal orders...');
+        
+        // Load orders with customer information
+        const { data: ordersData, error: ordersError } = await supabaseClient
+            .from('orders')
+            .select(`
+                *,
+                customers (
+                    name,
+                    email,
+                    phone,
+                    address
+                )
+            `)
+            .eq('source', 'customer_portal');
+        
+        if (ordersError) {
+            console.error('Error loading customer portal orders:', ordersError);
+            return;
+        }
+
+        if (ordersData && ordersData.length > 0) {
+            // Transform customer portal orders to match admin panel format
+            window.customerPortalOrders = ordersData.map(order => ({
+                orderId: order.order_id,
+                date: order.order_date || order.created_at,
+                name: order.customers?.name || order.customer_name,
+                email: order.customers?.email || order.customer_email,
+                phone: order.customers?.phone || order.customer_phone,
+                address: order.customers?.address || order.customer_address,
+                product: order.product_name,
+                quantity: order.quantity,
+                weight: order.weight_kg,
+                total: order.total_amount,
+                status: order.status || 'pending',
+                source: 'Customer Portal'
+            }));
+            
+            console.log(`Loaded ${ordersData.length} customer portal orders`);
+        } else {
+            window.customerPortalOrders = [];
+            console.log('No customer portal orders found');
+        }
+        
+    } catch (error) {
+        console.error('Failed to load customer portal orders:', error);
+        window.customerPortalOrders = [];
     }
 }
 
@@ -821,7 +876,7 @@ function updateOrdersTable() {
     const currentOrders = getCurrentOrders();
     
     if (currentOrders.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="11" class="no-data">No orders loaded</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="12" class="no-data">No orders loaded</td></tr>';
         return;
     }
     
@@ -855,6 +910,7 @@ function updateOrdersTable() {
                 <td>${productDisplay}</td>
                 <td>${quantityDisplay}</td>
                 <td>R${order.total.toFixed(2)}</td>
+                <td><span class="source-badge ${order.source === 'Customer Portal' ? 'portal' : 'import'}">${order.source || 'Import'}</span></td>
                 <td><span class="status status-${order.status}">${order.status.toUpperCase()}</span></td>
                 <td>
                     <button onclick="generateInvoice('${order.orderId}')" class="btn-small btn-primary">Invoice</button>
@@ -1159,6 +1215,9 @@ async function saveToStorage() {
 async function loadStoredData() {
     // Try to load from database first
     const databaseLoaded = await loadFromDatabase();
+    
+    // Load customer portal orders regardless of database connection
+    await loadCustomerPortalOrders();
     
     if (!databaseLoaded) {
         // Fallback to localStorage if database fails
