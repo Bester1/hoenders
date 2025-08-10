@@ -1002,6 +1002,8 @@ function populateAllProducts() {
                 const estimatedWeight = getEstimatedWeight(productName);
                 const productKey = productName.replace(/[^A-Z0-9]/g, '_');
                 
+                console.log(`🔑 Generated key: "${productName}" → "${productKey}"`);
+                
                 const productCard = document.createElement('div');
                 productCard.className = 'bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
                 
@@ -1140,22 +1142,22 @@ function updateCartSummary() {
     
     // Create a lookup from productKey back to full name
     function getProductNameFromKey(productKey) {
-        // Convert productKey back to full product name
-        const keyMappings = {
-            'HEEL_HOENDER': 'HEEL HOENDER',
-            'PLAT_HOENDER__FLATTY_S_': 'PLAT HOENDER (FLATTY\'S)',
-            'BRAAIPAKKE': 'BRAAIPAKKE', 
-            'HEEL_HALWE_HOENDERS': 'HEEL HALWE HOENDERS',
-            'BORSSTUKKE_MET_BEEN_EN_VEL': 'BORSSTUKKE MET BEEN EN VEL',
-            'VLERKIES': 'VLERKIES',
-            'BOUDE_EN_DYE': 'BOUDE EN DYE',
-            'GUNS_BOUD_EN_DY_AANMEKAAR': 'GUNS Boud en dy aanmekaar',
-            'FILETTE__SONDER_VEL_': 'FILETTE (sonder vel)',
-            'ONTBEENDE_HOENDER': 'ONTBEENDE HOENDER',
-            'SUIWER_HEUNING': 'SUIWER HEUNING'
-        };
+        // The key generation uses: productName.replace(/[^A-Z0-9]/g, '_')
+        // So we need to map the generated keys back to original names
+        const allProducts = getCustomerPricing();
         
-        return keyMappings[productKey] || productKey;
+        // Find the product that generates this key
+        for (const productName of Object.keys(allProducts)) {
+            const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
+            if (generatedKey === productKey) {
+                return productName;
+            }
+        }
+        
+        // Fallback: convert key back to name by replacing underscores
+        return productKey.replace(/_/g, ' ')
+                        .replace(/  /g, ' ')  // Remove double spaces
+                        .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
     }
     
     let totalAmount = 0;
@@ -1195,7 +1197,8 @@ function updateCartSummary() {
                     `;
                     cartItems.appendChild(itemDiv);
                 } else {
-                    console.warn('Product not found for cart key:', productKey, '→', productName);
+                    console.warn('🚫 Cart: Product not found for key:', productKey, '→', productName);
+                    console.log('🔍 Cart: Available products:', Object.keys(pricing));
                 }
             });
         }
@@ -1346,27 +1349,28 @@ function populateOrderReview() {
         `;
     }
     
-    // Populate order items summary
+    // Populate order items summary using new pricing system
     const orderItemsSummary = document.getElementById('orderItemsSummary');
     if (orderItemsSummary) {
-        const products = {
-            'HEEL_HOENDER': { name: 'Heel Hoender', price: 67.00, estimatedWeight: 2.5 },
-            'PLAT_HOENDER': { name: 'Plat Hoender (Flatty\'s)', price: 79.00, estimatedWeight: 1.8 },
-            'BRAAIPAKKE': { name: 'Braaipakke', price: 74.00, estimatedWeight: 1.0 },
-            'HEEL_HALWE': { name: 'Hele Halwe Hoenders', price: 68.00, estimatedWeight: 1.25 },
-            'BORSSTUKKE': { name: 'Borsstukke met Been en Vel', price: 73.00, estimatedWeight: 0.6 },
-            'VLERKIES': { name: 'Vlerkies', price: 90.00, estimatedWeight: 0.3 },
-            'BOUDE_DYE': { name: 'Boude en Dye', price: 81.00, estimatedWeight: 0.8 },
-            'FILETTE': { name: 'Filette (sonder vel)', price: 100.00, estimatedWeight: 0.5 },
-            'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0 },
-            'HOENDER_MINCE': { name: 'Hoender Mince', price: 85.00, estimatedWeight: 0.5 },
-            'HOENDER_LIVERS': { name: 'Hoender Lewers', price: 45.00, estimatedWeight: 0.3 },
-            'HOENDER_HEARTS': { name: 'Hoender Hartjies', price: 50.00, estimatedWeight: 0.2 },
-            'SOSATIES': { name: 'Hoender Sosaties', price: 95.00, estimatedWeight: 0.4 },
-            'CHICKEN_BURGERS': { name: 'Hoender Burger Patties', price: 110.00, estimatedWeight: 0.15 },
-            'SCHNITZELS': { name: 'Hoender Schnitzels', price: 120.00, estimatedWeight: 0.2 },
-            'CRUMBED_STRIPS': { name: 'Crumbed Hoender Strips', price: 115.00, estimatedWeight: 0.3 }
-        };
+        const pricing = getCustomerPricing();
+        
+        // Use the same key mapping function as cart summary
+        function getProductNameFromKey(productKey) {
+            const allProducts = getCustomerPricing();
+            
+            // Find the product that generates this key
+            for (const productName of Object.keys(allProducts)) {
+                const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
+                if (generatedKey === productKey) {
+                    return productName;
+                }
+            }
+            
+            // Fallback: convert key back to name by replacing underscores
+            return productKey.replace(/_/g, ' ')
+                            .replace(/  /g, ' ')  // Remove double spaces
+                            .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
+        }
         
         orderItemsSummary.innerHTML = '';
         
@@ -1374,21 +1378,30 @@ function populateOrderReview() {
             orderItemsSummary.innerHTML = '<p class="text-zinc-400 text-center py-4">Geen items in mandjie</p>';
         } else {
             Object.entries(cart).forEach(([productKey, qty]) => {
-                const product = products[productKey];
+                const productName = getProductNameFromKey(productKey);
+                const product = pricing[productName];
+                
                 if (product) {
-                    const weight = product.estimatedWeight * qty;
-                    const amount = product.price * weight;
+                    const displayInfo = getProductDisplayInfo(productName);
+                    const estimatedWeightStr = getEstimatedWeight(productName);
+                    const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
+                    
+                    const weight = estimatedWeight * qty;
+                    const amount = product.selling * weight;
                     
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'flex justify-between items-center py-3 border-b border-zinc-700/30';
                     itemDiv.innerHTML = `
                         <div>
-                            <p class="text-white font-medium">${product.name}</p>
-                            <p class="text-zinc-400 text-sm">${qty}x stuks (~${weight.toFixed(1)}kg @ R${product.price}/kg)</p>
+                            <p class="text-white font-medium">${displayInfo.displayName}</p>
+                            <p class="text-zinc-400 text-sm">${qty}x stuks (~${weight.toFixed(1)}kg @ R${product.selling.toFixed(2)}/kg)</p>
                         </div>
                         <p class="text-orange-400 font-semibold">R${amount.toFixed(2)}</p>
                     `;
                     orderItemsSummary.appendChild(itemDiv);
+                } else {
+                    console.warn('🚫 Review: Product not found for key:', productKey, '→', productName);
+                    console.log('🔍 Review: Available products:', Object.keys(pricing));
                 }
             });
         }
