@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plaas Hoenders - Choose Portal</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .portal-selector {
+            background: white;
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 0.5rem;
+            font-size: 2rem;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 2.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .portal-options {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .portal-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            padding: 2rem 1.5rem;
+            text-decoration: none;
+            color: #333;
+            transition: all 0.3s ease;
+            flex: 1;
+            min-width: 200px;
+            max-width: 220px;
+        }
+        
+        .portal-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            border-color: #667eea;
+        }
+        
+        .portal-card.customer {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .portal-card.admin {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: white;
+            border-color: #f093fb;
+        }
+        
+        .portal-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        
+        .portal-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .portal-desc {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .quick-links {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .quick-link {
+            display: inline-block;
+            margin: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: #f8f9fa;
+            border-radius: 20px;
+            text-decoration: none;
+            color: #666;
+            font-size: 0.9rem;
+            transition: background 0.3s ease;
+        }
+        
+        .quick-link:hover {
+            background: #e9ecef;
+            color: #333;
+        }
+        
+        @media (max-width: 768px) {
+            .portal-options {
+                flex-direction: column;
+            }
+            
+            .portal-selector {
+                padding: 2rem;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="portal-selector">
+        <div class="logo">🐔</div>
+        <h1>Plaas Hoenders</h1>
+        <p class="subtitle">Choose your portal</p>
+        
+        <div class="portal-options">
+            <a href="customer.html" class="portal-card customer">
+                <i class="fas fa-user portal-icon"></i>
+                <div class="portal-title">Customer Portal</div>
+                <div class="portal-desc">Register, place orders, manage your account</div>
+            </a>
+            
+            <a href="index.html" class="portal-card admin">
+                <i class="fas fa-cog portal-icon"></i>
+                <div class="portal-title">Admin Dashboard</div>
+                <div class="portal-desc">Manage orders, invoices, and business analytics</div>
+            </a>
+        </div>
+        
+        <div class="quick-links">
+            <a href="tel:+27796167761" class="quick-link">
+                <i class="fas fa-phone"></i> 079 616 7761
+            </a>
+            <a href="mailto:info@plaashoenders.co.za" class="quick-link">
+                <i class="fas fa-envelope"></i> Contact Us
+            </a>
+        </div>
+    </div>
+    
+    <script>
+        // Auto-redirect based on URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('portal') === 'customer') {
+            window.location.href = 'customer.html';
+        } else if (urlParams.get('portal') === 'admin') {
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
