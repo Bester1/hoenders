@@ -1446,6 +1446,10 @@ async function handleOrderPlacement() {
             return;
         }
 
+        console.log('🚀 Starting order placement...');
+        console.log('Cart contents:', cart);
+        console.log('Current customer:', currentCustomer);
+
         // Create order from cart
         const orderData = {
             customer: currentCustomer,
@@ -1454,7 +1458,10 @@ async function handleOrderPlacement() {
             status: 'pending'
         };
 
+        console.log('📦 Order data prepared:', orderData);
+
         // Save order to database
+        console.log('💾 Saving order to database...');
         const savedOrderId = await saveOrderToDatabase(orderData);
         
         // Show confirmation step
@@ -1472,8 +1479,9 @@ async function handleOrderPlacement() {
         updateCartSummary();
         
     } catch (error) {
-        console.error('Error placing order:', error);
-        alert('Fout met bestelling. Probeer asseblief weer.');
+        console.error('❌ Error placing order:', error);
+        console.error('Error details:', error.message, error.stack);
+        alert(`Fout met bestelling: ${error.message}. Probeer asseblief weer.`);
     }
 }
 
@@ -1486,15 +1494,20 @@ async function handleOrderPlacement() {
  */
 async function saveOrderToDatabase(orderData) {
     try {
+        console.log('🔍 saveOrderToDatabase called with:', orderData);
+        
         if (!currentCustomer) {
             throw new Error('No customer data available');
         }
 
         // Generate order ID
         const orderId = `ORD-${Date.now()}`;
+        console.log('🆔 Generated order ID:', orderId);
         
         // Get pricing information
+        console.log('💰 Getting pricing information...');
         const pricing = getCustomerPricing();
+        console.log('💰 Pricing data:', pricing);
         
         // Calculate order totals
         let totalAmount = 0;
@@ -1502,13 +1515,20 @@ async function saveOrderToDatabase(orderData) {
         const orderItems = [];
         
         // Process each cart item
+        console.log('🛒 Processing cart items:', Object.entries(orderData.items));
         for (const [productKey, quantity] of Object.entries(orderData.items)) {
+            console.log(`🔑 Processing product key: "${productKey}" with quantity: ${quantity}`);
+            
             // Convert product key back to product name
             const productName = getProductNameFromKey(productKey);
+            console.log(`📝 Converted "${productKey}" → "${productName}"`);
+            
             const productPricing = pricing[productName];
+            console.log(`💲 Pricing for "${productName}":`, productPricing);
             
             if (!productPricing) {
-                console.error(`No pricing found for product: ${productName}`);
+                console.error(`❌ No pricing found for product: ${productName}`);
+                console.error(`Available pricing keys:`, Object.keys(pricing));
                 continue;
             }
             
@@ -1550,14 +1570,16 @@ async function saveOrderToDatabase(orderData) {
         };
         
         // Save main order
+        console.log('💾 Saving main order record:', orderRecord);
         const { error: orderError } = await supabaseClient
             .from('orders')
             .insert([orderRecord]);
             
         if (orderError) {
-            console.error('Error saving order:', orderError);
+            console.error('❌ Error saving order:', orderError);
             throw new Error('Failed to save order');
         }
+        console.log('✅ Main order saved successfully');
         
         // Save order items
         if (orderItems.length > 0) {
@@ -1588,22 +1610,31 @@ async function saveOrderToDatabase(orderData) {
  * @returns {string} - Original product name
  */
 function getProductNameFromKey(productKey) {
-    // The key generation uses: productName.replace(/[^A-Z0-9]/g, '_')
-    // So we need to map the generated keys back to original names
-    const allProducts = getCustomerPricing();
+    console.log(`🔍 Looking up product name for key: "${productKey}"`);
     
-    // Find the product that generates this key
+    // Get all available products
+    const allProducts = getCustomerPricing();
+    console.log(`📋 Available products:`, Object.keys(allProducts));
+    
+    // First try exact key match
     for (const productName of Object.keys(allProducts)) {
         const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
+        console.log(`🔄 Testing "${productName}" → "${generatedKey}" vs "${productKey}"`);
         if (generatedKey === productKey) {
+            console.log(`✅ Found exact match: "${productKey}" → "${productName}"`);
             return productName;
         }
     }
     
+    console.log(`❌ No exact match found for key: "${productKey}"`);
+    
     // Fallback: convert key back to name by replacing underscores
-    return productKey.replace(/_/g, ' ')
+    const fallbackName = productKey.replace(/_/g, ' ')
                     .replace(/  /g, ' ')  // Remove double spaces
                     .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
+                    
+    console.log(`🔄 Fallback conversion: "${productKey}" → "${fallbackName}"`);
+    return fallbackName;
 }
 
 /**
