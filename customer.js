@@ -731,7 +731,6 @@ function initializeBeautifulPortal() {
     
     // Initialize the beautiful portal components
     setupBeautifulPortalEventListeners();
-    populateProducts();
     populateEditForm();
     updateCustomerDisplayElements();
 }
@@ -903,74 +902,7 @@ function updateBeautifulStepIndicators(currentStep) {
     }
 }
 
-/**
- * Populate products in the beautiful portal from rate card
- * @function populateProducts
- */
-function populateProducts() {
-    // Get products from the admin system's rate card - expanded selection
-    const products = {
-        'HEEL_HOENDER': { name: 'Heel Hoender', price: 67.00, estimatedWeight: 2.5, description: 'Hele hoender, vars van die plaas' },
-        'PLAT_HOENDER': { name: 'Plat Hoender (Flatty\'s)', price: 79.00, estimatedWeight: 1.8, description: 'Plat hoenders, perfek vir braai' },
-        'BRAAIPAKKE': { name: 'Braaipakke', price: 74.00, estimatedWeight: 1.0, description: 'Gemengde braai pakke' },
-        'HEEL_HALWE': { name: 'Hele Halwe Hoenders', price: 68.00, estimatedWeight: 1.25, description: 'Halwe hoenders, perfek vir kleiner gesinne' },
-        'BORSSTUKKE': { name: 'Borsstukke met Been en Vel', price: 73.00, estimatedWeight: 0.6, description: 'Hoender borsstukke met been en vel' },
-        'VLERKIES': { name: 'Vlerkies', price: 90.00, estimatedWeight: 0.3, description: 'Hoender vlerkies' },
-        'BOUDE_DYE': { name: 'Boude en Dye', price: 81.00, estimatedWeight: 0.8, description: 'Hoender boude en dye' },
-        'FILETTE': { name: 'Filette (sonder vel)', price: 100.00, estimatedWeight: 0.5, description: 'Hoender filette sonder vel' },
-        'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0, description: 'Vars suiwer heuning' },
-        'HOENDER_MINCE': { name: 'Hoender Mince', price: 85.00, estimatedWeight: 0.5, description: 'Vars hoender mince, perfek vir burger pattie' },
-        'HOENDER_LIVERS': { name: 'Hoender Lewers', price: 45.00, estimatedWeight: 0.3, description: 'Vars hoender lewers' },
-        'HOENDER_HEARTS': { name: 'Hoender Hartjies', price: 50.00, estimatedWeight: 0.2, description: 'Vars hoender hartjies' },
-        'SOSATIES': { name: 'Hoender Sosaties', price: 95.00, estimatedWeight: 0.4, description: 'Gemarineerde hoender sosaties' },
-        'CHICKEN_BURGERS': { name: 'Hoender Burger Patties', price: 110.00, estimatedWeight: 0.15, description: 'Voorbereide hoender burger patties' },
-        'SCHNITZELS': { name: 'Hoender Schnitzels', price: 120.00, estimatedWeight: 0.2, description: 'Hoender schnitzels, gaar om te braai' },
-        'CRUMBED_STRIPS': { name: 'Crumbed Hoender Strips', price: 115.00, estimatedWeight: 0.3, description: 'Crumbed hoender strips' }
-    };
-    
-    const productGrid = document.getElementById('productGrid');
-    if (productGrid) {
-        productGrid.innerHTML = '';
-        
-        Object.entries(products).forEach(([key, product]) => {
-            const productCard = document.createElement('div');
-            productCard.className = 'bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
-            
-            productCard.innerHTML = `
-                <div class="mb-4">
-                    <h3 class="text-lg font-semibold text-white mb-2">${product.name}</h3>
-                    <p class="text-zinc-400 text-sm mb-3">${product.description}</p>
-                    <div class="flex justify-between items-center mb-4">
-                        <span class="text-orange-400 font-semibold">~R${product.price}/kg</span>
-                        <span class="text-xs text-zinc-500">Est. ~${product.estimatedWeight}kg each</span>
-                    </div>
-                </div>
-                
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <button onclick="updateQuantity('${key}', -1)" class="w-10 h-10 rounded-full bg-zinc-700/50 hover:bg-zinc-600/50 text-white flex items-center justify-center transition-all">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M5 12h14"></path>
-                            </svg>
-                        </button>
-                        <input type="number" id="qty-${key}" value="0" min="0" class="quantity-input w-16 h-10 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-center focus:outline-none focus:border-orange-500/50" onchange="setQuantity('${key}', this.value)">
-                        <button onclick="updateQuantity('${key}', 1)" class="w-10 h-10 rounded-full bg-zinc-700/50 hover:bg-zinc-600/50 text-white flex items-center justify-center transition-all">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 5v14"></path><path d="M5 12h14"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-sm text-zinc-400">Est. totaal</p>
-                        <p class="text-orange-400 font-semibold" id="total-${key}">R0.00</p>
-                    </div>
-                </div>
-            `;
-            
-            productGrid.appendChild(productCard);
-        });
-    }
-}
+// Removed old populateProducts() function - replaced with populateAllProducts() in step navigation
 
 // Step navigation for beautiful portal
 /**
@@ -995,6 +927,14 @@ function showBeautifulStep(stepNumber) {
         // Populate products when showing step 2
         if (stepNumber === 2) {
             populateAllProducts();
+        }
+        
+        // Also pre-populate products on step 1 so they're ready
+        if (stepNumber === 1) {
+            // Pre-load products in background
+            setTimeout(() => {
+                populateAllProducts();
+            }, 100);
         }
     }
 }
@@ -1101,6 +1041,7 @@ function populateAllProducts() {
         });
         
         console.log(`✅ Populated ${Object.keys(pricing).length} products across ${Object.keys(categories).length} categories`);
+        console.log('🔍 Debug: Product grid populated with:', Object.keys(categories).map(key => categories[key].name));
         
     } catch (error) {
         console.error('Error populating products:', error);
@@ -1194,24 +1135,28 @@ function updateCartSummary() {
     const cartWeight = document.getElementById('cartWeight');
     const cartItemCount = document.getElementById('cartItemCount');
     
-    const products = {
-        'HEEL_HOENDER': { name: 'Heel Hoender', price: 67.00, estimatedWeight: 2.5 },
-        'PLAT_HOENDER': { name: 'Plat Hoender (Flatty\'s)', price: 79.00, estimatedWeight: 1.8 },
-        'BRAAIPAKKE': { name: 'Braaipakke', price: 74.00, estimatedWeight: 1.0 },
-        'HEEL_HALWE': { name: 'Hele Halwe Hoenders', price: 68.00, estimatedWeight: 1.25 },
-        'BORSSTUKKE': { name: 'Borsstukke met Been en Vel', price: 73.00, estimatedWeight: 0.6 },
-        'VLERKIES': { name: 'Vlerkies', price: 90.00, estimatedWeight: 0.3 },
-        'BOUDE_DYE': { name: 'Boude en Dye', price: 81.00, estimatedWeight: 0.8 },
-        'FILETTE': { name: 'Filette (sonder vel)', price: 100.00, estimatedWeight: 0.5 },
-        'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0 },
-        'HOENDER_MINCE': { name: 'Hoender Mince', price: 85.00, estimatedWeight: 0.5 },
-        'HOENDER_LIVERS': { name: 'Hoender Lewers', price: 45.00, estimatedWeight: 0.3 },
-        'HOENDER_HEARTS': { name: 'Hoender Hartjies', price: 50.00, estimatedWeight: 0.2 },
-        'SOSATIES': { name: 'Hoender Sosaties', price: 95.00, estimatedWeight: 0.4 },
-        'CHICKEN_BURGERS': { name: 'Hoender Burger Patties', price: 110.00, estimatedWeight: 0.15 },
-        'SCHNITZELS': { name: 'Hoender Schnitzels', price: 120.00, estimatedWeight: 0.2 },
-        'CRUMBED_STRIPS': { name: 'Crumbed Hoender Strips', price: 115.00, estimatedWeight: 0.3 }
-    };
+    // Use the new pricing system from shared-utils.js
+    const pricing = getCustomerPricing();
+    
+    // Create a lookup from productKey back to full name
+    function getProductNameFromKey(productKey) {
+        // Convert productKey back to full product name
+        const keyMappings = {
+            'HEEL_HOENDER': 'HEEL HOENDER',
+            'PLAT_HOENDER__FLATTY_S_': 'PLAT HOENDER (FLATTY\'S)',
+            'BRAAIPAKKE': 'BRAAIPAKKE', 
+            'HEEL_HALWE_HOENDERS': 'HEEL HALWE HOENDERS',
+            'BORSSTUKKE_MET_BEEN_EN_VEL': 'BORSSTUKKE MET BEEN EN VEL',
+            'VLERKIES': 'VLERKIES',
+            'BOUDE_EN_DYE': 'BOUDE EN DYE',
+            'GUNS_BOUD_EN_DY_AANMEKAAR': 'GUNS Boud en dy aanmekaar',
+            'FILETTE__SONDER_VEL_': 'FILETTE (sonder vel)',
+            'ONTBEENDE_HOENDER': 'ONTBEENDE HOENDER',
+            'SUIWER_HEUNING': 'SUIWER HEUNING'
+        };
+        
+        return keyMappings[productKey] || productKey;
+    }
     
     let totalAmount = 0;
     let totalWeight = 0;
@@ -1224,10 +1169,16 @@ function updateCartSummary() {
             cartItems.innerHTML = '<p class="text-zinc-400 text-center py-4">Geen items in mandjie nie</p>';
         } else {
             Object.entries(cart).forEach(([productKey, qty]) => {
-                const product = products[productKey];
+                const productName = getProductNameFromKey(productKey);
+                const product = pricing[productName];
+                
                 if (product) {
-                    const weight = product.estimatedWeight * qty;
-                    const amount = product.price * weight;
+                    const displayInfo = getProductDisplayInfo(productName);
+                    const estimatedWeightStr = getEstimatedWeight(productName);
+                    const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
+                    
+                    const weight = estimatedWeight * qty;
+                    const amount = product.selling * weight;
                     
                     totalWeight += weight;
                     totalAmount += amount;
@@ -1237,12 +1188,14 @@ function updateCartSummary() {
                     itemDiv.className = 'flex justify-between items-center py-2 border-b border-zinc-700/30';
                     itemDiv.innerHTML = `
                         <div>
-                            <p class="text-white font-medium">${product.name}</p>
+                            <p class="text-white font-medium">${displayInfo.displayName}</p>
                             <p class="text-zinc-400 text-sm">${qty}x (~${weight.toFixed(1)}kg)</p>
                         </div>
                         <p class="text-orange-400 font-semibold">R${amount.toFixed(2)}</p>
                     `;
                     cartItems.appendChild(itemDiv);
+                } else {
+                    console.warn('Product not found for cart key:', productKey, '→', productName);
                 }
             });
         }
