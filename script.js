@@ -375,9 +375,80 @@ CREATE TABLE settings (
 ALTER TABLE imports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 
+-- Create customers table for customer portal
+CREATE TABLE customers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    phone VARCHAR(50),
+    address TEXT,
+    communication_preferences JSONB DEFAULT '{"email_notifications": true}'::jsonb,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_login TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create orders table for customer portal integration
+CREATE TABLE orders (
+    order_id VARCHAR(255) PRIMARY KEY,
+    order_date DATE NOT NULL,
+    customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+    customer_name VARCHAR(255) NOT NULL,
+    customer_email VARCHAR(255) NOT NULL,
+    customer_phone VARCHAR(50),
+    customer_address TEXT,
+    product_name VARCHAR(255) NOT NULL,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    weight_kg DECIMAL(8,2) NOT NULL CHECK (weight_kg > 0),
+    total_amount DECIMAL(10,2) NOT NULL CHECK (total_amount >= 0),
+    source VARCHAR(20) DEFAULT 'csv_import' 
+        CHECK (source IN ('customer_portal', 'pdf_import', 'csv_import')),
+    status VARCHAR(20) DEFAULT 'pending'
+        CHECK (status IN ('pending', 'confirmed', 'processing', 'delivered', 'cancelled')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create order_items table for detailed product tracking
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id VARCHAR(255) NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    weight_kg DECIMAL(8,2) NOT NULL CHECK (weight_kg > 0),
+    unit_price_per_kg DECIMAL(10,2) NOT NULL CHECK (unit_price_per_kg > 0),
+    line_total DECIMAL(10,2) NOT NULL CHECK (line_total >= 0),
+    source VARCHAR(20) DEFAULT 'customer_selection'
+        CHECK (source IN ('customer_selection', 'pdf_extraction', 'admin_entry')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) 
+        REFERENCES orders(order_id) ON DELETE CASCADE
+);
+
+-- Create indexes
+CREATE INDEX idx_customers_email ON customers(email);
+CREATE INDEX idx_customers_auth_user ON customers(auth_user_id);
+CREATE INDEX idx_orders_customer ON orders(customer_id) WHERE customer_id IS NOT NULL;
+CREATE INDEX idx_orders_source ON orders(source);
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_order_items_order ON order_items(order_id);
+CREATE INDEX idx_order_items_product ON order_items(product_name);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE imports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+
 -- Create policies (allow all operations for now)
 CREATE POLICY "Allow all operations on imports" ON imports FOR ALL USING (true);
 CREATE POLICY "Allow all operations on settings" ON settings FOR ALL USING (true);
+CREATE POLICY "Allow all operations on customers" ON customers FOR ALL USING (true);
+CREATE POLICY "Allow all operations on orders" ON orders FOR ALL USING (true);
+CREATE POLICY "Allow all operations on order_items" ON order_items FOR ALL USING (true);
                     </textarea>
                     <p><strong>Instructions:</strong></p>
                     <ol>

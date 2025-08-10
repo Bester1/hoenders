@@ -1454,16 +1454,16 @@ async function handleOrderPlacement() {
             status: 'pending'
         };
 
-        // Save order (you can connect this to your existing order saving logic)
-        console.log('Order placed:', orderData);
+        // Save order to database
+        const savedOrderId = await saveOrderToDatabase(orderData);
         
         // Show confirmation step
         showBeautifulStep(4);
         
-        // Update order number
+        // Update order number with the actual saved order ID
         const orderNumber = document.getElementById('orderNumber');
         if (orderNumber) {
-            orderNumber.textContent = `#ORD-${Date.now()}`;
+            orderNumber.textContent = `#${savedOrderId}`;
         }
         
         // Clear cart
@@ -1475,6 +1475,160 @@ async function handleOrderPlacement() {
         console.error('Error placing order:', error);
         alert('Fout met bestelling. Probeer asseblief weer.');
     }
+}
+
+/**
+ * Save order to database
+ * @async
+ * @function saveOrderToDatabase
+ * @param {Object} orderData - Order data with customer, items, timestamp, status
+ * @returns {Promise<string>} - Order ID if successful
+ */
+async function saveOrderToDatabase(orderData) {
+    try {
+        if (!currentCustomer) {
+            throw new Error('No customer data available');
+        }
+
+        // Generate order ID
+        const orderId = `ORD-${Date.now()}`;
+        
+        // Get pricing information
+        const pricing = getCustomerPricing();
+        
+        // Calculate order totals
+        let totalAmount = 0;
+        let totalWeight = 0;
+        const orderItems = [];
+        
+        // Process each cart item
+        for (const [productKey, quantity] of Object.entries(orderData.items)) {
+            // Convert product key back to product name
+            const productName = getProductNameFromKey(productKey);
+            const productPricing = pricing[productName];
+            
+            if (!productPricing) {
+                console.error(`No pricing found for product: ${productName}`);
+                continue;
+            }
+            
+            // Estimate weight for this product and quantity
+            const estimatedWeight = estimateProductWeight(productName, quantity);
+            const itemTotal = productPricing.selling * estimatedWeight;
+            
+            totalAmount += itemTotal;
+            totalWeight += estimatedWeight;
+            
+            // Create order item
+            orderItems.push({
+                order_id: orderId,
+                product_name: productName,
+                quantity: quantity,
+                weight_kg: estimatedWeight,
+                unit_price_per_kg: productPricing.selling,
+                line_total: itemTotal,
+                source: 'customer_selection'
+            });
+        }
+        
+        // Create main order record
+        const orderRecord = {
+            order_id: orderId,
+            order_date: new Date().toISOString().split('T')[0],
+            customer_id: currentCustomer.id,
+            customer_name: currentCustomer.name,
+            customer_email: currentCustomer.email,
+            customer_phone: currentCustomer.phone || null,
+            customer_address: currentCustomer.address || null,
+            product_name: orderItems.length === 1 ? orderItems[0].product_name : `${orderItems.length} items`,
+            quantity: orderItems.reduce((sum, item) => sum + item.quantity, 0),
+            weight_kg: totalWeight,
+            total_amount: totalAmount,
+            source: 'customer_portal',
+            status: 'pending',
+            created_at: orderData.timestamp
+        };
+        
+        // Save main order
+        const { error: orderError } = await supabaseClient
+            .from('orders')
+            .insert([orderRecord]);
+            
+        if (orderError) {
+            console.error('Error saving order:', orderError);
+            throw new Error('Failed to save order');
+        }
+        
+        // Save order items
+        if (orderItems.length > 0) {
+            const { error: itemsError } = await supabaseClient
+                .from('order_items')
+                .insert(orderItems);
+                
+            if (itemsError) {
+                console.error('Error saving order items:', itemsError);
+                // Order was saved but items failed - log but don't throw
+                console.warn('Order saved but items may be incomplete');
+            }
+        }
+        
+        console.log('Order saved successfully:', orderId);
+        return orderId;
+        
+    } catch (error) {
+        console.error('Failed to save order to database:', error);
+        throw error;
+    }
+}
+
+/**
+ * Convert product key back to product name
+ * @function getProductNameFromKey
+ * @param {string} productKey - Product key from cart
+ * @returns {string} - Original product name
+ */
+function getProductNameFromKey(productKey) {
+    // The key generation uses: productName.replace(/[^A-Z0-9]/g, '_')
+    // So we need to map the generated keys back to original names
+    const allProducts = getCustomerPricing();
+    
+    // Find the product that generates this key
+    for (const productName of Object.keys(allProducts)) {
+        const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
+        if (generatedKey === productKey) {
+            return productName;
+        }
+    }
+    
+    // Fallback: convert key back to name by replacing underscores
+    return productKey.replace(/_/g, ' ')
+                    .replace(/  /g, ' ')  // Remove double spaces
+                    .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
+}
+
+/**
+ * Estimate product weight based on typical weights
+ * @function estimateProductWeight
+ * @param {string} productName - Name of the product
+ * @param {number} quantity - Quantity ordered
+ * @returns {number} - Estimated weight in kg
+ */
+function estimateProductWeight(productName, quantity) {
+    // Typical weights per item (in kg)
+    const typicalWeights = {
+        'HEEL HOENDER': 1.8,
+        'PLAT HOENDER (FLATTY\'S)': 1.0,
+        'BRAAIPAKKE': 2.0,
+        'HEEL HALWE HOENDERS': 0.9,
+        'BORSSTUKKE MET BEEN EN VEL': 0.8,
+        'VLERKIES': 0.3,
+        'BOUDE EN DYE': 0.6,
+        'FILETTE (sonder vel)': 0.4,
+        'SUIWER HEUNING': 0.5
+    };
+    
+    const baseWeight = typicalWeights[productName] || 1.0; // Default 1kg if unknown
+    return baseWeight * quantity;
 }
 
 /**
