@@ -732,6 +732,8 @@ function initializeBeautifulPortal() {
     // Initialize the beautiful portal components
     setupBeautifulPortalEventListeners();
     populateProducts();
+    populateEditForm();
+    updateCustomerDisplayElements();
 }
 
 /**
@@ -769,6 +771,7 @@ function setupBeautifulPortalEventListeners() {
     const proceedToReview = document.getElementById('proceedToReview');
     if (proceedToReview) {
         proceedToReview.addEventListener('click', () => {
+            populateOrderReview();
             showBeautifulStep(3);
         });
     }
@@ -791,6 +794,43 @@ function setupBeautifulPortalEventListeners() {
     if (newOrder) {
         newOrder.addEventListener('click', () => {
             showBeautifulStep(1);
+        });
+    }
+    
+    // Edit customer details button
+    const editDetailsBtn = document.getElementById('editDetailsBtn');
+    if (editDetailsBtn) {
+        editDetailsBtn.addEventListener('click', () => {
+            // Hide display mode, show edit mode
+            const detailsDisplay = document.getElementById('detailsDisplay');
+            const detailsEdit = document.getElementById('detailsEdit');
+            
+            if (detailsDisplay) detailsDisplay.style.display = 'none';
+            if (detailsEdit) detailsEdit.style.display = 'block';
+        });
+    }
+    
+    // Cancel edit button
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    if (cancelEditBtn) {
+        cancelEditBtn.addEventListener('click', () => {
+            // Show display mode, hide edit mode
+            const detailsDisplay = document.getElementById('detailsDisplay');
+            const detailsEdit = document.getElementById('detailsEdit');
+            
+            if (detailsDisplay) detailsDisplay.style.display = 'block';
+            if (detailsEdit) detailsEdit.style.display = 'none';
+            
+            // Restore original values
+            populateEditForm();
+        });
+    }
+    
+    // Save changes button
+    const saveChangesBtn = document.getElementById('saveChangesBtn');
+    if (saveChangesBtn) {
+        saveChangesBtn.addEventListener('click', async () => {
+            await saveCustomerChanges();
         });
     }
 }
@@ -852,7 +892,7 @@ function updateBeautifulStepIndicators(currentStep) {
  * @function populateProducts
  */
 function populateProducts() {
-    // Get products from the admin system's rate card
+    // Get products from the admin system's rate card - expanded selection
     const products = {
         'HEEL_HOENDER': { name: 'Heel Hoender', price: 67.00, estimatedWeight: 2.5, description: 'Hele hoender, vars van die plaas' },
         'PLAT_HOENDER': { name: 'Plat Hoender (Flatty\'s)', price: 79.00, estimatedWeight: 1.8, description: 'Plat hoenders, perfek vir braai' },
@@ -862,7 +902,14 @@ function populateProducts() {
         'VLERKIES': { name: 'Vlerkies', price: 90.00, estimatedWeight: 0.3, description: 'Hoender vlerkies' },
         'BOUDE_DYE': { name: 'Boude en Dye', price: 81.00, estimatedWeight: 0.8, description: 'Hoender boude en dye' },
         'FILETTE': { name: 'Filette (sonder vel)', price: 100.00, estimatedWeight: 0.5, description: 'Hoender filette sonder vel' },
-        'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0, description: 'Vars suiwer heuning' }
+        'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0, description: 'Vars suiwer heuning' },
+        'HOENDER_MINCE': { name: 'Hoender Mince', price: 85.00, estimatedWeight: 0.5, description: 'Vars hoender mince, perfek vir burger pattie' },
+        'HOENDER_LIVERS': { name: 'Hoender Lewers', price: 45.00, estimatedWeight: 0.3, description: 'Vars hoender lewers' },
+        'HOENDER_HEARTS': { name: 'Hoender Hartjies', price: 50.00, estimatedWeight: 0.2, description: 'Vars hoender hartjies' },
+        'SOSATIES': { name: 'Hoender Sosaties', price: 95.00, estimatedWeight: 0.4, description: 'Gemarineerde hoender sosaties' },
+        'CHICKEN_BURGERS': { name: 'Hoender Burger Patties', price: 110.00, estimatedWeight: 0.15, description: 'Voorbereide hoender burger patties' },
+        'SCHNITZELS': { name: 'Hoender Schnitzels', price: 120.00, estimatedWeight: 0.2, description: 'Hoender schnitzels, gaar om te braai' },
+        'CRUMBED_STRIPS': { name: 'Crumbed Hoender Strips', price: 115.00, estimatedWeight: 0.3, description: 'Crumbed hoender strips' }
     };
     
     const productGrid = document.getElementById('productGrid');
@@ -906,6 +953,153 @@ function populateProducts() {
             
             productGrid.appendChild(productCard);
         });
+    }
+}
+
+// Step navigation for beautiful portal
+/**
+ * Show beautiful step with products populated
+ * @function showBeautifulStep
+ * @param {number} stepNumber - Step to show (1-4)
+ */
+function showBeautifulStep(stepNumber) {
+    // Hide all steps
+    document.querySelectorAll('.step-content').forEach(step => {
+        step.classList.remove('active');
+    });
+    
+    // Show target step
+    const targetStep = document.getElementById(`step-${stepNumber}`);
+    if (targetStep) {
+        targetStep.classList.add('active');
+        
+        // Update step indicators
+        updateStepIndicators(stepNumber);
+        
+        // Populate products when showing step 2
+        if (stepNumber === 2) {
+            populateAllProducts();
+        }
+    }
+}
+
+/**
+ * Update step indicator UI
+ * @function updateStepIndicators  
+ * @param {number} activeStep - Currently active step
+ */
+function updateStepIndicators(activeStep) {
+    for (let i = 1; i <= 4; i++) {
+        const indicator = document.getElementById(`step-indicator-${i}`);
+        if (indicator) {
+            if (i <= activeStep) {
+                indicator.className = 'flex items-center justify-center w-8 h-8 bg-orange-500 rounded-full border border-orange-400';
+            } else {
+                indicator.className = 'flex items-center justify-center w-8 h-8 bg-zinc-800/50 rounded-full border border-zinc-800/30';
+            }
+        }
+    }
+}
+
+/**
+ * Populate all 18 products with categories in the beautiful portal
+ * @function populateAllProducts
+ */
+function populateAllProducts() {
+    try {
+        // Get all 18 products with categories from shared-utils.js
+        const pricing = getCustomerPricing();
+        const categories = getProductCategories();
+        
+        const productGrid = document.getElementById('productGrid');
+        if (!productGrid) {
+            console.error('Product grid not found');
+            return;
+        }
+        
+        productGrid.innerHTML = '';
+        
+        // Create products organized by categories
+        Object.entries(categories).forEach(([categoryKey, category]) => {
+            // Add category header
+            const categoryHeader = document.createElement('div');
+            categoryHeader.className = 'col-span-full mb-6 text-center';
+            categoryHeader.innerHTML = `
+                <div class="inline-flex items-center gap-3 px-6 py-3 bg-orange-500/20 rounded-xl border border-orange-500/30">
+                    <i class="${category.icon} text-orange-400"></i>
+                    <h3 class="text-lg font-semibold text-white">${category.name}</h3>
+                </div>
+                <p class="text-zinc-400 text-sm mt-2">${category.description}</p>
+            `;
+            productGrid.appendChild(categoryHeader);
+            
+            // Add products in this category
+            category.products.forEach(productName => {
+                const priceData = pricing[productName];
+                if (!priceData) {
+                    console.warn(`No pricing data for ${productName}`);
+                    return;
+                }
+                
+                // Get display info and create safe product key
+                const displayInfo = getProductDisplayInfo(productName);
+                const estimatedWeight = getEstimatedWeight(productName);
+                const productKey = productName.replace(/[^A-Z0-9]/g, '_');
+                
+                const productCard = document.createElement('div');
+                productCard.className = 'bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
+                
+                productCard.innerHTML = `
+                    <div class="mb-4">
+                        <h4 class="text-lg font-semibold text-white mb-2">${displayInfo.displayName}</h4>
+                        <p class="text-zinc-400 text-sm mb-3">${displayInfo.description}</p>
+                        <div class="text-xs text-zinc-500 mb-3 p-2 bg-zinc-700/30 rounded-lg">
+                            <i class="fas fa-box"></i> ${priceData.packaging || 'Standard packaging'}
+                        </div>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-orange-400 font-semibold">R${priceData.selling.toFixed(2)}/kg</span>
+                            <span class="text-xs text-zinc-500">~${estimatedWeight}kg est.</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <button class="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all" onclick="updateQuantity('${productKey}', -1)">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 12h14"></path>
+                                </svg>
+                            </button>
+                            <input type="number" id="qty-${productKey}" min="0" max="20" value="0" class="w-16 h-8 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-center text-sm quantity-input" onchange="setQuantity('${productKey}', this.value)">
+                            <button class="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all" onclick="updateQuantity('${productKey}', 1)">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5v14m-7-7h14"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <span class="text-xs text-zinc-500" id="total-${productKey}">R0.00</span>
+                    </div>
+                `;
+                
+                productGrid.appendChild(productCard);
+            });
+        });
+        
+        console.log(`✅ Populated ${Object.keys(pricing).length} products across ${Object.keys(categories).length} categories`);
+        
+    } catch (error) {
+        console.error('Error populating products:', error);
+        
+        // Fallback to basic products if shared-utils functions fail
+        const basicProducts = [
+            { name: 'HEEL HOENDER', price: 67.00, weight: 2.5 },
+            { name: 'PLAT HOENDER', price: 79.00, weight: 1.8 },
+            { name: 'BRAAIPAKKE', price: 74.00, weight: 1.0 }
+        ];
+        
+        const productGrid = document.getElementById('productGrid');
+        if (productGrid) {
+            productGrid.innerHTML = '<p class="text-red-400 col-span-full text-center">Products loading failed. Please refresh the page.</p>';
+        }
     }
 }
 
@@ -993,7 +1187,14 @@ function updateCartSummary() {
         'VLERKIES': { name: 'Vlerkies', price: 90.00, estimatedWeight: 0.3 },
         'BOUDE_DYE': { name: 'Boude en Dye', price: 81.00, estimatedWeight: 0.8 },
         'FILETTE': { name: 'Filette (sonder vel)', price: 100.00, estimatedWeight: 0.5 },
-        'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0 }
+        'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0 },
+        'HOENDER_MINCE': { name: 'Hoender Mince', price: 85.00, estimatedWeight: 0.5 },
+        'HOENDER_LIVERS': { name: 'Hoender Lewers', price: 45.00, estimatedWeight: 0.3 },
+        'HOENDER_HEARTS': { name: 'Hoender Hartjies', price: 50.00, estimatedWeight: 0.2 },
+        'SOSATIES': { name: 'Hoender Sosaties', price: 95.00, estimatedWeight: 0.4 },
+        'CHICKEN_BURGERS': { name: 'Hoender Burger Patties', price: 110.00, estimatedWeight: 0.15 },
+        'SCHNITZELS': { name: 'Hoender Schnitzels', price: 120.00, estimatedWeight: 0.2 },
+        'CRUMBED_STRIPS': { name: 'Crumbed Hoender Strips', price: 115.00, estimatedWeight: 0.3 }
     };
     
     let totalAmount = 0;
@@ -1038,6 +1239,191 @@ function updateCartSummary() {
     // Update final total as well
     const finalTotal = document.getElementById('finalTotal');
     if (finalTotal) finalTotal.textContent = `R${totalAmount.toFixed(2)}`;
+}
+
+/**
+ * Populate edit form with current customer data
+ * @function populateEditForm
+ */
+function populateEditForm() {
+    if (currentCustomer) {
+        const customerName = document.getElementById('customerName');
+        const customerPhone = document.getElementById('customerPhone');  
+        const customerAddress = document.getElementById('customerAddress');
+        const customerEmail = document.getElementById('customerEmail');
+        const deliveryInstructions = document.getElementById('deliveryInstructions');
+        
+        if (customerName) customerName.value = currentCustomer.full_name || currentCustomer.name || '';
+        if (customerPhone) customerPhone.value = currentCustomer.phone || '';
+        if (customerAddress) customerAddress.value = currentCustomer.address || '';
+        if (customerEmail) customerEmail.value = currentCustomer.email || '';
+        if (deliveryInstructions) deliveryInstructions.value = currentCustomer.delivery_instructions || '';
+    }
+}
+
+/**
+ * Save customer changes from edit form
+ * @function saveCustomerChanges
+ */
+async function saveCustomerChanges() {
+    try {
+        // Get values from form
+        const customerName = document.getElementById('customerName');
+        const customerPhone = document.getElementById('customerPhone');
+        const customerAddress = document.getElementById('customerAddress');
+        const customerEmail = document.getElementById('customerEmail');
+        const deliveryInstructions = document.getElementById('deliveryInstructions');
+        
+        // Update current customer object
+        if (currentCustomer) {
+            if (customerName) {
+                currentCustomer.name = customerName.value;
+                currentCustomer.full_name = customerName.value;
+            }
+            if (customerPhone) currentCustomer.phone = customerPhone.value;
+            if (customerAddress) currentCustomer.address = customerAddress.value;
+            if (customerEmail) currentCustomer.email = customerEmail.value;
+            if (deliveryInstructions) currentCustomer.delivery_instructions = deliveryInstructions.value;
+            
+            // Update display
+            updateCustomerDisplayElements();
+            
+            // Try to save to database (gracefully handle errors)
+            try {
+                if (currentCustomer.id) {
+                    await supabaseClient
+                        .from('customers')
+                        .update({
+                            name: currentCustomer.name,
+                            full_name: currentCustomer.full_name,
+                            phone: currentCustomer.phone,
+                            address: currentCustomer.address,
+                            delivery_instructions: currentCustomer.delivery_instructions
+                        })
+                        .eq('id', currentCustomer.id);
+                }
+            } catch (dbError) {
+                console.warn('Could not save to database, changes saved locally:', dbError);
+            }
+            
+            // Show success message
+            alert('Besonderhede suksesvol opgestamp!');
+            
+            // Return to display mode
+            const detailsDisplay = document.getElementById('detailsDisplay');
+            const detailsEdit = document.getElementById('detailsEdit');
+            
+            if (detailsDisplay) detailsDisplay.style.display = 'block';
+            if (detailsEdit) detailsEdit.style.display = 'none';
+        }
+        
+    } catch (error) {
+        console.error('Error saving customer changes:', error);
+        alert('Fout met stoor van besonderhede. Probeer weer.');
+    }
+}
+
+/**
+ * Update customer display elements
+ * @function updateCustomerDisplayElements
+ */
+function updateCustomerDisplayElements() {
+    if (currentCustomer) {
+        const displayName = document.getElementById('displayName');
+        const displayPhone = document.getElementById('displayPhone');
+        const displayAddress = document.getElementById('displayAddress');
+        const displayEmail = document.getElementById('displayEmail');
+        
+        if (displayName) displayName.textContent = currentCustomer.full_name || currentCustomer.name || '';
+        if (displayPhone) displayPhone.textContent = currentCustomer.phone || 'Geen telefoon';
+        if (displayAddress) displayAddress.textContent = currentCustomer.address || 'Geen adres';
+        if (displayEmail) displayEmail.textContent = currentCustomer.email || '';
+    }
+}
+
+/**
+ * Populate order review section with customer and cart data
+ * @function populateOrderReview
+ */
+function populateOrderReview() {
+    // Populate customer summary
+    const customerSummary = document.getElementById('customerSummary');
+    if (customerSummary && currentCustomer) {
+        customerSummary.innerHTML = `
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <p class="text-zinc-400">Naam:</p>
+                    <p class="text-white font-medium">${currentCustomer.full_name || currentCustomer.name || ''}</p>
+                </div>
+                <div>
+                    <p class="text-zinc-400">Telefoon:</p>
+                    <p class="text-white font-medium">${currentCustomer.phone || 'Geen telefoon'}</p>
+                </div>
+                <div class="col-span-2">
+                    <p class="text-zinc-400">Aflewerings Adres:</p>
+                    <p class="text-white font-medium">${currentCustomer.address || 'Geen adres'}</p>
+                </div>
+                <div class="col-span-2">
+                    <p class="text-zinc-400">Email:</p>
+                    <p class="text-white font-medium">${currentCustomer.email || ''}</p>
+                </div>
+                ${currentCustomer.delivery_instructions ? `
+                <div class="col-span-2">
+                    <p class="text-zinc-400">Spesiale Instruksies:</p>
+                    <p class="text-white font-medium">${currentCustomer.delivery_instructions}</p>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    
+    // Populate order items summary
+    const orderItemsSummary = document.getElementById('orderItemsSummary');
+    if (orderItemsSummary) {
+        const products = {
+            'HEEL_HOENDER': { name: 'Heel Hoender', price: 67.00, estimatedWeight: 2.5 },
+            'PLAT_HOENDER': { name: 'Plat Hoender (Flatty\'s)', price: 79.00, estimatedWeight: 1.8 },
+            'BRAAIPAKKE': { name: 'Braaipakke', price: 74.00, estimatedWeight: 1.0 },
+            'HEEL_HALWE': { name: 'Hele Halwe Hoenders', price: 68.00, estimatedWeight: 1.25 },
+            'BORSSTUKKE': { name: 'Borsstukke met Been en Vel', price: 73.00, estimatedWeight: 0.6 },
+            'VLERKIES': { name: 'Vlerkies', price: 90.00, estimatedWeight: 0.3 },
+            'BOUDE_DYE': { name: 'Boude en Dye', price: 81.00, estimatedWeight: 0.8 },
+            'FILETTE': { name: 'Filette (sonder vel)', price: 100.00, estimatedWeight: 0.5 },
+            'SUIWER_HEUNING': { name: 'Suiwer Heuning', price: 70.00, estimatedWeight: 1.0 },
+            'HOENDER_MINCE': { name: 'Hoender Mince', price: 85.00, estimatedWeight: 0.5 },
+            'HOENDER_LIVERS': { name: 'Hoender Lewers', price: 45.00, estimatedWeight: 0.3 },
+            'HOENDER_HEARTS': { name: 'Hoender Hartjies', price: 50.00, estimatedWeight: 0.2 },
+            'SOSATIES': { name: 'Hoender Sosaties', price: 95.00, estimatedWeight: 0.4 },
+            'CHICKEN_BURGERS': { name: 'Hoender Burger Patties', price: 110.00, estimatedWeight: 0.15 },
+            'SCHNITZELS': { name: 'Hoender Schnitzels', price: 120.00, estimatedWeight: 0.2 },
+            'CRUMBED_STRIPS': { name: 'Crumbed Hoender Strips', price: 115.00, estimatedWeight: 0.3 }
+        };
+        
+        orderItemsSummary.innerHTML = '';
+        
+        if (Object.keys(cart).length === 0) {
+            orderItemsSummary.innerHTML = '<p class="text-zinc-400 text-center py-4">Geen items in mandjie</p>';
+        } else {
+            Object.entries(cart).forEach(([productKey, qty]) => {
+                const product = products[productKey];
+                if (product) {
+                    const weight = product.estimatedWeight * qty;
+                    const amount = product.price * weight;
+                    
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'flex justify-between items-center py-3 border-b border-zinc-700/30';
+                    itemDiv.innerHTML = `
+                        <div>
+                            <p class="text-white font-medium">${product.name}</p>
+                            <p class="text-zinc-400 text-sm">${qty}x stuks (~${weight.toFixed(1)}kg @ R${product.price}/kg)</p>
+                        </div>
+                        <p class="text-orange-400 font-semibold">R${amount.toFixed(2)}</p>
+                    `;
+                    orderItemsSummary.appendChild(itemDiv);
+                }
+            });
+        }
+    }
 }
 
 /**

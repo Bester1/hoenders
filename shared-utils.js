@@ -112,6 +112,125 @@ function getCustomerPricing() {
 }
 
 /**
+ * Get product display information for customer interface
+ * @function getProductDisplayInfo
+ * @param {string} productName - Product name from pricing system
+ * @returns {Object} Display information with displayName and description
+ */
+function getProductDisplayInfo(productName) {
+    const displayMap = {
+        'HEEL HOENDER': {
+            displayName: 'Heel Hoender',
+            description: 'Hele vars hoender, perfek vir gesinne'
+        },
+        'PLAT HOENDER (FLATTY\'S)': {
+            displayName: 'Plat Hoender (Flatty\'s)',
+            description: 'Plat hoenders, perfek vir braai'
+        },
+        'BRAAIPAKKE': {
+            displayName: 'Braaipakke',
+            description: 'Hele hoender opgesnye in braai stukke'
+        },
+        'HEEL HALWE HOENDERS': {
+            displayName: 'Heel Halwe Hoenders', 
+            description: 'Hele hoender deurgesny in helftes'
+        },
+        'BORSSTUKKE MET BEEN EN VEL': {
+            displayName: 'Borsstukke met Been en Vel',
+            description: 'Sappige borsstukke met been en vel'
+        },
+        'VLERKIES': {
+            displayName: 'Vlerkies',
+            description: 'Hoender vlerkies, perfek vir braai'
+        },
+        'BOUDE EN DYE': {
+            displayName: 'Boude en Dye',
+            description: 'Boude en dye porties'
+        },
+        'GUNS Boud en dy aanmekaar': {
+            displayName: 'GUNS Boud en Dy Aanmekaar',
+            description: 'Spesiale boud en dy kombinasie'
+        },
+        'FILETTE (sonder vel)': {
+            displayName: 'Filette (sonder vel)',
+            description: 'Premium filette sonder vel'
+        },
+        'ONTBEENDE HOENDER': {
+            displayName: 'Ontbeende Hoender',
+            description: 'Hele hoender sonder bene'
+        },
+        'SOSATIE': {
+            displayName: 'Sosatie',
+            description: 'Gemarineerde hoender sosaties'
+        },
+        'CRUMBED STRIPS': {
+            displayName: 'Crumbed Hoender Strips',
+            description: 'Gemarineerde en gebreide strips'
+        },
+        'DRUMSTICKSSS': {
+            displayName: 'Drumsticks',
+            description: 'Hoender drumsticks'
+        },
+        'DIE BOUDE ALLEEN': {
+            displayName: 'Die Boude Alleen',
+            description: 'Hoender boude porties'
+        },
+        'DIE DYE ALLEEN': {
+            displayName: 'Die Dye Alleen', 
+            description: 'Hoender dye porties'
+        },
+        'TITTES (borsstukke sonder been en vel)': {
+            displayName: 'Tittes (borsstukke sonder been en vel)',
+            description: 'Borsstukke sonder been en vel'
+        },
+        'SUIWER HEUNING': {
+            displayName: 'Suiwer Heuning',
+            description: 'Vars plaas heuning'
+        },
+        'EIERS': {
+            displayName: 'Eiers',
+            description: 'Vars plaas eiers'
+        }
+    };
+    
+    return displayMap[productName] || {
+        displayName: productName,
+        description: 'Vars hoender produk van die plaas'
+    };
+}
+
+/**
+ * Get estimated weight for product portions
+ * @function getEstimatedWeight
+ * @param {string} productName - Product name
+ * @returns {string} Estimated weight with unit
+ */
+function getEstimatedWeight(productName) {
+    const weightMap = {
+        'HEEL HOENDER': '2.5kg',
+        'PLAT HOENDER (FLATTY\'S)': '1.8kg', 
+        'BRAAIPAKKE': '2.2kg',
+        'HEEL HALWE HOENDERS': '1.2kg',
+        'BORSSTUKKE MET BEEN EN VEL': '0.8kg',
+        'VLERKIES': '0.4kg',
+        'BOUDE EN DYE': '0.6kg',
+        'GUNS Boud en dy aanmekaar': '0.7kg',
+        'FILETTE (sonder vel)': '0.5kg',
+        'ONTBEENDE HOENDER': '1.8kg',
+        'SOSATIE': '0.6kg',
+        'CRUMBED STRIPS': '0.3kg',
+        'DRUMSTICKSSS': '0.5kg',
+        'DIE BOUDE ALLEEN': '0.4kg',
+        'DIE DYE ALLEEN': '0.3kg',
+        'TITTES (borsstukke sonder been en vel)': '0.6kg',
+        'SUIWER HEUNING': '1.0kg',
+        'EIERS': '0.6kg'
+    };
+    
+    return weightMap[productName] || '1.0kg';
+}
+
+/**
  * Get product categories mapping for customer display
  * @function getProductCategories
  * @returns {Object} Product categories with associated products
