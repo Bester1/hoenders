@@ -149,7 +149,7 @@
         <p class="subtitle">Choose your portal</p>
         
         <div class="portal-options">
-            <a href="customer.html" class="portal-card customer">
+            <a href="customer-portal.html" class="portal-card customer">
                 <i class="fas fa-user portal-icon"></i>
                 <div class="portal-title">Customer Portal</div>
                 <div class="portal-desc">Register, place orders, manage your account</div>
@@ -181,13 +181,13 @@
             console.log('Auth tokens detected, redirecting to customer portal...');
             
             // Redirect to customer portal with auth tokens
-            const customerPortalURL = 'customer-portal-main.html' + window.location.hash;
+            const customerPortalURL = 'customer-portal.html' + window.location.hash;
             window.location.href = customerPortalURL;
         } else {
             // Auto-redirect based on URL parameters (normal flow)
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('portal') === 'customer') {
-                window.location.href = 'customer-portal-main.html';
+                window.location.href = 'customer-portal.html';
             } else if (urlParams.get('portal') === 'admin') {
                 window.location.href = 'index.html';
             }

@@ -74,14 +74,14 @@
         let correctURL;
         
         if (currentURL.includes('#')) {
-            // Has auth tokens - redirect to the main customer portal
+            // Has auth tokens - redirect to the beautiful customer portal
             correctURL = currentURL.replace(
                 'https://bester1.github.io/customer.html',
-                'https://bester1.github.io/hoenders/customer-portal-main.html'
+                'https://bester1.github.io/hoenders/customer-portal.html'
             );
         } else {
             // No auth tokens - just redirect to portal
-            correctURL = 'https://bester1.github.io/hoenders/customer-portal-main.html';
+            correctURL = 'https://bester1.github.io/hoenders/customer-portal.html';
         }
         
         console.log('Auth redirect from:', currentURL);
