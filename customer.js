@@ -1524,6 +1524,12 @@ async function loadProfile() {
         `;
 
         profileForm.style.display = 'block';
+
+        // Initialize real-time validation
+        setTimeout(() => {
+            setupRealTimeProfileValidation();
+        }, 100);
+
         showSectionLoading('profile', false);
 
     } catch (error) {
@@ -1649,7 +1655,17 @@ async function updateCustomerProfile(profileData) {
 
         } catch (fallbackError) {
             console.error('Both database and localStorage profile updates failed:', fallbackError);
-            throw new Error('Failed to update profile. Please check your connection and try again.');
+            
+            // Provide specific error messages based on error type
+            if (fallbackError.message?.includes('localStorage')) {
+                throw new Error('Failed to save profile changes offline. Please check browser storage settings and try again.');
+            } else if (dbError.message?.includes('auth')) {
+                throw new Error('Authentication expired. Please log in again to update your profile.');
+            } else if (dbError.message?.includes('network')) {
+                throw new Error('Network connection failed. Please check your internet connection and try again.');
+            } else {
+                throw new Error('Failed to update profile. Please try again later or contact support if the issue persists.');
+            }
         }
     }
 }
@@ -2467,6 +2483,104 @@ function displayProfileValidationErrors(errors) {
             firstErrorField.focus();
         }
     }
+}
+
+/**
+ * Setup real-time validation for profile form fields
+ * @function setupRealTimeProfileValidation
+ * @returns {void}
+ * @since 1.7.0
+ */
+function setupRealTimeProfileValidation() {
+    const profileForm = document.getElementById('profileUpdateForm');
+    if (!profileForm) return;
+
+    // Add event listeners for real-time validation
+    const emailField = document.getElementById('profileEmail');
+    const phoneField = document.getElementById('profilePhone');
+    const nameField = document.getElementById('profileName');
+
+    if (emailField) {
+        emailField.addEventListener('blur', function() {
+            validateProfileField('email', this.value, 'profileEmailError');
+        });
+        emailField.addEventListener('input', debounce(function() {
+            validateProfileField('email', this.value, 'profileEmailError');
+        }, 500));
+    }
+
+    if (phoneField) {
+        phoneField.addEventListener('blur', function() {
+            validateProfileField('phone', this.value, 'profilePhoneError');
+        });
+        phoneField.addEventListener('input', debounce(function() {
+            validateProfileField('phone', this.value, 'profilePhoneError');
+        }, 500));
+    }
+
+    if (nameField) {
+        nameField.addEventListener('blur', function() {
+            validateProfileField('name', this.value, 'profileNameError');
+        });
+    }
+}
+
+/**
+ * Validate individual profile field with user feedback
+ * @function validateProfileField
+ * @param {string} fieldType - Type of field to validate
+ * @param {string} value - Field value to validate
+ * @param {string} errorElementId - ID of error display element
+ * @returns {boolean} True if field is valid
+ * @since 1.7.0
+ */
+function validateProfileField(fieldType, value, errorElementId) {
+    const errorElement = document.getElementById(errorElementId);
+    if (!errorElement) return true;
+
+    let isValid = true;
+    let errorMessage = '';
+
+    switch (fieldType) {
+        case 'email':
+            if (!value) {
+                isValid = false;
+                errorMessage = 'Email address is required';
+            } else if (!validateEmail(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid email address';
+            }
+            break;
+
+        case 'phone':
+            if (value && !validatePhoneNumber(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid South African phone number (e.g., 079 123 4567)';
+            }
+            break;
+
+        case 'name':
+            if (!value || value.trim().length < 2) {
+                isValid = false;
+                errorMessage = 'Name must be at least 2 characters long';
+            } else if (!/^[A-Za-z\s\-']+$/.test(value.trim())) {
+                isValid = false;
+                errorMessage = 'Name can only contain letters, spaces, hyphens, and apostrophes';
+            }
+            break;
+    }
+
+    // Update UI based on validation result
+    errorElement.textContent = errorMessage;
+    errorElement.style.display = errorMessage ? 'block' : 'none';
+    
+    const fieldElement = document.getElementById(errorElementId.replace('Error', ''));
+    if (fieldElement) {
+        fieldElement.classList.toggle('field-error', !isValid);
+        fieldElement.classList.toggle('field-valid', isValid && value);
+    }
+
+    return isValid;
 }
 
 /**
