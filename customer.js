@@ -1608,6 +1608,7 @@ async function saveOrderToDatabase(orderData) {
         
         // Process each cart item
         console.log('🛒 Processing cart items:', Object.entries(orderData.items));
+        let itemIndex = 0;
         for (const [productKey, quantity] of Object.entries(orderData.items)) {
             console.log(`🔑 Processing product key: "${productKey}" with quantity: ${quantity}`);
             
@@ -1631,9 +1632,10 @@ async function saveOrderToDatabase(orderData) {
             totalAmount += itemTotal;
             totalWeight += estimatedWeight;
             
-            // Create order item
+            // Create order item with unique order_id that matches individual order record
+            const itemOrderId = `${orderId}-${itemIndex + 1}`;
             orderItems.push({
-                order_id: orderId,
+                order_id: itemOrderId,
                 product_name: productName,
                 quantity: quantity,
                 weight_kg: estimatedWeight,
@@ -1641,12 +1643,14 @@ async function saveOrderToDatabase(orderData) {
                 line_total: itemTotal,
                 source: 'customer_selection'
             });
+            
+            itemIndex++;
         }
         
         // Create individual order records for each product (admin dashboard compatible)
+        // Each product line needs a unique order_id since that's the primary key
         const individualOrderRecords = orderItems.map((item, index) => ({
-            // Don't include 'id' field - let database auto-generate it
-            order_id: orderId,
+            order_id: `${orderId}-${index + 1}`, // Make each product line unique
             order_date: new Date().toISOString().split('T')[0],
             customer_id: currentCustomer.id,
             customer_name: currentCustomer.name,
