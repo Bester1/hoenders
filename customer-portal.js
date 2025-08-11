@@ -1296,84 +1296,103 @@ async function saveOrder(order) {
         orders.push(order);
         localStorage.setItem('plaasHoendersCustomerOrders', JSON.stringify(orders));
         
-        // Convert to admin system format for database storage
-        const adminOrder = {
-            id: order.orderNumber,
-            customer_name: order.customer.name,
-            customer_phone: order.customer.phone,
-            customer_email: order.customer.email || '',
-            customer_address: order.customer.address,
-            delivery_instructions: order.customer.deliveryInstructions || '',
-            timestamp: order.timestamp,
-            status: 'provisional',
-            source: 'customer_portal',
-            estimated_total: order.estimatedTotal,
-            total_estimated_weight: calculateEstimatedTotal().totalWeight
-        };
-        
-        // Create order items array
-        const orderItems = Object.entries(order.items).map(([productKey, cartItem]) => ({
-            order_id: order.orderNumber,
-            product_name: products[productKey].name,
-            quantity: cartItem.quantity,
-            description: products[productKey].description,
-            estimated_price_per_kg: products[productKey].price,
-            estimated_weight: products[productKey].estimatedWeight * cartItem.quantity,
-            line_total: calculateLineItemTotal(productKey, cartItem.quantity).lineTotal,
-            status: 'pending_weights' // Waiting for plaas slaghuis weights
-        }));
-        
-        // Save to admin orders format for dashboard compatibility
+        // Convert to admin system format - create individual order rows for each product
         const adminOrders = JSON.parse(localStorage.getItem('plaasHoendersOrders') || '[]');
-        adminOrders.push(adminOrder);
+        
+        // Create separate order rows for each product (matches admin system format)
+        const individualOrderRows = Object.entries(order.items).map(([productKey, cartItem], index) => {
+            const lineTotal = calculateLineItemTotal(productKey, cartItem.quantity);
+            return {
+                id: `${order.orderNumber}-${index + 1}`, // Unique ID for each product line
+                orderId: order.orderNumber, // Group by order number
+                name: order.customer.name,
+                email: order.customer.email || '',
+                phone: order.customer.phone,
+                address: order.customer.address,
+                product: products[productKey].name,
+                quantity: cartItem.quantity,
+                weight: lineTotal.estimatedWeight,
+                total: lineTotal.lineTotal,
+                status: 'provisional',
+                timestamp: order.timestamp,
+                source: 'Customer Portal',
+                deliveryInstructions: order.customer.deliveryInstructions || '',
+                pricePerKg: products[productKey].price
+            };
+        });
+        
+        // Add individual orders to localStorage for admin dashboard compatibility
+        adminOrders.push(...individualOrderRows);
         localStorage.setItem('plaasHoendersOrders', JSON.stringify(adminOrders));
         
-        // Save to Supabase database for admin dashboard integration
+        // Save to Supabase database in the format admin dashboard expects
         try {
-            // Insert main order record
+            const supabaseOrderRows = Object.entries(order.items).map(([productKey, cartItem], index) => {
+                const lineTotal = calculateLineItemTotal(productKey, cartItem.quantity);
+                return {
+                    id: `${order.orderNumber}-${index + 1}`,
+                    order_id: order.orderNumber,
+                    customer_name: order.customer.name,
+                    customer_phone: order.customer.phone,
+                    customer_email: order.customer.email || '',
+                    customer_address: order.customer.address,
+                    delivery_instructions: order.customer.deliveryInstructions || '',
+                    timestamp: order.timestamp,
+                    status: 'provisional',
+                    source: 'customer_portal',
+                    product_name: products[productKey].name,
+                    quantity: cartItem.quantity,
+                    weight_kg: lineTotal.estimatedWeight,
+                    total_amount: lineTotal.lineTotal,
+                    order_date: new Date(order.timestamp).toISOString().split('T')[0],
+                    estimated_total: lineTotal.lineTotal,
+                    total_estimated_weight: lineTotal.estimatedWeight
+                };
+            });
+
+            // Insert individual product rows into orders table
             const { data: orderData, error: orderError } = await supabaseClient
                 .from('orders')
-                .insert([{
-                    id: adminOrder.id,
-                    customer_name: adminOrder.customer_name,
-                    customer_phone: adminOrder.customer_phone,
-                    customer_email: adminOrder.customer_email,
-                    customer_address: adminOrder.customer_address,
-                    delivery_instructions: adminOrder.delivery_instructions,
-                    timestamp: adminOrder.timestamp,
-                    status: adminOrder.status,
-                    source: adminOrder.source,
-                    estimated_total: adminOrder.estimated_total,
-                    total_estimated_weight: adminOrder.total_estimated_weight
-                }])
+                .insert(supabaseOrderRows)
                 .select();
 
             if (orderError) {
                 console.warn('Supabase order insert failed, using localStorage fallback:', orderError);
             } else {
-                console.log('✅ Order saved to Supabase database:', orderData);
+                console.log('✅ Individual product orders saved to Supabase database:', orderData.length, 'rows');
             }
 
-            // Insert order items
-            if (orderItems.length > 0) {
-                const { data: itemsData, error: itemsError } = await supabaseClient
-                    .from('order_items')
-                    .insert(orderItems)
-                    .select();
+            // Also save detailed order items for future reference
+            const orderItems = Object.entries(order.items).map(([productKey, cartItem], index) => ({
+                id: `${order.orderNumber}-item-${index + 1}`,
+                order_id: order.orderNumber,
+                product_name: products[productKey].name,
+                quantity: cartItem.quantity,
+                description: products[productKey].description,
+                estimated_price_per_kg: products[productKey].price,
+                estimated_weight: products[productKey].estimatedWeight * cartItem.quantity,
+                line_total: calculateLineItemTotal(productKey, cartItem.quantity).lineTotal,
+                status: 'pending_weights'
+            }));
 
-                if (itemsError) {
-                    console.warn('Supabase order items insert failed:', itemsError);
-                } else {
-                    console.log('✅ Order items saved to Supabase database:', itemsData);
-                }
+            const { data: itemsData, error: itemsError } = await supabaseClient
+                .from('order_items')
+                .insert(orderItems)
+                .select();
+
+            if (itemsError) {
+                console.warn('Supabase order items insert failed:', itemsError);
+            } else {
+                console.log('✅ Detailed order items saved for reference:', itemsData.length, 'items');
             }
         } catch (supabaseError) {
             console.warn('Supabase integration error, using localStorage fallback:', supabaseError);
         }
         
         console.log('Order saved successfully:', {
-            order: adminOrder,
-            items: orderItems
+            orderNumber: order.orderNumber,
+            individualRows: individualOrderRows.length,
+            totalAmount: individualOrderRows.reduce((sum, row) => sum + row.total, 0)
         });
         
         return true;
