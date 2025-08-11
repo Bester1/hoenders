@@ -1645,7 +1645,7 @@ async function saveOrderToDatabase(orderData) {
         
         // Create individual order records for each product (admin dashboard compatible)
         const individualOrderRecords = orderItems.map((item, index) => ({
-            id: `${orderId}-${index + 1}`,
+            // Don't include 'id' field - let database auto-generate it
             order_id: orderId,
             order_date: new Date().toISOString().split('T')[0],
             customer_id: currentCustomer.id,
