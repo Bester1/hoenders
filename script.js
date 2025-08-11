@@ -131,6 +131,8 @@ document.addEventListener('DOMContentLoaded', function() {
     setupPDFDragDrop();
     // Initialize data status on load
     setTimeout(refreshDataStatus, 1000);
+    // Load customer portal orders on startup
+    setTimeout(refreshPortalOrders, 1500);
     // Finish initialization to allow saves
     setTimeout(() => {
         isInitializing = false;
@@ -574,10 +576,10 @@ function updateOrderCounts() {
 // Load customer portal orders from the database
 async function loadCustomerPortalOrders() {
     try {
-        console.log('Loading customer portal orders...');
+        console.log('🔄 Loading customer portal orders...');
         
-        // Load orders with customer information
-        const { data: ordersData, error: ordersError } = await supabaseClient
+        // First try with the customers join
+        let { data: ordersData, error: ordersError } = await supabaseClient
             .from('orders')
             .select(`
                 *,
@@ -591,11 +593,27 @@ async function loadCustomerPortalOrders() {
             .eq('source', 'customer_portal');
         
         if (ordersError) {
-            console.error('Error loading customer portal orders:', ordersError);
-            return;
+            console.warn('⚠️ Join query failed, trying simple query:', ordersError);
+            
+            // Fallback to simple query without join
+            const { data: simpleData, error: simpleError } = await supabaseClient
+                .from('orders')
+                .select('*')
+                .eq('source', 'customer_portal');
+                
+            if (simpleError) {
+                console.error('❌ Error loading customer portal orders:', simpleError);
+                return;
+            }
+            
+            ordersData = simpleData;
+            console.log('✅ Loaded orders with simple query (no customer join)');
         }
 
         if (ordersData && ordersData.length > 0) {
+            console.log(`📦 Found ${ordersData.length} customer portal orders`);
+            console.log('📋 Sample order data:', ordersData[0]);
+            
             // Transform customer portal orders to match admin panel format
             window.customerPortalOrders = ordersData.map(order => ({
                 orderId: order.order_id,
@@ -612,14 +630,14 @@ async function loadCustomerPortalOrders() {
                 source: 'Customer Portal'
             }));
             
-            console.log(`Loaded ${ordersData.length} customer portal orders`);
+            console.log('✅ Successfully loaded customer portal orders:', window.customerPortalOrders.length);
         } else {
             window.customerPortalOrders = [];
-            console.log('No customer portal orders found');
+            console.log('ℹ️ No customer portal orders found in database');
         }
         
     } catch (error) {
-        console.error('Failed to load customer portal orders:', error);
+        console.error('❌ Failed to load customer portal orders:', error);
         window.customerPortalOrders = [];
     }
 }
