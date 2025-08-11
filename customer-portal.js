@@ -9,6 +9,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let supabaseClient;
 if (typeof window !== 'undefined' && window.supabase) {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('✅ Customer portal Supabase client initialized');
+} else {
+    console.error('❌ Supabase not available in customer portal - window.supabase missing');
+    console.log('🔍 Available window properties:', Object.keys(window));
 }
 
 // Product catalog with pricing (based on your rate card)
@@ -1290,6 +1294,13 @@ function calculateLineItemTotal(productKey, quantity) {
  * @returns {Promise<boolean>} Success status
  */
 async function saveOrder(order) {
+    console.log('🚀 saveOrder function called with:', {
+        orderNumber: order.orderNumber,
+        itemCount: Object.keys(order.items).length,
+        customerName: order.customer.name,
+        supabaseClientExists: !!supabaseClient
+    });
+    
     try {
         // Save to localStorage for backup
         const orders = JSON.parse(localStorage.getItem('plaasHoendersCustomerOrders') || '[]');
