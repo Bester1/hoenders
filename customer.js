@@ -1557,8 +1557,10 @@ async function handleOrderPlacement() {
         // Save order to database
         console.log('💾 Saving order to database...');
         const savedOrderId = await saveOrderToDatabase(orderData);
+        console.log('🎉 Order saved with ID:', savedOrderId);
         
         // Show confirmation step
+        console.log('📱 Showing confirmation step...');
         showBeautifulStep(4);
         
         // Update order number with the actual saved order ID
@@ -1666,9 +1668,11 @@ async function saveOrderToDatabase(orderData) {
         
         // Save single order record
         console.log('💾 Saving order record:', orderRecord);
+        console.log('🔄 Attempting database insert...');
         const { data: savedOrderData, error: orderError } = await supabaseClient
             .from('orders')
             .insert([orderRecord]);
+        console.log('📝 Database response:', { data: savedOrderData, error: orderError });
             
         if (orderError) {
             console.error('❌ Error saving order:', orderError);
@@ -1682,7 +1686,7 @@ async function saveOrderToDatabase(orderData) {
                 throw new Error(`Database error: ${orderError.message}`);
             }
         }
-        console.log('✅ Individual product orders saved successfully:', individualOrderRecords.length, 'records');
+        console.log('✅ Order record saved successfully');
         
         // Save order items
         if (orderItems.length > 0) {
