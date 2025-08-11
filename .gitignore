@@ -252,7 +252,8 @@ coverage/
 # ========================================
 
 # BMad core files - ENABLED FOR DEVELOPMENT
-# .bmad-core/
+# .bmad-core/ is NOT ignored - framework is active
+# .bmad-init.md is tracked for persistence
 
 # Claude development artifacts
 .claude/

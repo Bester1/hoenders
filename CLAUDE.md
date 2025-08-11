@@ -1,5 +1,37 @@
 # Plaas Hoenders Admin Dashboard
 
+## CRITICAL: BMad Method Framework Active
+**⚠️ IMPORTANT**: This project uses the BMad Method AI-driven development framework. The framework files are located in `.bmad-core/` directory and MUST be loaded and recognized on startup.
+
+### BMad Method Configuration
+- **Installation Date**: 2025-08-07
+- **Version**: 4.35.3
+- **IDE Setup**: cursor, claude-code, kilo
+- **Core Config**: `.bmad-core/core-config.yaml`
+- **Slash Command Prefix**: BMad
+- **Workflow Type**: Brownfield (existing project enhancement)
+
+### BMad Key Files to Load
+1. **User Guide**: `.bmad-core/user-guide.md` - Complete BMad workflow documentation
+2. **Brownfield Guide**: `.bmad-core/working-in-the-brownfield.md` - For existing project work
+3. **Core Config**: `.bmad-core/core-config.yaml` - BMad configuration settings
+4. **Agents**: `.bmad-core/agents/` - All agent definitions
+5. **Templates**: `.bmad-core/templates/` - Document templates
+6. **Workflows**: `.bmad-core/workflows/` - Workflow definitions
+
+### BMad Development Files Always Load
+Per `.bmad-core/core-config.yaml`:
+- `docs/architecture/coding-standards.md`
+- `docs/architecture/tech-stack.md`
+- `docs/architecture/source-tree.md`
+
+### BMad Workflow Commands
+- **Planning**: Use web agents for PRD and architecture creation
+- **Document Sharding**: `@po *shard-doc` for breaking down documents
+- **Story Creation**: `@sm` for scrum master story management
+- **Development**: `@dev` for development tasks
+- **QA Review**: `@qa` for quality assurance
+
 ## Project Overview
 A comprehensive admin dashboard for managing Plaas Hoenders chicken orders, invoicing, and email communications. The application has been simplified to use Google Apps Script for email functionality, removing the complex Gmail API integration.
 
