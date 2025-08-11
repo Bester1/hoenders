@@ -791,8 +791,27 @@ function setupBeautifulPortalEventListeners() {
     
     const placeOrder = document.getElementById('placeOrder');
     if (placeOrder) {
-        placeOrder.addEventListener('click', () => {
-            handleOrderPlacement();
+        placeOrder.addEventListener('click', async (e) => {
+            // Prevent multiple clicks
+            if (placeOrder.disabled) {
+                return;
+            }
+            
+            // Disable button and show loading state
+            placeOrder.disabled = true;
+            const originalText = placeOrder.textContent;
+            placeOrder.textContent = 'Plaas Bestelling...';
+            placeOrder.style.opacity = '0.7';
+            
+            try {
+                await handleOrderPlacement();
+            } catch (error) {
+                console.error('Order placement failed:', error);
+                // Re-enable button on error
+                placeOrder.disabled = false;
+                placeOrder.textContent = originalText;
+                placeOrder.style.opacity = '1';
+            }
         });
     }
     
@@ -1567,6 +1586,14 @@ async function handleOrderPlacement() {
         const orderNumber = document.getElementById('orderNumber');
         if (orderNumber) {
             orderNumber.textContent = `#${savedOrderId}`;
+        }
+        
+        // Re-enable button after successful order (will be reset by new order button later)
+        const placeOrderBtn = document.getElementById('placeOrder');
+        if (placeOrderBtn) {
+            placeOrderBtn.disabled = false;
+            placeOrderBtn.textContent = 'Plaas Bestelling';
+            placeOrderBtn.style.opacity = '1';
         }
         
         // Clear cart after successful order

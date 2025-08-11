@@ -1408,8 +1408,8 @@ async function generateInvoice(orderId) {
         customerAddress: order.address,
         items: invoiceItems,
         subtotal: subtotal,
-        tax: subtotal * 0.15, // 15% VAT
-        total: subtotal * 1.15,
+        tax: 0, // NO VAT
+        total: subtotal, // Total = subtotal (no VAT)
         status: 'generated'
     };
     

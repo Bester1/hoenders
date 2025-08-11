@@ -10,13 +10,24 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Suppress Tailwind CDN production warnings
-        if (window.console && window.console.warn) {
+        if (window.console) {
             const originalWarn = console.warn;
+            const originalLog = console.log;
+            
             console.warn = function(...args) {
-                if (args[0] && args[0].includes && args[0].includes('cdn.tailwindcss.com should not be used in production')) {
-                    return; // Suppress this specific warning
+                const message = args[0]?.toString() || '';
+                if (message.includes('cdn.tailwindcss.com') && message.includes('production')) {
+                    return; // Suppress Tailwind production warnings
                 }
                 originalWarn.apply(console, args);
+            };
+            
+            console.log = function(...args) {
+                const message = args[0]?.toString() || '';
+                if (message.includes('cdn.tailwindcss.com') && message.includes('production')) {
+                    return; // Suppress Tailwind production warnings in console.log too
+                }
+                originalLog.apply(console, args);
             };
         }
     </script>
