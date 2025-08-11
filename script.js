@@ -1306,46 +1306,79 @@ function updateOrdersTable() {
 // Invoice generation
 function generateInvoice(orderId) {
     const currentOrders = getCurrentOrders();
-    const order = currentOrders.find(o => o.orderId === orderId);
-    if (!order || !currentImportId) return;
     
-    // Handle both old single-product and new multi-product orders
-    let invoiceItems = [];
-    let subtotal = 0;
+    // Check if this is a customer portal order (individual product rows)
+    const customerPortalOrders = currentOrders.filter(o => o.orderId === orderId && o.source === 'Customer Portal');
     
-    if (order.products && order.products.length > 0) {
-        // New multi-product format - ALWAYS use current selling prices
-        invoiceItems = order.products.map(product => {
-            const currentPricing = pricing[product.product];
-            const unitPrice = currentPricing ? currentPricing.selling : product.unitPrice;
-            const weight = product.weight || (product.quantity * 2.0); // Default 2kg per item if not specified
-            const total = unitPrice * weight; // Recalculate with current selling price
+    let order, invoiceItems = [], subtotal = 0;
+    
+    if (customerPortalOrders.length > 0) {
+        // Customer Portal Order: Multiple rows for same order ID
+        console.log('🛒 Processing Customer Portal order with', customerPortalOrders.length, 'items');
+        
+        // Use the first row for customer details
+        order = customerPortalOrders[0];
+        
+        // Create invoice items from each product row
+        invoiceItems = customerPortalOrders.map(productRow => {
+            const currentPricing = pricing[productRow.product];
+            const unitPrice = currentPricing ? currentPricing.selling : (productRow.pricePerKg || productRow.total / productRow.weight || 0);
+            const weight = productRow.weight || (productRow.quantity * 2.0);
+            const total = unitPrice * weight;
             
             return {
-                product: product.product,
-                quantity: product.quantity,
+                product: productRow.product,
+                quantity: productRow.quantity,
                 weight: weight,
                 unitPrice: unitPrice,
                 total: total,
-                specialInstructions: product.specialInstructions
+                specialInstructions: productRow.deliveryInstructions || ''
             };
         });
         subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
-    } else {
-        // Old single-product format - ALWAYS use current selling prices
-        const currentPricing = pricing[order.product];
-        const unitPrice = currentPricing ? currentPricing.selling : order.unitPrice;
-        const estimatedWeight = estimateProductWeight(order.product, order.quantity);
-        const total = unitPrice * estimatedWeight; // Recalculate with current selling price
         
-        invoiceItems = [{
-            product: order.product,
-            quantity: order.quantity,
-            weight: estimatedWeight,
-            unitPrice: unitPrice,
-            total: total
-        }];
-        subtotal = total;
+    } else {
+        // Regular order (single order or multi-product format)
+        order = currentOrders.find(o => o.orderId === orderId);
+        if (!order) return;
+        
+        // For imported orders, we need currentImportId, but customer portal orders don't need it
+        if (order.source !== 'Customer Portal' && !currentImportId) return;
+        
+        if (order.products && order.products.length > 0) {
+            // New multi-product format - ALWAYS use current selling prices
+            invoiceItems = order.products.map(product => {
+                const currentPricing = pricing[product.product];
+                const unitPrice = currentPricing ? currentPricing.selling : product.unitPrice;
+                const weight = product.weight || (product.quantity * 2.0); // Default 2kg per item if not specified
+                const total = unitPrice * weight; // Recalculate with current selling price
+                
+                return {
+                    product: product.product,
+                    quantity: product.quantity,
+                    weight: weight,
+                    unitPrice: unitPrice,
+                    total: total,
+                    specialInstructions: product.specialInstructions
+                };
+            });
+            subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+        } else {
+            // Old single-product format - ALWAYS use current selling prices
+            const currentPricing = pricing[order.product];
+            const unitPrice = currentPricing ? currentPricing.selling : order.unitPrice;
+            const estimatedWeight = estimateProductWeight(order.product, order.quantity);
+            const total = unitPrice * estimatedWeight; // Recalculate with current selling price
+            
+            invoiceItems = [{
+                product: order.product,
+                quantity: order.quantity,
+                weight: estimatedWeight,
+                unitPrice: unitPrice,
+                total: total
+            }];
+            subtotal = total;
+        }
     }
     
     const invoice = {
