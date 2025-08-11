@@ -678,6 +678,9 @@ function showCustomerPortal() {
         authSection.classList.remove('active');
         authSection.style.display = 'none';
     }
+    
+    // Load cart from storage when portal opens
+    loadCartFromStorage();
 
     // Show beautiful glassmorphism modal instead of navigation
     const modal = document.getElementById('modal');
@@ -770,6 +773,10 @@ function setupBeautifulPortalEventListeners() {
     const proceedToReview = document.getElementById('proceedToReview');
     if (proceedToReview) {
         proceedToReview.addEventListener('click', () => {
+            if (Object.keys(cart).length === 0) {
+                alert('Kies asseblief produkte om voort te gaan');
+                return;
+            }
             populateOrderReview();
             showBeautifulStep(3);
         });
@@ -927,6 +934,7 @@ function showBeautifulStep(stepNumber) {
         // Populate products when showing step 2
         if (stepNumber === 2) {
             populateAllProducts();
+            populateCartQuantities();
         }
         
         // Also pre-populate products on step 1 so they're ready
@@ -1066,6 +1074,91 @@ function populateAllProducts() {
 let cart = {};
 
 /**
+ * Save cart to localStorage with expiry
+ * @function saveCartToStorage
+ */
+function saveCartToStorage() {
+    try {
+        const cartData = {
+            items: cart,
+            timestamp: Date.now(),
+            customerId: currentCustomer?.id || null
+        };
+        localStorage.setItem('plaasHoendersCart', JSON.stringify(cartData));
+        console.log('💾 Cart saved to localStorage:', Object.keys(cart).length, 'items');
+    } catch (error) {
+        console.error('❌ Failed to save cart to localStorage:', error);
+    }
+}
+
+/**
+ * Load cart from localStorage with expiry check (24 hours)
+ * @function loadCartFromStorage
+ */
+function loadCartFromStorage() {
+    try {
+        const stored = localStorage.getItem('plaasHoendersCart');
+        if (!stored) {
+            cart = {};
+            return;
+        }
+        
+        const cartData = JSON.parse(stored);
+        const hoursSinceStored = (Date.now() - cartData.timestamp) / (1000 * 60 * 60);
+        
+        // Cart expires after 24 hours or if customer changed
+        if (hoursSinceStored > 24 || (cartData.customerId && cartData.customerId !== currentCustomer?.id)) {
+            console.log('🗑️ Cart expired or customer changed, clearing cart');
+            cart = {};
+            localStorage.removeItem('plaasHoendersCart');
+        } else {
+            cart = cartData.items || {};
+            console.log('📦 Cart loaded from localStorage:', Object.keys(cart).length, 'items');
+        }
+        
+        // Update display after loading
+        updateCartDisplay();
+        updateCartSummary();
+        
+    } catch (error) {
+        console.error('❌ Failed to load cart from localStorage:', error);
+        cart = {};
+    }
+}
+
+/**
+ * Clear cart completely
+ * @function clearCart
+ */
+function clearCart() {
+    cart = {};
+    localStorage.removeItem('plaasHoendersCart');
+    updateCartDisplay();
+    updateCartSummary();
+    console.log('🗑️ Cart cleared');
+}
+
+/**
+ * Populate quantity inputs with current cart values
+ * @function populateCartQuantities
+ */
+function populateCartQuantities() {
+    console.log('🔄 Populating cart quantities in product UI');
+    
+    Object.entries(cart).forEach(([productKey, quantity]) => {
+        const qtyInput = document.getElementById(`qty-${productKey}`);
+        if (qtyInput) {
+            qtyInput.value = quantity;
+            console.log(`✅ Set ${productKey} quantity to ${quantity}`);
+        }
+    });
+    
+    // Update cart display and summary after populating
+    updateCartDisplay();
+    updateCartSummary();
+}
+
+/**
  * Update product quantity in cart
  * @function updateQuantity
  * @param {string} productKey - Product identifier
@@ -1098,6 +1191,7 @@ function setQuantity(productKey, quantity) {
     
     updateCartDisplay();
     updateCartSummary();
+    saveCartToStorage();
 }
 
 /**
@@ -1473,10 +1567,8 @@ async function handleOrderPlacement() {
             orderNumber.textContent = `#${savedOrderId}`;
         }
         
-        // Clear cart
-        cart = {};
-        updateCartDisplay();
-        updateCartSummary();
+        // Clear cart after successful order
+        clearCart();
         
     } catch (error) {
         console.error('❌ Error placing order:', error);
@@ -2300,12 +2392,19 @@ function setupProductInteractions() {
  * @param {string} productName - Product to add to cart
  */
 function handleAddToCart(productName) {
-    // TODO: Implement cart functionality in future story
     const displayInfo = getProductDisplayInfo(productName);
-    showToast(`${displayInfo.displayName} added to cart!`, 'success');
+    const productKey = productName.replace(/[^A-Z0-9]/g, '_');
     
-    // For now, just show success message
-    console.log('Added to cart:', productName);
+    // Add one item to cart (quantity 1)
+    const currentQty = cart[productKey] || 0;
+    setQuantity(productKey, currentQty + 1);
+    
+    // Show success message
+    showToast(`${displayInfo.displayName} bygevoeg by mandjie!`, 'success');
+    console.log(`✅ Added to cart: ${productName} (${cart[productKey]} items)`);
+    
+    // Save cart and update display
+    saveCartToStorage();
 }
 
 /**
