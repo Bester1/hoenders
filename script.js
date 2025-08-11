@@ -284,6 +284,293 @@ async function loadFromDatabase() {
     }
 }
 
+// Switch between order views (portal, imports, all)
+function switchOrderView(view) {
+    // Update tab states
+    document.querySelectorAll('.order-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event.target.closest('.order-tab').classList.add('active');
+    
+    // Update view visibility
+    document.querySelectorAll('.order-view').forEach(v => {
+        v.style.display = 'none';
+        v.classList.remove('active');
+    });
+    
+    if (view === 'portal') {
+        document.getElementById('portalOrdersView').style.display = 'block';
+        document.getElementById('portalOrdersView').classList.add('active');
+        refreshPortalOrders();
+    } else if (view === 'imports') {
+        document.getElementById('importOrdersView').style.display = 'block';
+        document.getElementById('importOrdersView').classList.add('active');
+    } else if (view === 'all') {
+        document.getElementById('allOrdersView').style.display = 'block';
+        document.getElementById('allOrdersView').classList.add('active');
+        updateOrdersTable();
+    }
+}
+
+// Refresh portal orders display
+async function refreshPortalOrders() {
+    await loadCustomerPortalOrders();
+    updatePortalOrdersDisplay();
+    updateOrderCounts();
+}
+
+// Update portal orders display
+function updatePortalOrdersDisplay() {
+    const portalOrders = window.customerPortalOrders || [];
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
+    // Filter orders for current month
+    const monthOrders = portalOrders.filter(order => {
+        const orderDate = new Date(order.date);
+        return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
+    });
+    
+    // Update stats
+    document.getElementById('monthOrderCount').textContent = monthOrders.length;
+    document.getElementById('monthCustomerCount').textContent = new Set(monthOrders.map(o => o.email)).size;
+    document.getElementById('monthTotalAmount').textContent = 'R' + monthOrders.reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2);
+    document.getElementById('orderStatusSummary').textContent = monthOrders.length > 0 ? 'Open for Orders' : 'Awaiting Orders';
+    
+    // Update product summary
+    updateProductSummary(monthOrders);
+    
+    // Update customer orders table
+    updatePortalOrdersTable(monthOrders);
+}
+
+// Update product summary for butchery
+function updateProductSummary(orders) {
+    const productSummary = {};
+    
+    orders.forEach(order => {
+        // Handle both single product and multi-product orders
+        if (order.products && Array.isArray(order.products)) {
+            order.products.forEach(item => {
+                if (!productSummary[item.product]) {
+                    productSummary[item.product] = {
+                        quantity: 0,
+                        weight: 0,
+                        customers: new Set()
+                    };
+                }
+                productSummary[item.product].quantity += item.quantity || 0;
+                productSummary[item.product].weight += item.weight || 0;
+                productSummary[item.product].customers.add(order.email);
+            });
+        } else if (order.product) {
+            if (!productSummary[order.product]) {
+                productSummary[order.product] = {
+                    quantity: 0,
+                    weight: 0,
+                    customers: new Set()
+                };
+            }
+            productSummary[order.product].quantity += order.quantity || 0;
+            productSummary[order.product].weight += order.weight || 0;
+            productSummary[order.product].customers.add(order.email);
+        }
+    });
+    
+    const summaryBody = document.getElementById('productSummaryBody');
+    if (Object.keys(productSummary).length === 0) {
+        summaryBody.innerHTML = '<tr><td colspan="4" class="no-data">No orders yet this month</td></tr>';
+        return;
+    }
+    
+    summaryBody.innerHTML = Object.entries(productSummary)
+        .sort((a, b) => b[1].quantity - a[1].quantity)
+        .map(([product, data]) => `
+            <tr>
+                <td><strong>${product}</strong></td>
+                <td>${data.quantity}</td>
+                <td>${data.weight.toFixed(2)} kg</td>
+                <td>${data.customers.size}</td>
+            </tr>
+        `).join('');
+}
+
+// Update portal orders table
+function updatePortalOrdersTable(orders) {
+    const tableBody = document.getElementById('portalOrdersTableBody');
+    
+    if (orders.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="8" class="no-data">No customer portal orders yet</td></tr>';
+        return;
+    }
+    
+    tableBody.innerHTML = orders.map(order => {
+        const productDisplay = order.products && Array.isArray(order.products) 
+            ? `${order.products.length} items` 
+            : order.product;
+            
+        return `
+            <tr>
+                <td><input type="checkbox" class="order-checkbox" value="${order.orderId}"></td>
+                <td>${new Date(order.date).toLocaleDateString()}</td>
+                <td><strong>${order.name}</strong></td>
+                <td>
+                    ${order.email}<br>
+                    <small>${order.phone || 'No phone'}</small>
+                </td>
+                <td class="order-products">${productDisplay}</td>
+                <td><strong>R${(order.total || 0).toFixed(2)}</strong></td>
+                <td><span class="status status-${order.status}">${order.status.toUpperCase()}</span></td>
+                <td class="order-actions">
+                    <button onclick="viewOrderDetails('${order.orderId}')" class="btn-small btn-secondary">View</button>
+                    <button onclick="generateInvoice('${order.orderId}')" class="btn-small btn-primary">Invoice</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Export orders to Excel for butchery
+async function exportToExcelForButchery() {
+    const portalOrders = window.customerPortalOrders || [];
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
+    // Filter orders for current month
+    const monthOrders = portalOrders.filter(order => {
+        const orderDate = new Date(order.date);
+        return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
+    });
+    
+    if (monthOrders.length === 0) {
+        alert('No orders to export for this month');
+        return;
+    }
+    
+    // Create CSV content with detailed order information
+    let csvContent = 'Customer Name,Email,Phone,Address,Product,Quantity,Est. Weight (kg),Unit Price,Total\n';
+    
+    monthOrders.forEach(order => {
+        if (order.products && Array.isArray(order.products)) {
+            order.products.forEach(item => {
+                csvContent += `"${order.name}","${order.email}","${order.phone || ''}","${order.address || ''}","${item.product}",${item.quantity},${(item.weight || 0).toFixed(2)},${(item.unitPrice || 0).toFixed(2)},${(item.total || 0).toFixed(2)}\n`;
+            });
+        } else {
+            csvContent += `"${order.name}","${order.email}","${order.phone || ''}","${order.address || ''}","${order.product}",${order.quantity},${(order.weight || 0).toFixed(2)},${(order.unitPrice || 0).toFixed(2)},${(order.total || 0).toFixed(2)}\n`;
+        }
+    });
+    
+    // Add summary section
+    csvContent += '\n\nPRODUCT SUMMARY FOR BUTCHERY\n';
+    csvContent += 'Product,Total Quantity,Total Weight (kg),Number of Customers\n';
+    
+    const productSummary = {};
+    monthOrders.forEach(order => {
+        if (order.products && Array.isArray(order.products)) {
+            order.products.forEach(item => {
+                if (!productSummary[item.product]) {
+                    productSummary[item.product] = {
+                        quantity: 0,
+                        weight: 0,
+                        customers: new Set()
+                    };
+                }
+                productSummary[item.product].quantity += item.quantity || 0;
+                productSummary[item.product].weight += item.weight || 0;
+                productSummary[item.product].customers.add(order.email);
+            });
+        } else if (order.product) {
+            if (!productSummary[order.product]) {
+                productSummary[order.product] = {
+                    quantity: 0,
+                    weight: 0,
+                    customers: new Set()
+                };
+            }
+            productSummary[order.product].quantity += order.quantity || 0;
+            productSummary[order.product].weight += order.weight || 0;
+            productSummary[order.product].customers.add(order.email);
+        }
+    });
+    
+    Object.entries(productSummary)
+        .sort((a, b) => b[1].quantity - a[1].quantity)
+        .forEach(([product, data]) => {
+            csvContent += `"${product}",${data.quantity},${data.weight.toFixed(2)},${data.customers.size}\n`;
+        });
+    
+    // Download the CSV file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const monthName = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    link.download = `Butchery_Orders_${monthName}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    
+    addActivity(`Exported ${monthOrders.length} orders for butchery`);
+}
+
+// Generate invoices for all portal orders
+async function generateAllPortalInvoices() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    if (checkboxes.length === 0) {
+        alert('Please select orders to generate invoices for');
+        return;
+    }
+    
+    let successCount = 0;
+    for (const checkbox of checkboxes) {
+        const orderId = checkbox.value;
+        try {
+            await generateInvoice(orderId);
+            successCount++;
+        } catch (error) {
+            console.error(`Failed to generate invoice for order ${orderId}:`, error);
+        }
+    }
+    
+    alert(`Generated ${successCount} invoices successfully`);
+    addActivity(`Generated ${successCount} invoices for portal orders`);
+}
+
+// Toggle all order checkboxes
+function toggleAllOrders() {
+    const selectAll = document.getElementById('selectAllOrders');
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+}
+
+// Filter customer orders
+function filterCustomerOrders() {
+    const searchInput = document.getElementById('customerSearchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const rows = document.querySelectorAll('#portalOrdersTableBody tr');
+    
+    rows.forEach(row => {
+        if (row.querySelector('.no-data')) return;
+        
+        const customerName = row.cells[2].textContent.toLowerCase();
+        const customerEmail = row.cells[3].textContent.toLowerCase();
+        const status = row.cells[6].textContent.toLowerCase();
+        
+        const matchesSearch = customerName.includes(searchInput) || customerEmail.includes(searchInput);
+        const matchesStatus = !statusFilter || status.includes(statusFilter);
+        
+        row.style.display = matchesSearch && matchesStatus ? '' : 'none';
+    });
+}
+
+// Update order counts
+function updateOrderCounts() {
+    const allOrders = getCurrentOrders();
+    const portalOrders = window.customerPortalOrders || [];
+    const importOrders = allOrders.filter(o => o.source !== 'Customer Portal');
+    
+    document.getElementById('portalOrderCount').textContent = portalOrders.length;
+    document.getElementById('importOrderCount').textContent = importOrders.length;
+    document.getElementById('allOrderCount').textContent = allOrders.length;
+}
+
 // Load customer portal orders from the database
 async function loadCustomerPortalOrders() {
     try {
@@ -1315,6 +1602,14 @@ async function loadStoredData() {
     updateAnalysisHistoryDisplay();
     updateImportSelector();
     updateInvoiceImportSelector();
+    
+    // Update order counts for new tabs
+    updateOrderCounts();
+    
+    // If we're on the orders section, refresh portal orders
+    if (document.querySelector('#orders.active')) {
+        refreshPortalOrders();
+    }
 }
 
 // Settings functions

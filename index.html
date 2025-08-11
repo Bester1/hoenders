@@ -232,81 +232,203 @@
             <!-- Orders Section -->
             <section id="orders" class="content-section">
                 <div class="section-header">
-                    <h2>Order Management</h2>
+                    <h2>📦 Monthly Order Management</h2>
                     <div class="header-actions">
-                        <button class="btn-secondary" onclick="showImportManager()">
-                            <i class="fas fa-folder"></i> Manage Imports
-                        </button>
-                        <button class="btn-primary" onclick="importOrders()">
-                            <i class="fas fa-upload"></i> New Import
-                        </button>
+                        <span class="order-cycle-info">
+                            <i class="fas fa-calendar-alt"></i> 
+                            Next Delivery: <strong id="nextDelivery">Last Saturday of Month</strong>
+                        </span>
                     </div>
                 </div>
 
-                <div class="imports-overview">
-                    <div class="current-import-info">
-                        <div class="import-selector">
-                            <label>Current Import:</label>
-                            <select id="importSelector" onchange="switchImport(this.value)">
-                                <option value="">Select an import...</option>
+                <!-- Order Tabs -->
+                <div class="order-tabs">
+                    <button class="order-tab active" onclick="switchOrderView('portal')">
+                        <i class="fas fa-users"></i> Customer Portal Orders
+                        <span class="tab-badge" id="portalOrderCount">0</span>
+                    </button>
+                    <button class="order-tab" onclick="switchOrderView('imports')">
+                        <i class="fas fa-file-import"></i> Bulk Imports
+                        <span class="tab-badge" id="importOrderCount">0</span>
+                    </button>
+                    <button class="order-tab" onclick="switchOrderView('all')">
+                        <i class="fas fa-list"></i> All Orders
+                        <span class="tab-badge" id="allOrderCount">0</span>
+                    </button>
+                </div>
+
+                <!-- Customer Portal Orders View -->
+                <div id="portalOrdersView" class="order-view active">
+                    <div class="portal-orders-header">
+                        <div class="order-stats-cards">
+                            <div class="stat-mini-card">
+                                <div class="stat-label">This Month's Orders</div>
+                                <div class="stat-value" id="monthOrderCount">0</div>
+                            </div>
+                            <div class="stat-mini-card">
+                                <div class="stat-label">Total Customers</div>
+                                <div class="stat-value" id="monthCustomerCount">0</div>
+                            </div>
+                            <div class="stat-mini-card">
+                                <div class="stat-label">Total Amount</div>
+                                <div class="stat-value" id="monthTotalAmount">R0</div>
+                            </div>
+                            <div class="stat-mini-card">
+                                <div class="stat-label">Order Status</div>
+                                <div class="stat-value" id="orderStatusSummary">Open</div>
+                            </div>
+                        </div>
+                        
+                        <div class="portal-actions">
+                            <button class="btn-success" onclick="exportToExcelForButchery()">
+                                <i class="fas fa-file-excel"></i> Export for Butchery
+                            </button>
+                            <button class="btn-primary" onclick="generateAllPortalInvoices()">
+                                <i class="fas fa-file-invoice"></i> Generate All Invoices
+                            </button>
+                            <button class="btn-secondary" onclick="refreshPortalOrders()">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Product Summary for Butchery -->
+                    <div class="product-summary-card">
+                        <h3>📊 Product Summary for Butchery</h3>
+                        <div id="productSummaryTable" class="summary-table">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Total Quantity</th>
+                                        <th>Est. Total Weight (kg)</th>
+                                        <th>Number of Customers</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="productSummaryBody">
+                                    <tr>
+                                        <td colspan="4" class="no-data">No orders yet this month</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Customer Orders List -->
+                    <div class="customer-orders-card">
+                        <h3>👥 Customer Orders</h3>
+                        <div class="orders-filter">
+                            <input type="text" id="customerSearchInput" placeholder="Search customer..." onkeyup="filterCustomerOrders()" />
+                            <select id="statusFilter" onchange="filterCustomerOrders()">
+                                <option value="">All Statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="processing">Processing</option>
+                                <option value="delivered">Delivered</option>
                             </select>
                         </div>
-                        <div class="import-stats" id="importStats">
-                            <span class="stat">No import selected</span>
+                        <div class="customer-orders-table">
+                            <table id="portalOrdersTable" class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th><input type="checkbox" id="selectAllOrders" onchange="toggleAllOrders()"></th>
+                                        <th>Order Date</th>
+                                        <th>Customer</th>
+                                        <th>Contact</th>
+                                        <th>Products</th>
+                                        <th>Total</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="portalOrdersTableBody">
+                                    <tr>
+                                        <td colspan="8" class="no-data">No customer portal orders yet</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
-                </div>
-                
-                <div class="import-area">
-                    <div class="import-options">
-                        <div class="csv-upload">
-                            <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleCSVUpload(event)">
-                            <button onclick="triggerCSVUpload()" class="btn-secondary">
-                                <i class="fas fa-file-csv"></i> Upload CSV File
-                            </button>
-                            <span id="csvFileName" class="file-name"></span>
-                        </div>
-                        <div class="divider">or</div>
-                        <button onclick="toggleManualInput()" class="btn-secondary">
-                            <i class="fas fa-paste"></i> Paste Data Manually
-                        </button>
-                    </div>
-                    <div id="manualInputArea" style="display: none;">
-                        <textarea id="orderData" placeholder="Paste your Google Sheets data here..." rows="8"></textarea>
-                        <button onclick="processOrders()" class="btn-primary">Process Orders</button>
-                    </div>
-                    <div id="csvPreview" style="display: none;">
-                        <h4>CSV File Loaded: <span id="previewFileName"></span></h4>
-                        <p>Found <span id="previewRowCount">0</span> orders ready to process</p>
-                        <button onclick="processCSVFile()" class="btn-primary">Process CSV Orders</button>
-                        <button onclick="clearCSVUpload()" class="btn-secondary">Clear</button>
                     </div>
                 </div>
 
-                <div class="orders-table-container">
-                    <table id="ordersTable" class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Order ID</th>
-                                <th>Date</th>
-                                <th>Customer</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Address</th>
-                                <th>Product</th>
-                                <th>Quantity</th>
-                                <th>Total</th>
-                                <th>Source</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ordersTableBody">
-                            <tr>
-                                <td colspan="12" class="no-data">No orders loaded</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- Bulk Imports View -->
+                <div id="importOrdersView" class="order-view" style="display: none;">
+                    <div class="imports-overview">
+                        <div class="current-import-info">
+                            <div class="import-selector">
+                                <label>Current Import:</label>
+                                <select id="importSelector" onchange="switchImport(this.value)">
+                                    <option value="">Select an import...</option>
+                                </select>
+                            </div>
+                            <div class="import-stats" id="importStats">
+                                <span class="stat">No import selected</span>
+                            </div>
+                        </div>
+                        <div class="import-actions">
+                            <button class="btn-secondary" onclick="showImportManager()">
+                                <i class="fas fa-folder"></i> Manage Imports
+                            </button>
+                            <button class="btn-primary" onclick="importOrders()">
+                                <i class="fas fa-upload"></i> New Import
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="import-area">
+                        <div class="import-options">
+                            <div class="csv-upload">
+                                <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleCSVUpload(event)">
+                                <button onclick="triggerCSVUpload()" class="btn-secondary">
+                                    <i class="fas fa-file-csv"></i> Upload CSV File
+                                </button>
+                                <span id="csvFileName" class="file-name"></span>
+                            </div>
+                            <div class="divider">or</div>
+                            <button onclick="toggleManualInput()" class="btn-secondary">
+                                <i class="fas fa-paste"></i> Paste Data Manually
+                            </button>
+                        </div>
+                        <div id="manualInputArea" style="display: none;">
+                            <textarea id="orderData" placeholder="Paste your Google Sheets data here..." rows="8"></textarea>
+                            <button onclick="processOrders()" class="btn-primary">Process Orders</button>
+                        </div>
+                        <div id="csvPreview" style="display: none;">
+                            <h4>CSV File Loaded: <span id="previewFileName"></span></h4>
+                            <p>Found <span id="previewRowCount">0</span> orders ready to process</p>
+                            <button onclick="processCSVFile()" class="btn-primary">Process CSV Orders</button>
+                            <button onclick="clearCSVUpload()" class="btn-secondary">Clear</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- All Orders View -->
+                <div id="allOrdersView" class="order-view" style="display: none;">
+                    <div class="orders-table-container">
+                        <table id="ordersTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Address</th>
+                                    <th>Product</th>
+                                    <th>Quantity</th>
+                                    <th>Total</th>
+                                    <th>Source</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTableBody">
+                                <tr>
+                                    <td colspan="12" class="no-data">No orders loaded</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
