@@ -8,6 +8,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Suppress Tailwind CDN production warnings
+        if (window.console && window.console.warn) {
+            const originalWarn = console.warn;
+            console.warn = function(...args) {
+                if (args[0] && args[0].includes && args[0].includes('cdn.tailwindcss.com should not be used in production')) {
+                    return; // Suppress this specific warning
+                }
+                originalWarn.apply(console, args);
+            };
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }

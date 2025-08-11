@@ -1,6 +1,16 @@
 // Customer Portal JavaScript
 // Plaas Hoenders Customer Ordering System
 
+// Supabase configuration for database integration
+const SUPABASE_URL = 'https://ukdmlzuxgnjucwidsygj.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w';
+
+// Initialize Supabase client (from CDN in customer.html)
+let supabaseClient;
+if (typeof window !== 'undefined' && window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
 // Product catalog with pricing (based on your rate card)
 const products = {
     'HEEL_HOENDER': {
@@ -1318,8 +1328,49 @@ async function saveOrder(order) {
         adminOrders.push(adminOrder);
         localStorage.setItem('plaasHoendersOrders', JSON.stringify(adminOrders));
         
-        // TODO: Save to Supabase database when available
-        // This would integrate with the existing database structure
+        // Save to Supabase database for admin dashboard integration
+        try {
+            // Insert main order record
+            const { data: orderData, error: orderError } = await supabaseClient
+                .from('orders')
+                .insert([{
+                    id: adminOrder.id,
+                    customer_name: adminOrder.customer_name,
+                    customer_phone: adminOrder.customer_phone,
+                    customer_email: adminOrder.customer_email,
+                    customer_address: adminOrder.customer_address,
+                    delivery_instructions: adminOrder.delivery_instructions,
+                    timestamp: adminOrder.timestamp,
+                    status: adminOrder.status,
+                    source: adminOrder.source,
+                    estimated_total: adminOrder.estimated_total,
+                    total_estimated_weight: adminOrder.total_estimated_weight
+                }])
+                .select();
+
+            if (orderError) {
+                console.warn('Supabase order insert failed, using localStorage fallback:', orderError);
+            } else {
+                console.log('✅ Order saved to Supabase database:', orderData);
+            }
+
+            // Insert order items
+            if (orderItems.length > 0) {
+                const { data: itemsData, error: itemsError } = await supabaseClient
+                    .from('order_items')
+                    .insert(orderItems)
+                    .select();
+
+                if (itemsError) {
+                    console.warn('Supabase order items insert failed:', itemsError);
+                } else {
+                    console.log('✅ Order items saved to Supabase database:', itemsData);
+                }
+            }
+        } catch (supabaseError) {
+            console.warn('Supabase integration error, using localStorage fallback:', supabaseError);
+        }
+        
         console.log('Order saved successfully:', {
             order: adminOrder,
             items: orderItems
