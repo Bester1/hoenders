@@ -1351,15 +1351,21 @@ async function saveOrder(order) {
             });
 
             // Insert individual product rows into orders table
+            console.log('📝 Attempting to save', supabaseOrderRows.length, 'individual product rows to Supabase');
+            console.log('📋 Sample row data:', supabaseOrderRows[0]);
+            
             const { data: orderData, error: orderError } = await supabaseClient
                 .from('orders')
                 .insert(supabaseOrderRows)
                 .select();
 
             if (orderError) {
-                console.warn('Supabase order insert failed, using localStorage fallback:', orderError);
+                console.error('❌ Supabase order insert failed:', orderError);
+                console.error('📄 Failed data structure:', supabaseOrderRows);
+                console.warn('🔄 Using localStorage fallback only');
             } else {
-                console.log('✅ Individual product orders saved to Supabase database:', orderData.length, 'rows');
+                console.log('✅ Individual product orders saved to Supabase database:', orderData?.length || 'unknown', 'rows');
+                console.log('📊 Saved data sample:', orderData?.[0]);
             }
 
             // Also save detailed order items for future reference
