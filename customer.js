@@ -1632,10 +1632,9 @@ async function saveOrderToDatabase(orderData) {
             totalAmount += itemTotal;
             totalWeight += estimatedWeight;
             
-            // Create order item with unique order_id that matches individual order record
-            const itemOrderId = `${orderId}-${itemIndex + 1}`;
+            // Create order item referencing the main order
             orderItems.push({
-                order_id: itemOrderId,
+                order_id: orderId,
                 product_name: productName,
                 quantity: quantity,
                 weight_kg: estimatedWeight,
@@ -1647,31 +1646,29 @@ async function saveOrderToDatabase(orderData) {
             itemIndex++;
         }
         
-        // Create individual order records for each product (admin dashboard compatible)
-        // Each product line needs a unique order_id since that's the primary key
-        const individualOrderRecords = orderItems.map((item, index) => ({
-            order_id: `${orderId}-${index + 1}`, // Make each product line unique
+        // Create a single order record with total amount
+        const orderRecord = {
+            order_id: orderId,
             order_date: new Date().toISOString().split('T')[0],
             customer_id: currentCustomer.id,
             customer_name: currentCustomer.name,
             customer_email: currentCustomer.email,
             customer_phone: currentCustomer.phone || null,
             customer_address: currentCustomer.address || null,
-            product_name: item.product_name,
-            quantity: item.quantity,
-            weight_kg: item.weight_kg,
-            total_amount: item.line_total,
+            product_name: `${orderItems.length} items`, // Summary for main order
+            quantity: orderItems.reduce((sum, item) => sum + item.quantity, 0),
+            weight_kg: totalWeight,
+            total_amount: totalAmount,
             source: 'customer_portal',
             status: 'pending',
             created_at: orderData.timestamp
-        }));
+        };
         
-        // Save individual product orders
-        console.log('💾 Saving', individualOrderRecords.length, 'individual product order records');
-        console.log('📋 Sample order record:', individualOrderRecords[0]);
+        // Save single order record
+        console.log('💾 Saving order record:', orderRecord);
         const { data: savedOrderData, error: orderError } = await supabaseClient
             .from('orders')
-            .insert(individualOrderRecords);
+            .insert([orderRecord]);
             
         if (orderError) {
             console.error('❌ Error saving order:', orderError);
