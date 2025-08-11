@@ -1665,7 +1665,7 @@ async function saveOrderToDatabase(orderData) {
         // Save individual product orders
         console.log('💾 Saving', individualOrderRecords.length, 'individual product order records');
         console.log('📋 Sample order record:', individualOrderRecords[0]);
-        const { data: orderData, error: orderError } = await supabaseClient
+        const { data: savedOrderData, error: orderError } = await supabaseClient
             .from('orders')
             .insert(individualOrderRecords);
             
