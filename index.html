@@ -280,15 +280,35 @@
                         </div>
                         
                         <div class="portal-actions">
-                            <button class="btn-success" onclick="exportToExcelForButchery()">
-                                <i class="fas fa-file-excel"></i> Export for Butchery
-                            </button>
-                            <button class="btn-primary" onclick="generateAllPortalInvoices()">
-                                <i class="fas fa-file-invoice"></i> Generate All Invoices
-                            </button>
-                            <button class="btn-secondary" onclick="refreshPortalOrders()">
-                                <i class="fas fa-sync"></i> Refresh
-                            </button>
+                            <div class="bulk-actions" id="bulkActions" style="display: none;">
+                                <span class="selected-count" id="selectedCount">0 selected</span>
+                                <button class="btn-primary btn-small" onclick="generateSelectedInvoices()">
+                                    <i class="fas fa-file-invoice"></i> Generate Invoices
+                                </button>
+                                <button class="btn-secondary btn-small" onclick="markSelectedStatus('confirmed')">
+                                    <i class="fas fa-check"></i> Mark Confirmed
+                                </button>
+                                <button class="btn-secondary btn-small" onclick="markSelectedStatus('processing')">
+                                    <i class="fas fa-cog"></i> Mark Processing
+                                </button>
+                                <button class="btn-secondary btn-small" onclick="markSelectedStatus('delivered')">
+                                    <i class="fas fa-truck"></i> Mark Delivered
+                                </button>
+                                <button class="btn-danger btn-small" onclick="deleteSelectedOrders()">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </div>
+                            <div class="main-actions">
+                                <button class="btn-success" onclick="exportToExcelForButchery()">
+                                    <i class="fas fa-file-excel"></i> Export for Butchery
+                                </button>
+                                <button class="btn-primary" onclick="generateAllPortalInvoices()">
+                                    <i class="fas fa-file-invoice"></i> Generate All Invoices
+                                </button>
+                                <button class="btn-secondary" onclick="refreshPortalOrders()">
+                                    <i class="fas fa-sync"></i> Refresh
+                                </button>
+                            </div>
                         </div>
                     </div>
 

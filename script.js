@@ -344,6 +344,9 @@ function updatePortalOrdersDisplay() {
     
     // Update customer orders table
     updatePortalOrdersTable(monthOrders);
+    
+    // Set up checkbox event listeners
+    setupOrderCheckboxes();
 }
 
 // Update product summary for butchery
@@ -968,8 +971,8 @@ function generateEmailBody(orderData) {
             if (invoice.source === 'PDF' && item.weight) {
                 invoiceDetails += `<td>${item.weight.toFixed(2)}</td>`;
             }
-            invoiceDetails += `<td>R${item.unitPrice.toFixed(2)}</td>`;
-            invoiceDetails += `<td>R${item.total.toFixed(2)}</td>`;
+            invoiceDetails += `<td>R${(item.unitPrice || 0).toFixed(2)}</td>`;
+            invoiceDetails += `<td>R${(item.total || 0).toFixed(2)}</td>`;
             invoiceDetails += '</tr>';
         });
         
@@ -1025,8 +1028,8 @@ function generateEmailBodyMultiProduct(orderData) {
             if (invoice.source === 'PDF' && item.weight) {
                 invoiceDetails += `<td>${item.weight.toFixed(2)}</td>`;
             }
-            invoiceDetails += `<td>R${item.unitPrice.toFixed(2)}</td>`;
-            invoiceDetails += `<td>R${item.total.toFixed(2)}</td>`;
+            invoiceDetails += `<td>R${(item.unitPrice || 0).toFixed(2)}</td>`;
+            invoiceDetails += `<td>R${(item.total || 0).toFixed(2)}</td>`;
             invoiceDetails += '</tr>';
         });
         
@@ -2073,7 +2076,16 @@ function clearCSVUpload() {
 function viewOrderDetails(orderId) {
     const currentOrders = getCurrentOrders();
     const order = currentOrders.find(o => o.orderId === orderId);
-    if (!order || !order.products) return;
+    if (!order) return;
+    
+    // Handle both single product and multi-product orders
+    const products = order.products || [{ 
+        product: order.product, 
+        quantity: order.quantity, 
+        weight: order.weight,
+        unitPrice: order.total / (order.quantity || 1),
+        total: order.total
+    }];
     
     const detailsHTML = `
         <div class="order-details-modal">
@@ -2103,12 +2115,12 @@ function viewOrderDetails(orderId) {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${order.products.map(product => `
+                                ${products.map(product => `
                                     <tr>
                                         <td>${product.product}</td>
                                         <td>${product.quantity}</td>
-                                        <td>R${product.unitPrice}</td>
-                                        <td>R${product.total.toFixed(2)}</td>
+                                        <td>R${(product.unitPrice || 0).toFixed(2)}</td>
+                                        <td>R${(product.total || 0).toFixed(2)}</td>
                                         <td>${product.specialInstructions || '-'}</td>
                                     </tr>
                                 `).join('')}
@@ -2187,8 +2199,8 @@ function previewInvoice(invoiceId) {
                                             <td>${item.originalDescription || item.product}</td>
                                             <td>${item.quantity}</td>
                                             ${invoice.source === 'PDF' && item.weight ? `<td>${item.weight.toFixed(2)}</td>` : ''}
-                                            <td>R${item.unitPrice.toFixed(2)}</td>
-                                            <td>R${item.total.toFixed(2)}</td>
+                                            <td>R${(item.unitPrice || 0).toFixed(2)}</td>
+                                            <td>R${(item.total || 0).toFixed(2)}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -3054,7 +3066,7 @@ function displayAnalysisResults(analysis, filename) {
                                     <td>${item.quantity}</td>
                                     <td>${item.weight}</td>
                                     <td>R${item.price}</td>
-                                    <td>R${item.total.toFixed(2)}</td>
+                                    <td>R${(item.total || 0).toFixed(2)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -3140,7 +3152,7 @@ function displayAnalysisResults(analysis, filename) {
                                 <td>${item.quantity}</td>
                                 <td>${item.weight}</td>
                                 <td>${item.price}</td>
-                                <td>${item.total.toFixed(2)}</td>
+                                <td>${(item.total || 0).toFixed(2)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -3795,7 +3807,7 @@ CUSTOMER ${index + 1}: ${customer.reference} (Page ${customer.pageNumber})
 Items: ${customer.items.length}
 ${customer.items.map((item, i) => 
     `  ${i+1}. ${item.description}
-     Qty: ${item.quantity} | KG: ${item.weight} | Price: R${item.price} | Total: R${item.total.toFixed(2)}`
+     Qty: ${item.quantity} | KG: ${item.weight} | Price: R${item.price} | Total: R${(item.total || 0).toFixed(2)}`
 ).join('\n')}
 Customer Total: R${customerTotal.toFixed(2)}`;
         }).join('\n\n' + '='.repeat(60) + '\n');
@@ -3832,7 +3844,7 @@ Items to import: ${data.items?.length || 0}
 Items:
 ${(data.items || []).map((item, i) => 
     `${i+1}. ${item.description}
-   Quantity: ${item.quantity} | Weight: ${item.weight}kg | Price: R${item.price} | Total: R${item.total.toFixed(2)}`
+   Quantity: ${item.quantity} | Weight: ${item.weight}kg | Price: R${item.price} | Total: R${(item.total || 0).toFixed(2)}`
 ).join('\n\n')}
 
 TOTAL: R${data.total.toFixed(2)} (No VAT)
@@ -4925,3 +4937,150 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// Bulk Actions for Orders
+function setupOrderCheckboxes() {
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    const selectAll = document.getElementById('selectAllOrders');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkActions);
+    });
+    
+    if (selectAll) {
+        selectAll.addEventListener('change', toggleAllOrders);
+    }
+}
+
+function updateBulkActions() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    const bulkActions = document.getElementById('bulkActions');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    if (checkboxes.length > 0) {
+        bulkActions.style.display = 'flex';
+        selectedCount.textContent = `${checkboxes.length} selected`;
+    } else {
+        bulkActions.style.display = 'none';
+    }
+}
+
+function toggleAllOrders() {
+    const selectAll = document.getElementById('selectAllOrders');
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+    
+    updateBulkActions();
+}
+
+function getSelectedOrderIds() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+function generateSelectedInvoices() {
+    const selectedIds = getSelectedOrderIds();
+    if (selectedIds.length === 0) {
+        alert('Please select orders first');
+        return;
+    }
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    selectedIds.forEach(orderId => {
+        try {
+            generateInvoice(orderId);
+            successCount++;
+        } catch (error) {
+            console.error(`Failed to generate invoice for order ${orderId}:`, error);
+            errorCount++;
+        }
+    });
+    
+    alert(`Generated ${successCount} invoices successfully${errorCount > 0 ? `, ${errorCount} failed` : ''}`);
+    updateBulkActions();
+}
+
+async function markSelectedStatus(status) {
+    const selectedIds = getSelectedOrderIds();
+    if (selectedIds.length === 0) {
+        alert('Please select orders first');
+        return;
+    }
+    
+    try {
+        // Update status in database for customer portal orders
+        const { error } = await supabaseClient
+            .from('orders')
+            .update({ status: status })
+            .in('order_id', selectedIds);
+            
+        if (error) {
+            console.error('Error updating order status:', error);
+            alert(`Error updating order status: ${error.message}`);
+            return;
+        }
+        
+        // Update local data
+        if (window.customerPortalOrders) {
+            window.customerPortalOrders.forEach(order => {
+                if (selectedIds.includes(order.orderId)) {
+                    order.status = status;
+                }
+            });
+        }
+        
+        // Refresh display
+        refreshPortalOrders();
+        alert(`Updated ${selectedIds.length} orders to ${status} status`);
+        
+    } catch (error) {
+        console.error('Error updating order status:', error);
+        alert(`Error updating order status: ${error.message}`);
+    }
+}
+
+async function deleteSelectedOrders() {
+    const selectedIds = getSelectedOrderIds();
+    if (selectedIds.length === 0) {
+        alert('Please select orders first');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} selected orders? This cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        // Delete from database
+        const { error } = await supabaseClient
+            .from('orders')
+            .delete()
+            .in('order_id', selectedIds);
+            
+        if (error) {
+            console.error('Error deleting orders:', error);
+            alert(`Error deleting orders: ${error.message}`);
+            return;
+        }
+        
+        // Remove from local data
+        if (window.customerPortalOrders) {
+            window.customerPortalOrders = window.customerPortalOrders.filter(
+                order => !selectedIds.includes(order.orderId)
+            );
+        }
+        
+        // Refresh display
+        refreshPortalOrders();
+        alert(`Deleted ${selectedIds.length} orders successfully`);
+        
+    } catch (error) {
+        console.error('Error deleting orders:', error);
+        alert(`Error deleting orders: ${error.message}`);
+    }
+}

@@ -4910,3 +4910,64 @@ body.modal-open {
         font-size: 14px;
     }
 }
+
+/* Bulk Actions Styles */
+.portal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    background: #f8f9ff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    flex-wrap: wrap;
+}
+
+.selected-count {
+    font-weight: 600;
+    color: #4f46e5;
+    margin-right: 15px;
+}
+
+.main-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-small {
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+    height: auto !important;
+}
+
+.order-checkbox {
+    cursor: pointer;
+    transform: scale(1.2);
+}
+
+@media (max-width: 768px) {
+    .portal-actions {
+        gap: 10px;
+    }
+    
+    .bulk-actions {
+        padding: 10px 15px;
+        gap: 8px;
+    }
+    
+    .main-actions {
+        gap: 8px;
+    }
+    
+    .btn-small {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+    }
+}
