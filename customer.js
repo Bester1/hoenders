@@ -1643,8 +1643,9 @@ async function saveOrderToDatabase(orderData) {
             });
         }
         
-        // Create main order record
-        const orderRecord = {
+        // Create individual order records for each product (admin dashboard compatible)
+        const individualOrderRecords = orderItems.map((item, index) => ({
+            id: `${orderId}-${index + 1}`,
             order_id: orderId,
             order_date: new Date().toISOString().split('T')[0],
             customer_id: currentCustomer.id,
@@ -1652,20 +1653,21 @@ async function saveOrderToDatabase(orderData) {
             customer_email: currentCustomer.email,
             customer_phone: currentCustomer.phone || null,
             customer_address: currentCustomer.address || null,
-            product_name: orderItems.length === 1 ? orderItems[0].product_name : `${orderItems.length} items`,
-            quantity: orderItems.reduce((sum, item) => sum + item.quantity, 0),
-            weight_kg: totalWeight,
-            total_amount: totalAmount,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            weight_kg: item.weight_kg,
+            total_amount: item.line_total,
             source: 'customer_portal',
             status: 'pending',
             created_at: orderData.timestamp
-        };
+        }));
         
-        // Save main order
-        console.log('💾 Saving main order record:', orderRecord);
-        const { error: orderError } = await supabaseClient
+        // Save individual product orders
+        console.log('💾 Saving', individualOrderRecords.length, 'individual product order records');
+        console.log('📋 Sample order record:', individualOrderRecords[0]);
+        const { data: orderData, error: orderError } = await supabaseClient
             .from('orders')
-            .insert([orderRecord]);
+            .insert(individualOrderRecords);
             
         if (orderError) {
             console.error('❌ Error saving order:', orderError);
@@ -1679,7 +1681,7 @@ async function saveOrderToDatabase(orderData) {
                 throw new Error(`Database error: ${orderError.message}`);
             }
         }
-        console.log('✅ Main order saved successfully');
+        console.log('✅ Individual product orders saved successfully:', individualOrderRecords.length, 'records');
         
         // Save order items
         if (orderItems.length > 0) {
