@@ -577,7 +577,15 @@ function updateOrderCounts() {
 }
 
 // Load customer portal orders from the database
+let isLoadingPortalOrders = false;
+
 async function loadCustomerPortalOrders() {
+    if (isLoadingPortalOrders) {
+        console.log('⏳ Portal orders already loading, skipping...');
+        return;
+    }
+    
+    isLoadingPortalOrders = true;
     try {
         console.log('🔄 Loading customer portal orders...');
         
@@ -642,6 +650,8 @@ async function loadCustomerPortalOrders() {
     } catch (error) {
         console.error('❌ Failed to load customer portal orders:', error);
         window.customerPortalOrders = [];
+    } finally {
+        isLoadingPortalOrders = false;
     }
 }
 
@@ -1326,15 +1336,41 @@ async function generateInvoice(orderId) {
             
             if (itemsError) {
                 console.error('❌ Error loading order items:', itemsError);
-                // Fallback to showing summary from main order record
-                invoiceItems = [{
-                    product: order.product || '10 items',
-                    quantity: order.quantity || 16,
-                    weight: order.weight || 0,
-                    unitPrice: order.total / (order.weight || 1),
-                    total: order.total || 0,
-                    specialInstructions: ''
-                }];
+                // Get the original cart items from the saved order data
+                const savedOrderData = JSON.parse(localStorage.getItem(`orderData_${orderId}`) || '{}');
+                if (savedOrderData.items && Object.keys(savedOrderData.items).length > 0) {
+                    // Use the original cart data to create detailed items
+                    invoiceItems = Object.entries(savedOrderData.items).map(([productKey, quantity]) => {
+                        const productName = getProductNameFromKey(productKey);
+                        const pricing = getCustomerPricing();
+                        const productPricing = pricing[productName];
+                        
+                        if (productPricing) {
+                            const estimatedWeight = estimateProductWeight(productName, quantity);
+                            const lineTotal = productPricing.selling * estimatedWeight;
+                            
+                            return {
+                                product: productName,
+                                quantity: quantity,
+                                weight: estimatedWeight,
+                                unitPrice: productPricing.selling,
+                                total: lineTotal,
+                                specialInstructions: ''
+                            };
+                        }
+                        return null;
+                    }).filter(item => item !== null);
+                } else {
+                    // Final fallback - use the order record data
+                    invoiceItems = [{
+                        product: `Various items (${order.product})`,
+                        quantity: order.quantity || 1,
+                        weight: order.weight || 0,
+                        unitPrice: order.total / (order.weight || 1),
+                        total: order.total || 0,
+                        specialInstructions: ''
+                    }];
+                }
             } else {
                 // Use detailed order items
                 console.log('📋 Found', orderItems.length, 'detailed items');

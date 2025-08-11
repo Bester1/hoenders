@@ -1578,6 +1578,16 @@ async function handleOrderPlacement() {
         const savedOrderId = await saveOrderToDatabase(orderData);
         console.log('🎉 Order saved with ID:', savedOrderId);
         
+        // Save order data to localStorage for invoice generation
+        const orderDataForInvoice = {
+            orderId: savedOrderId,
+            items: cart,
+            customer: currentCustomer,
+            timestamp: orderData.timestamp
+        };
+        localStorage.setItem(`orderData_${savedOrderId}`, JSON.stringify(orderDataForInvoice));
+        console.log('💾 Order data saved to localStorage for invoice generation');
+        
         // Show confirmation step
         console.log('📱 Showing confirmation step...');
         showBeautifulStep(4);
