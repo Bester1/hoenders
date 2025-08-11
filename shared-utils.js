@@ -303,7 +303,7 @@ function getProductDisplayInfo(productName) {
     const displayMap = {
         'HEEL HOENDER': {
             displayName: 'Heel Hoender',
-            description: 'Hele vers hoender, perfek vir gesinne'
+            description: 'Hele vars hoender, perfek vir gesinne'
         },
         'PLAT HOENDER (FLATTY\'S)': {
             displayName: 'Plat Hoender (Flatty\'s)',
