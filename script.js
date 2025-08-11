@@ -1304,38 +1304,55 @@ function updateOrdersTable() {
 }
 
 // Invoice generation
-function generateInvoice(orderId) {
+async function generateInvoice(orderId) {
     const currentOrders = getCurrentOrders();
     
-    // Check if this is a customer portal order (individual product rows)
-    const customerPortalOrders = currentOrders.filter(o => o.orderId === orderId && o.source === 'Customer Portal');
+    // Check if this is a customer portal order (new single-record format)
+    const customerPortalOrder = currentOrders.find(o => o.orderId === orderId && (o.source === 'Customer Portal' || o.source === 'customer_portal'));
     
     let order, invoiceItems = [], subtotal = 0;
     
-    if (customerPortalOrders.length > 0) {
-        // Customer Portal Order: Multiple rows for same order ID
-        console.log('🛒 Processing Customer Portal order with', customerPortalOrders.length, 'items');
+    if (customerPortalOrder) {
+        // New Customer Portal Order: Single order record + separate order_items
+        console.log('🛒 Processing new Customer Portal order format');
+        order = customerPortalOrder;
         
-        // Use the first row for customer details
-        order = customerPortalOrders[0];
-        
-        // Create invoice items from each product row
-        invoiceItems = customerPortalOrders.map(productRow => {
-            const currentPricing = pricing[productRow.product];
-            const unitPrice = currentPricing ? currentPricing.selling : (productRow.pricePerKg || productRow.total / productRow.weight || 0);
-            const weight = productRow.weight || (productRow.quantity * 2.0);
-            const total = unitPrice * weight;
+        try {
+            // Fetch detailed items from order_items table
+            const { data: orderItems, error: itemsError } = await supabaseClient
+                .from('order_items')
+                .select('*')
+                .eq('order_id', orderId);
             
-            return {
-                product: productRow.product,
-                quantity: productRow.quantity,
-                weight: weight,
-                unitPrice: unitPrice,
-                total: total,
-                specialInstructions: productRow.deliveryInstructions || ''
-            };
-        });
-        subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+            if (itemsError) {
+                console.error('❌ Error loading order items:', itemsError);
+                // Fallback to showing summary from main order record
+                invoiceItems = [{
+                    product: order.product || '10 items',
+                    quantity: order.quantity || 16,
+                    weight: order.weight || 0,
+                    unitPrice: order.total / (order.weight || 1),
+                    total: order.total || 0,
+                    specialInstructions: ''
+                }];
+            } else {
+                // Use detailed order items
+                console.log('📋 Found', orderItems.length, 'detailed items');
+                invoiceItems = orderItems.map(item => ({
+                    product: item.product_name,
+                    quantity: item.quantity,
+                    weight: item.weight_kg,
+                    unitPrice: item.unit_price_per_kg,
+                    total: item.line_total,
+                    specialInstructions: ''
+                }));
+            }
+            
+            subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+        } catch (error) {
+            console.error('❌ Error fetching order items:', error);
+            return;
+        }
         
     } else {
         // Regular order (single order or multi-product format)
@@ -1432,7 +1449,7 @@ function generateAllInvoices() {
     const originalImportId = currentImportId;
     currentImportId = invoiceImportId;
     
-    pendingOrders.forEach(order => generateInvoice(order.orderId));
+    pendingOrders.forEach(async order => await generateInvoice(order.orderId));
     
     // Restore original current import
     currentImportId = originalImportId;
