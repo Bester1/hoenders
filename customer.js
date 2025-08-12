@@ -1767,7 +1767,8 @@ async function saveOrderToDatabase(orderData) {
                 weight_kg: estimatedWeight,
                 unit_price_per_kg: productPricing.selling,
                 line_total: itemTotal,
-                source: 'customer_selection'
+                source: 'customer_selection',
+                created_at: new Date().toISOString()  // Add timestamp
             });
             
             itemIndex++;
@@ -1827,9 +1828,28 @@ async function saveOrderToDatabase(orderData) {
                 console.error('❌ Full error details:', JSON.stringify(itemsResponse.error, null, 2));
                 // Don't throw error, but log it prominently
                 alert(`WARNING: Order saved but items may be missing. Error: ${itemsResponse.error.message}`);
+            } else if (!itemsResponse.data || itemsResponse.data.length === 0) {
+                console.error('❌ CRITICAL: Order items insert returned success but no data!');
+                console.error('❌ Response:', itemsResponse);
+                alert('WARNING: Order items may not have been saved properly!');
             } else {
                 console.log('✅ Order items saved successfully');
+                console.log('✅ Saved items count:', itemsResponse.data.length);
                 console.log('✅ Saved items data:', itemsResponse.data);
+                
+                // Verify the items were actually saved
+                const verifyResponse = await supabaseClient
+                    .from('order_items')
+                    .select('*')
+                    .eq('order_id', orderId);
+                    
+                console.log('🔍 Verification query for order_id:', orderId);
+                console.log('🔍 Found items after save:', verifyResponse.data?.length || 0);
+                
+                if (!verifyResponse.data || verifyResponse.data.length === 0) {
+                    console.error('❌ CRITICAL: Items not found after save!');
+                    alert('WARNING: Order items verification failed!');
+                }
             }
         } else {
             console.error('❌ CRITICAL: No order items to save! orderItems array is empty');
