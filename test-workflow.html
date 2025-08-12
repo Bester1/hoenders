@@ -703,7 +703,7 @@ Savings/Spaar rek`;
                 
                 const subject = `TEST - Plaas Hoenders Bestelling #${finalInvoice.orderId}`;
                 
-                // Send via Google Apps Script (production system)
+                // Send via Google Apps Script (production system) - now with proper CORS
                 const response = await fetch('https://script.google.com/macros/s/AKfycbzBN3lIbR-ZW9ybqb5E6e0XNa7wdrfKmO8d6pQeSVXAd0WM7tT-n9M4jFO42mC1vcS1/exec', {
                     method: 'POST',
                     headers: {
@@ -720,11 +720,11 @@ Savings/Spaar rek`;
                 const result = await response.json();
                 console.log('Email Response:', result);
                 
-                if (result.success) {
+                if (result.status === 'success') {
                     showStatus('step6Status', `✅ REAL test email sent to ${testCustomer.email}! Check your inbox.`, 'success');
                     document.getElementById('step6').classList.add('completed');
                 } else {
-                    throw new Error(result.error || 'Email sending failed');
+                    throw new Error(result.message || 'Email sending failed');
                 }
                 
             } catch (error) {

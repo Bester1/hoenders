@@ -66,26 +66,44 @@ function doPost(e) {
     // Log for tracking
     console.log('Email sent to:', data.to, 'Subject:', data.subject);
     
-    // Return success response
+    // Return success response with CORS headers
     return ContentService.createTextOutput(JSON.stringify({
       status: 'success',
       message: 'Email sent successfully',
       timestamp: new Date().toISOString()
-    })).setMimeType(ContentService.MimeType.JSON);
+    }))
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeaders({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+    });
     
   } catch (error) {
-    // Return error response
+    // Return error response with CORS headers
     console.error('Error sending email:', error);
     return ContentService.createTextOutput(JSON.stringify({
       status: 'error',
       message: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
+    }))
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeaders({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+    });
   }
 }
 
 // Handle preflight OPTIONS requests for CORS
 function doOptions(e) {
-  return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+  return ContentService.createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT)
+    .setHeaders({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+    });
 }
 
 // Test function to verify the script is working
@@ -93,8 +111,14 @@ function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({
     status: 'ready',
     message: 'Plaas Hoenders Email Service is running',
-    version: '1.4'
-  })).setMimeType(ContentService.MimeType.JSON);
+    version: '1.5'
+  }))
+  .setMimeType(ContentService.MimeType.JSON)
+  .setHeaders({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+  });
 }
 
 // Function to send test email (for testing in Apps Script editor)
