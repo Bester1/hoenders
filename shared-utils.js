@@ -260,7 +260,8 @@ function getProductCategories() {
             icon: 'fas fa-cut',
             products: [
                 'HEEL HALWE HOENDERS', 
-                'BORSSTUKKE MET BEEN EN VEL',
+                'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)',
+                'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
                 'BOUDE EN DYE',
                 'GUNS Boud en dy aanmekaar',
                 'VLERKIES',
