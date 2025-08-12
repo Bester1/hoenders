@@ -1307,8 +1307,15 @@ function updateCartSummary() {
                     const estimatedWeightStr = getEstimatedWeight(productName);
                     const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
                     
-                    const weight = estimatedWeight * qty;
-                    const amount = product.selling * weight;
+                    // Calculate based on unit type
+                    let amount;
+                    let weight = 0;
+                    if (product.unit === 'per potjie' || product.unit === 'per unit') {
+                        amount = product.selling * qty;
+                    } else {
+                        weight = estimatedWeight * qty;
+                        amount = product.selling * weight;
+                    }
                     
                     totalWeight += weight;
                     totalAmount += amount;
@@ -1316,10 +1323,20 @@ function updateCartSummary() {
                     
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'flex justify-between items-center py-2 border-b border-zinc-700/30';
+                    // Display text based on unit type
+                    let quantityText;
+                    if (product.unit === 'per potjie') {
+                        quantityText = `${qty}x potjie${qty > 1 ? 's' : ''}`;
+                    } else if (product.unit === 'per unit') {
+                        quantityText = `${qty}x unit${qty > 1 ? 's' : ''}`;
+                    } else {
+                        quantityText = `${qty}x (~${weight.toFixed(1)}kg)`;
+                    }
+                    
                     itemDiv.innerHTML = `
                         <div>
                             <p class="text-white font-medium">${displayInfo.displayName}</p>
-                            <p class="text-zinc-400 text-sm">${qty}x (~${weight.toFixed(1)}kg)</p>
+                            <p class="text-zinc-400 text-sm">${quantityText}</p>
                         </div>
                         <p class="text-orange-400 font-semibold">R${amount.toFixed(2)}</p>
                     `;
@@ -1541,15 +1558,32 @@ function populateOrderReview() {
                     const estimatedWeightStr = getEstimatedWeight(productName);
                     const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
                     
-                    const weight = estimatedWeight * qty;
-                    const amount = product.selling * weight;
+                    // Calculate based on unit type
+                    let amount;
+                    let weight = 0;
+                    if (product.unit === 'per potjie' || product.unit === 'per unit') {
+                        amount = product.selling * qty;
+                    } else {
+                        weight = estimatedWeight * qty;
+                        amount = product.selling * weight;
+                    }
                     
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'flex justify-between items-center py-3 border-b border-zinc-700/30';
+                    // Display text based on unit type
+                    let priceText;
+                    if (product.unit === 'per potjie') {
+                        priceText = `${qty}x potjie${qty > 1 ? 's' : ''} @ R${product.selling.toFixed(2)}/potjie`;
+                    } else if (product.unit === 'per unit') {
+                        priceText = `${qty}x unit${qty > 1 ? 's' : ''} @ R${product.selling.toFixed(2)}/unit`;
+                    } else {
+                        priceText = `${qty}x stuks (~${weight.toFixed(1)}kg @ R${product.selling.toFixed(2)}/kg)`;
+                    }
+                    
                     itemDiv.innerHTML = `
                         <div>
                             <p class="text-white font-medium">${displayInfo.displayName}</p>
-                            <p class="text-zinc-400 text-sm">${qty}x stuks (~${weight.toFixed(1)}kg @ R${product.selling.toFixed(2)}/kg)</p>
+                            <p class="text-zinc-400 text-sm">${priceText}</p>
                         </div>
                         <p class="text-orange-400 font-semibold">R${amount.toFixed(2)}</p>
                     `;
@@ -1687,7 +1721,16 @@ async function saveOrderToDatabase(orderData) {
             }
             
             const estimatedWeight = estimateProductWeight(productName, quantity);
-            const itemTotal = productPricing.selling * estimatedWeight;
+            
+            // Calculate total based on unit type
+            let itemTotal;
+            if (productPricing.unit === 'per potjie' || productPricing.unit === 'per unit') {
+                // For per-unit items, price is per unit, not per kg
+                itemTotal = productPricing.selling * quantity;
+            } else {
+                // For per-kg items, price is per kg
+                itemTotal = productPricing.selling * estimatedWeight;
+            }
             
             totalAmount += itemTotal;
             totalWeight += estimatedWeight;
@@ -1802,6 +1845,14 @@ function getProductNameFromKey(productKey) {
  * @returns {number} - Estimated weight in kg
  */
 function estimateProductWeight(productName, quantity) {
+    // Products sold per unit (not by weight)
+    const perUnitProducts = ['SUIWER HEUNING', 'INGELEGDE GROEN VYE'];
+    
+    // Return 0 weight for per-unit products (they don't use weight-based pricing)
+    if (perUnitProducts.includes(productName)) {
+        return 0; // These are sold per unit, not by weight
+    }
+    
     // Actual average weights per item based on your data (in kg)
     const typicalWeights = {
         'HEEL HOENDER': 2.19,                    // heel
@@ -1813,16 +1864,15 @@ function estimateProductWeight(productName, quantity) {
         'VLERKIES': 0.85,                        // vlerke
         'BOUDE EN DYE': 0.76,                    // boud/dy
         'FILETTE (sonder vel)': 1.04,            // Fillets
-        'SUIWER HEUNING': 1.00,                  // heuning
-        'DROË WORS': 1.23,                       // guns
-        'GROEN VYE': 1.00,                       // Groen vye
-        'KAASWORS': 0.57,                        // Kaaswors
+        'GUNS Boud en dy aanmekaar': 1.23,       // guns
         'LEWER': 0.50,                           // lewer
-        'ONTBEEN HOENDER': 1.53,                 // Ontbeen
-        'PATTIES': 0.58,                         // Patties
-        'PEP ROLL': 1.83,                        // Pep rol
+        'NEKKIES': 0.50,                         // Assuming 500g packs
+        'ONTBEENDE HOENDER': 1.53,               // Ontbeen
+        'HOENDER PATTIES': 0.58,                 // Patties
+        'HOENDER KAASWORS': 0.57,                // Kaaswors
         'STRIPS': 0.50,                          // Strips
-        'VYE ROLL': 1.75                         // Vye rol
+        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': 1.75,  // Vye rol
+        'GEVULDE HOENDER ROLLE OPSIE 2': 1.83    // Pep rol
     };
     
     const baseWeight = typicalWeights[productName] || 1.0; // Default 1kg if unknown
