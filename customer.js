@@ -1815,13 +1815,25 @@ async function saveOrderToDatabase(orderData) {
         // Save order items
         if (orderItems.length > 0) {
             console.log('💾 Saving order items:', orderItems);
+            console.log('🔍 Order items count:', orderItems.length);
+            console.log('🔍 First order item sample:', JSON.stringify(orderItems[0], null, 2));
+            
             const itemsResponse = await supabaseClient.from('order_items').insert(orderItems);
             
+            console.log('📡 Order items response:', itemsResponse);
+            
             if (itemsResponse.error) {
-                console.warn('⚠️ Order items not saved:', itemsResponse.error.message);
+                console.error('❌ CRITICAL: Order items not saved:', itemsResponse.error);
+                console.error('❌ Full error details:', JSON.stringify(itemsResponse.error, null, 2));
+                // Don't throw error, but log it prominently
+                alert(`WARNING: Order saved but items may be missing. Error: ${itemsResponse.error.message}`);
             } else {
                 console.log('✅ Order items saved successfully');
+                console.log('✅ Saved items data:', itemsResponse.data);
             }
+        } else {
+            console.error('❌ CRITICAL: No order items to save! orderItems array is empty');
+            console.log('🔍 orderData.items:', orderData.items);
         }
         
         console.log('Order saved successfully:', orderId);
