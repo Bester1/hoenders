@@ -44,6 +44,27 @@ async function handleAuthCallback() {
         console.log('DEBUG: Refresh token found:', !!refreshToken);
         console.log('DEBUG: Type:', type);
 
+        // Check for error parameters (expired links, etc.)
+        const error = hashParams.get('error');
+        const errorCode = hashParams.get('error_code');
+        const errorDescription = hashParams.get('error_description');
+
+        if (error) {
+            console.log('DEBUG: Auth error detected:', error, errorCode, errorDescription);
+            
+            // Clear the hash from URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            if (errorCode === 'otp_expired') {
+                showFormMessage(document.getElementById('registerMessage'), 'Email confirmation link has expired. Please request a new one.', 'error');
+                document.getElementById('resendConfirmation').style.display = 'block';
+                showAuthForm('register'); // Switch to register tab to show resend option
+            } else {
+                showFormMessage(document.getElementById('loginMessage'), `Authentication failed: ${errorDescription || error}`, 'error');
+            }
+            return;
+        }
+
         if (accessToken && refreshToken) {
             console.info('Processing auth callback:', type);
             
@@ -4327,6 +4348,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 showFormMessage(messageElement, 'Account created successfully! Please check your email to verify your account.', 'success');
                 registerForm.reset();
                 
+                // Show resend confirmation option
+                document.getElementById('resendConfirmation').style.display = 'block';
+                
             } catch (error) {
                 console.error('Registration error:', error);
                 showFormMessage(messageElement, error.message || 'Registration failed. Please try again.', 'error');
@@ -4375,6 +4399,42 @@ document.addEventListener('DOMContentLoaded', function() {
             } finally {
                 submitBtn.textContent = 'Login';
                 submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // Resend Confirmation Handler
+    const resendBtn = document.getElementById('resendConfirmBtn');
+    if (resendBtn) {
+        resendBtn.addEventListener('click', async function() {
+            const email = document.getElementById('registerEmail').value.trim();
+            
+            if (!email) {
+                showFormMessage(document.getElementById('registerMessage'), 'Please enter your email address first', 'error');
+                return;
+            }
+            
+            try {
+                resendBtn.textContent = 'Sending...';
+                resendBtn.disabled = true;
+                
+                const { error } = await supabaseClient.auth.resend({
+                    type: 'signup',
+                    email: email
+                });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                showFormMessage(document.getElementById('registerMessage'), 'Confirmation email sent! Please check your inbox.', 'success');
+                
+            } catch (error) {
+                console.error('Resend error:', error);
+                showFormMessage(document.getElementById('registerMessage'), error.message || 'Failed to resend confirmation email.', 'error');
+            } finally {
+                resendBtn.textContent = 'Resend Confirmation Email';
+                resendBtn.disabled = false;
             }
         });
     }
