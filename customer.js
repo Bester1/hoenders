@@ -4454,8 +4454,12 @@ async function clearAllAuthData() {
     try {
         console.log('Clearing all authentication data...');
         
-        // Sign out from Supabase
-        await supabaseClient.auth.signOut();
+        // Sign out from Supabase FIRST
+        try {
+            await supabaseClient.auth.signOut();
+        } catch(e) {
+            console.log('Sign out error (expected if not logged in):', e);
+        }
         
         // Clear all localStorage
         localStorage.clear();
@@ -4463,25 +4467,39 @@ async function clearAllAuthData() {
         // Clear all sessionStorage
         sessionStorage.clear();
         
-        // Clear all cookies for this domain
+        // CRITICAL: Clear IndexedDB where Supabase ACTUALLY stores auth
+        const databases = await indexedDB.databases();
+        for (const db of databases) {
+            if (db.name && db.name.includes('supabase')) {
+                indexedDB.deleteDatabase(db.name);
+                console.log('Deleted IndexedDB:', db.name);
+            }
+        }
+        
+        // Alternative IndexedDB clear for older browsers
+        try {
+            indexedDB.deleteDatabase('supabase-auth');
+            indexedDB.deleteDatabase('supabase');
+        } catch(e) {
+            console.log('IndexedDB clear attempt:', e);
+        }
+        
+        // Clear all cookies
         document.cookie.split(";").forEach(function(c) { 
             document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
         });
         
-        // Clear any Supabase specific storage
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && (key.includes('supabase') || key.includes('auth'))) {
-                keysToRemove.push(key);
+        // Force clear any remaining Supabase keys
+        for (let key in localStorage) {
+            if (key.includes('supabase') || key.includes('auth') || key.includes('gotrue')) {
+                localStorage.removeItem(key);
             }
         }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
         
         alert('✅ All auth data cleared! The page will now reload.');
         
-        // Reload the page to reset everything
-        window.location.reload();
+        // Hard reload to bypass cache
+        window.location.href = window.location.href.split('#')[0];
         
     } catch (error) {
         console.error('Error clearing auth data:', error);
