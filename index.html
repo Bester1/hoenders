@@ -6,6 +6,14 @@
     <title>Plaas Hoenders Orders - Admin Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        // Check if this is an email confirmation redirect from Supabase
+        // If there's an access_token in the hash, redirect to customer portal
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+            // Preserve the entire hash and redirect to customer portal
+            window.location.href = '/hoenders/customer-portal.html' + window.location.hash;
+        }
+    </script>
 </head>
 <body>
     <div class="admin-container">
