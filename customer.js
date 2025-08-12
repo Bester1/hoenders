@@ -2339,21 +2339,30 @@ function createCategoryProductCards(products, pricing) {
                     <span class="packaging-info">${priceData.packaging || 'Standard packaging'}</span>
                 </div>
                 
-                ${productName === 'BORSSTUKKE MET BEEN EN VEL' ? `
-                    <div class="pack-size-options">
-                        <h5 class="pack-size-title">Pack Size:</h5>
-                        <div class="pack-size-controls">
-                            <label class="pack-size-option">
-                                <input type="radio" name="borsstukke_pack_size" value="2" checked>
-                                <span class="pack-option-text">2-Pack (~1.05kg)</span>
-                            </label>
-                            <label class="pack-size-option">
-                                <input type="radio" name="borsstukke_pack_size" value="4">
-                                <span class="pack-option-text">4-Pack (~2.09kg)</span>
-                            </label>
-                        </div>
-                    </div>
-                ` : ''}
+                ${(() => {
+                    console.log(`🔍 Checking pack size for product: "${productName}"`);
+                    const shouldShowPackSize = productName === 'BORSSTUKKE MET BEEN EN VEL';
+                    console.log(`📦 Should show pack size options: ${shouldShowPackSize}`);
+                    
+                    if (shouldShowPackSize) {
+                        return `
+                            <div class="pack-size-options">
+                                <h5 class="pack-size-title">Pack Size:</h5>
+                                <div class="pack-size-controls">
+                                    <label class="pack-size-option">
+                                        <input type="radio" name="borsstukke_pack_size" value="2" checked>
+                                        <span class="pack-option-text">2-Pack (~1.05kg)</span>
+                                    </label>
+                                    <label class="pack-size-option">
+                                        <input type="radio" name="borsstukke_pack_size" value="4">
+                                        <span class="pack-option-text">4-Pack (~2.09kg)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    return '';
+                })()}
                 
                 <div class="product-actions">
                     ${availability.available ? `
