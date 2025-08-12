@@ -5512,6 +5512,16 @@ function populateWeightEditTable() {
     const tableBody = document.getElementById('weightEditTableBody');
     const items = editingInvoiceData.items || [];
     
+    console.log('🔍 Weight Edit Debug Info:');
+    console.log('📊 editingInvoiceData:', editingInvoiceData);
+    console.log('📦 items array:', items);
+    console.log('📈 items length:', items.length);
+    
+    if (items.length === 0) {
+        console.error('❌ No items found in invoice for weight editing');
+        console.log('🔍 Full invoice data:', JSON.stringify(editingInvoiceData, null, 2));
+    }
+    
     let tableHTML = '';
     
     items.forEach((item, index) => {
