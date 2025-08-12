@@ -4302,7 +4302,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 submitBtn.textContent = 'Creating Account...';
                 submitBtn.disabled = true;
                 
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
                     options: {
@@ -4352,7 +4352,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 submitBtn.textContent = 'Signing In...';
                 submitBtn.disabled = true;
                 
-                const { data, error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
