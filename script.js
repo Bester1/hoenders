@@ -1419,6 +1419,17 @@ async function generateInvoice(orderId) {
             const dbOrderId = customerPortalOrder.order_id || orderId;
             console.log(`🔍 Looking for order items with order_id: ${dbOrderId} (original orderId: ${orderId})`);
             
+            // First check if we can query the order_items table at all
+            const { data: allItems, error: allItemsError } = await supabaseClient
+                .from('order_items')
+                .select('order_id')
+                .limit(5);
+            
+            console.log('🗃️ Sample order_items in database:', allItems);
+            if (allItemsError) {
+                console.error('❌ Error querying order_items table:', allItemsError);
+            }
+            
             const { data: orderItems, error: itemsError } = await supabaseClient
                 .from('order_items')
                 .select('*')
