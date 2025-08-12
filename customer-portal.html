@@ -348,6 +348,13 @@
                     </form>
                     <div id="registerMessage" class="mt-4 text-center"></div>
                     
+                    <!-- Dev Tools Section (Remove in production) -->
+                    <div class="mt-6 pt-6 border-t border-zinc-700/30">
+                        <button onclick="clearAllAuthData()" class="w-full py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm transition-all">
+                            🧹 Clear All Auth Data (Dev Tool)
+                        </button>
+                    </div>
+                    
                     <!-- Resend Confirmation Section -->
                     <div id="resendConfirmation" class="mt-4 text-center" style="display: none;">
                         <p class="text-sm text-zinc-400 mb-3">Email confirmation link expired?</p>

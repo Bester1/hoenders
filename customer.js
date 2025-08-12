@@ -4448,3 +4448,46 @@ function showFormMessage(element, message, type) {
         element.style.display = 'block';
     }
 }
+
+// Development tool to clear all auth data
+async function clearAllAuthData() {
+    try {
+        console.log('Clearing all authentication data...');
+        
+        // Sign out from Supabase
+        await supabaseClient.auth.signOut();
+        
+        // Clear all localStorage
+        localStorage.clear();
+        
+        // Clear all sessionStorage
+        sessionStorage.clear();
+        
+        // Clear all cookies for this domain
+        document.cookie.split(";").forEach(function(c) { 
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+        });
+        
+        // Clear any Supabase specific storage
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes('supabase') || key.includes('auth'))) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        alert('✅ All auth data cleared! The page will now reload.');
+        
+        // Reload the page to reset everything
+        window.location.reload();
+        
+    } catch (error) {
+        console.error('Error clearing auth data:', error);
+        alert('Error clearing data: ' + error.message);
+    }
+}
+
+// Make function available globally
+window.clearAllAuthData = clearAllAuthData;
