@@ -4345,11 +4345,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     throw error;
                 }
                 
-                showFormMessage(messageElement, 'Account created successfully! Please check your email to verify your account.', 'success');
+                showFormMessage(messageElement, 'Account created successfully! You can now login.', 'success');
                 registerForm.reset();
                 
-                // Show resend confirmation option
-                document.getElementById('resendConfirmation').style.display = 'block';
+                // Auto-switch to login tab after successful registration
+                setTimeout(() => {
+                    showAuthForm('login');
+                    showFormMessage(document.getElementById('loginMessage'), 'Registration successful! Please login with your credentials.', 'success');
+                }, 2000);
                 
             } catch (error) {
                 console.error('Registration error:', error);
@@ -4403,41 +4406,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Resend Confirmation Handler
-    const resendBtn = document.getElementById('resendConfirmBtn');
-    if (resendBtn) {
-        resendBtn.addEventListener('click', async function() {
-            const email = document.getElementById('registerEmail').value.trim();
-            
-            if (!email) {
-                showFormMessage(document.getElementById('registerMessage'), 'Please enter your email address first', 'error');
-                return;
-            }
-            
-            try {
-                resendBtn.textContent = 'Sending...';
-                resendBtn.disabled = true;
-                
-                const { error } = await supabaseClient.auth.resend({
-                    type: 'signup',
-                    email: email
-                });
-                
-                if (error) {
-                    throw error;
-                }
-                
-                showFormMessage(document.getElementById('registerMessage'), 'Confirmation email sent! Please check your inbox.', 'success');
-                
-            } catch (error) {
-                console.error('Resend error:', error);
-                showFormMessage(document.getElementById('registerMessage'), error.message || 'Failed to resend confirmation email.', 'error');
-            } finally {
-                resendBtn.textContent = 'Resend Confirmation Email';
-                resendBtn.disabled = false;
-            }
-        });
-    }
 });
 
 // Helper function to show form messages
