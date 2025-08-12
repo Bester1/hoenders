@@ -908,6 +908,18 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
 
 // Email queue management
 function addToEmailQueue(orderData) {
+    // Check if email is valid before adding to queue
+    const isValidEmail = orderData.email && 
+                        orderData.email.includes('@') && 
+                        !orderData.email.includes('@placeholder.com') &&
+                        !orderData.email.includes('@email.com');
+    
+    if (!isValidEmail) {
+        console.log(`⚠️ Skipping email queue for ${orderData.name} - invalid email: ${orderData.email}`);
+        console.log(`📝 Invoice generated but customer needs valid email address for sending`);
+        return;
+    }
+    
     const emailData = {
         id: Date.now(),
         to: orderData.email,
@@ -918,9 +930,66 @@ function addToEmailQueue(orderData) {
         timestamp: new Date().toISOString()
     };
     
+    console.log(`✅ Added ${orderData.name} (${orderData.email}) to email queue`);
     emailQueue.push(emailData);
     updateEmailQueueDisplay();
     saveToStorage();
+}
+
+// Function to manually add an invoice to email queue
+function addInvoiceToEmailQueue(invoiceId) {
+    const invoice = invoices.find(inv => inv.invoiceId === invoiceId);
+    if (!invoice) {
+        alert('Invoice not found');
+        return;
+    }
+    
+    // Check if customer email is valid
+    const isValidEmail = invoice.customerEmail && 
+                        invoice.customerEmail.includes('@') && 
+                        !invoice.customerEmail.includes('@placeholder.com') &&
+                        !invoice.customerEmail.includes('@email.com');
+    
+    if (!isValidEmail) {
+        alert(`Cannot add to email queue: Invalid email address (${invoice.customerEmail || 'missing'})`);
+        return;
+    }
+    
+    // Check if already in queue
+    const alreadyQueued = emailQueue.find(email => email.orderData && email.orderData.invoiceId === invoiceId);
+    if (alreadyQueued) {
+        alert('This invoice is already in the email queue');
+        return;
+    }
+    
+    // Create order data object for email generation
+    const orderData = {
+        name: invoice.customerName,
+        email: invoice.customerEmail,
+        phone: invoice.customerPhone,
+        address: invoice.customerAddress,
+        orderId: invoice.orderId,
+        invoiceId: invoice.invoiceId,
+        total: invoice.total
+    };
+    
+    // Add to queue
+    const emailData = {
+        id: Date.now(),
+        to: invoice.customerEmail,
+        subject: generateEmailSubject(orderData),
+        body: generateEmailBody(orderData),
+        orderData: orderData,
+        status: 'pending',
+        timestamp: new Date().toISOString()
+    };
+    
+    emailQueue.push(emailData);
+    updateEmailQueueDisplay();
+    saveToStorage();
+    
+    console.log(`✅ Manually added invoice ${invoiceId} to email queue for ${invoice.customerName}`);
+    alert(`Successfully added invoice to email queue for ${invoice.customerName}`);
 }
 
 // Multi-product version for PDF imports
@@ -1561,6 +1630,9 @@ function updateInvoicesDisplay(importId = null) {
                             <i class="fas fa-edit"></i> Edit Weights
                         </button>` : ''}
                     <button onclick="downloadInvoice('${invoice.invoiceId}')" class="btn-small btn-secondary">Download PDF</button>
+                    <button onclick="addInvoiceToEmailQueue('${invoice.invoiceId}')" class="btn-small btn-success">
+                        <i class="fas fa-envelope"></i> Add to Email Queue
+                    </button>
                 </div>
             </div>
         `;
