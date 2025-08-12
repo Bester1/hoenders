@@ -1110,6 +1110,44 @@ function loadCartFromStorage() {
         } else {
             cart = cartData.items || {};
             console.log('📦 Cart loaded from localStorage:', Object.keys(cart).length, 'items');
+            
+            // Clean cart of invalid products (like old BORSSTUKKE_MET_BEEN_EN_VEL without pack size)
+            const pricing = getCustomerPricing();
+            const cleanedCart = {};
+            let removedCount = 0;
+            
+            for (const [productKey, quantity] of Object.entries(cart)) {
+                // Skip the old BORSSTUKKE product without pack size
+                if (productKey === 'BORSSTUKKE_MET_BEEN_EN_VEL') {
+                    console.warn(`🧹 Removing old BORSSTUKKE product (use 2 IN PAK or 4 IN PAK instead)`);
+                    removedCount++;
+                    continue;
+                }
+                
+                // Try to find the product in current pricing
+                let productFound = false;
+                for (const productName of Object.keys(pricing)) {
+                    const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
+                    if (generatedKey === productKey) {
+                        cleanedCart[productKey] = quantity;
+                        productFound = true;
+                        break;
+                    }
+                }
+                
+                if (!productFound) {
+                    console.warn(`🧹 Removing invalid product from cart: ${productKey}`);
+                    removedCount++;
+                } else {
+                    cleanedCart[productKey] = quantity;
+                }
+            }
+            
+            if (removedCount > 0) {
+                cart = cleanedCart;
+                saveCartToStorage();
+                console.log(`✅ Cleaned ${removedCount} invalid products from cart`);
+            }
         }
         
         // Update display after loading
@@ -1642,6 +1680,12 @@ async function saveOrderToDatabase(orderData) {
             }
             
             // Estimate weight for this product and quantity
+            // Skip this item if no pricing found (handle old cart items)
+            if (!productPricing) {
+                console.warn(`⚠️ Skipping item without pricing: ${productName}`);
+                continue;
+            }
+            
             const estimatedWeight = estimateProductWeight(productName, quantity);
             const itemTotal = productPricing.selling * estimatedWeight;
             
