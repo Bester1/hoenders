@@ -9,14 +9,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Suppress Tailwind CDN production warnings
+        // Suppress ALL Tailwind CDN production warnings
         if (window.console) {
             const originalWarn = console.warn;
             const originalLog = console.log;
+            const originalError = console.error;
             
             console.warn = function(...args) {
                 const message = args[0]?.toString() || '';
-                if (message.includes('cdn.tailwindcss.com') && message.includes('production')) {
+                if (message.includes('cdn.tailwindcss.com') || message.includes('should not be used in production')) {
                     return; // Suppress Tailwind production warnings
                 }
                 originalWarn.apply(console, args);
@@ -24,10 +25,18 @@
             
             console.log = function(...args) {
                 const message = args[0]?.toString() || '';
-                if (message.includes('cdn.tailwindcss.com') && message.includes('production')) {
+                if (message.includes('cdn.tailwindcss.com') || message.includes('should not be used in production')) {
                     return; // Suppress Tailwind production warnings in console.log too
                 }
                 originalLog.apply(console, args);
+            };
+            
+            console.error = function(...args) {
+                const message = args[0]?.toString() || '';
+                if (message.includes('cdn.tailwindcss.com') || message.includes('should not be used in production')) {
+                    return; // Suppress Tailwind production warnings in console.error too
+                }
+                originalError.apply(console, args);
             };
         }
     </script>
