@@ -1883,11 +1883,13 @@ async function loadEmailTemplate() {
                 .from('settings')
                 .select('email_template')
                 .eq('id', 'main')
-                .single();
+                .maybeSingle(); // Use maybeSingle instead of single to handle missing records
             
-            if (settingsData && settingsData.email_template) {
+            if (!settingsError && settingsData && settingsData.email_template) {
                 template = settingsData.email_template;
                 console.log('✅ Email template loaded from database');
+            } else if (settingsError) {
+                console.log('⚠️ Email template not found in database, will use localStorage fallback');
             }
         }
     } catch (error) {
@@ -2668,6 +2670,10 @@ function refreshEmailQueueForInvoice(invoiceId) {
         updateEmailQueueDisplay();
         saveToStorage();
         addActivity(`Updated ${queueItemsToUpdate.length} queued emails with new invoice weights`);
+    } else {
+        // No email in queue for this invoice - try to add it automatically
+        console.log(`🔄 No email queue items found for invoice ${invoiceId}, attempting to add automatically`);
+        addInvoiceToEmailQueue(invoiceId);
     }
 }
 
