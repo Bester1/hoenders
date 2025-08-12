@@ -38,6 +38,12 @@ async function handleAuthCallback() {
         const refreshToken = hashParams.get('refresh_token');
         const type = hashParams.get('type');
 
+        console.log('DEBUG: Current URL:', window.location.href);
+        console.log('DEBUG: Hash params:', window.location.hash);
+        console.log('DEBUG: Access token found:', !!accessToken);
+        console.log('DEBUG: Refresh token found:', !!refreshToken);
+        console.log('DEBUG: Type:', type);
+
         if (accessToken && refreshToken) {
             console.info('Processing auth callback:', type);
             
