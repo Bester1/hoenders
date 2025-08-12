@@ -454,17 +454,56 @@ async function exportToExcelForButchery() {
         return;
     }
     
-    // Create CSV content with detailed order information
-    let csvContent = 'Customer Name,Email,Phone,Address,Product,Quantity,Est. Weight (kg),Unit Price,Total\n';
-    
+    // Get all unique products from all orders
+    const allProducts = new Set();
     monthOrders.forEach(order => {
         if (order.products && Array.isArray(order.products)) {
             order.products.forEach(item => {
-                csvContent += `"${order.name}","${order.email}","${order.phone || ''}","${order.address || ''}","${item.product}",${item.quantity},${(item.weight || 0).toFixed(2)},${(item.unitPrice || 0).toFixed(2)},${(item.total || 0).toFixed(2)}\n`;
+                allProducts.add(item.product);
             });
-        } else {
-            csvContent += `"${order.name}","${order.email}","${order.phone || ''}","${order.address || ''}","${order.product}",${order.quantity},${(order.weight || 0).toFixed(2)},${(order.unitPrice || 0).toFixed(2)},${(order.total || 0).toFixed(2)}\n`;
+        } else if (order.product) {
+            allProducts.add(order.product);
         }
+    });
+    
+    const productList = Array.from(allProducts).sort();
+    
+    // Create CSV header: Email, Name, Address, Phone, then one column per product
+    let csvContent = 'Email,Customer Name,Address,Phone,' + productList.map(p => `"${p}"`).join(',') + '\n';
+    
+    // Create one row per customer with product quantities in appropriate columns
+    monthOrders.forEach(order => {
+        const row = [];
+        
+        // A1: Email
+        row.push(`"${order.email}"`);
+        
+        // B1: Customer Name  
+        row.push(`"${order.name}"`);
+        
+        // C1: Address
+        row.push(`"${order.address || ''}"`);
+        
+        // D1: Phone
+        row.push(`"${order.phone || ''}"`);
+        
+        // E1, F1, G1... : Product quantities
+        const customerProducts = {};
+        
+        if (order.products && Array.isArray(order.products)) {
+            order.products.forEach(item => {
+                customerProducts[item.product] = (customerProducts[item.product] || 0) + (item.quantity || 0);
+            });
+        } else if (order.product) {
+            customerProducts[order.product] = (customerProducts[order.product] || 0) + (order.quantity || 0);
+        }
+        
+        // Add quantity for each product in the correct column
+        productList.forEach(product => {
+            row.push(customerProducts[product] || 0);
+        });
+        
+        csvContent += row.join(',') + '\n';
     });
     
     // Add summary section
