@@ -1013,7 +1013,7 @@ function populateAllProducts() {
                     <i class="${category.icon} text-orange-400"></i>
                     <h3 class="text-lg font-semibold text-white">${category.name}</h3>
                 </div>
-                <p class="text-zinc-400 text-sm mt-2">${category.description}</p>
+                <p class="text-zinc-200 text-base mt-2 font-medium">${category.description}</p>
             `;
             productGrid.appendChild(categoryHeader);
             
@@ -1038,13 +1038,13 @@ function populateAllProducts() {
                 productCard.innerHTML = `
                         <div class="mb-4">
                             <h4 class="text-lg font-semibold text-white mb-2">${displayInfo.displayName}</h4>
-                            <p class="text-zinc-400 text-sm mb-3">${displayInfo.description}</p>
-                        <div class="text-xs text-zinc-500 mb-3 p-2 bg-zinc-700/30 rounded-lg">
+                            <p class="text-zinc-200 text-base mb-3 font-medium">${displayInfo.description}</p>
+                        <div class="text-sm text-zinc-200 mb-3 p-2 bg-zinc-700/30 rounded-lg font-medium">
                             <i class="fas fa-box"></i> ${priceData.packaging || 'Standard packaging'}
                         </div>
                         <div class="flex justify-between items-center mb-4">
                             <span class="text-orange-400 font-semibold">R${priceData.selling.toFixed(2)}${priceData.unit === 'per potjie' ? '/potjie' : priceData.unit === 'per unit' ? '/unit' : '/kg'}</span>
-                            <span class="text-xs text-zinc-500">${priceData.unit === 'per potjie' || priceData.unit === 'per unit' ? estimatedWeight : `~${estimatedWeight} est.`}</span>
+                            <span class="text-sm text-zinc-200 font-medium">${priceData.unit === 'per potjie' || priceData.unit === 'per unit' ? estimatedWeight : `~${estimatedWeight} est.`}</span>
                             </div>
                         </div>
                         
@@ -1062,7 +1062,7 @@ function populateAllProducts() {
                                     </svg>
                                 </button>
                             </div>
-                            <span class="text-xs text-zinc-500" id="total-${productKey}">R0.00</span>
+                            <span class="text-sm text-zinc-200 font-medium" id="total-${productKey}">R0.00</span>
                         </div>
                 `;
                 
