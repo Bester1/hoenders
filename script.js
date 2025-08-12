@@ -1412,10 +1412,14 @@ async function generateInvoice(orderId) {
         
         try {
             // Fetch detailed items from order_items table
+            // Use the actual database order_id from the customer portal order
+            const dbOrderId = customerPortalOrder.order_id || orderId;
+            console.log(`🔍 Looking for order items with order_id: ${dbOrderId} (original orderId: ${orderId})`);
+            
             const { data: orderItems, error: itemsError } = await supabaseClient
                 .from('order_items')
                 .select('*')
-                .eq('order_id', orderId);
+                .eq('order_id', dbOrderId);
             
             if (itemsError) {
                 console.error('❌ Error loading order items:', itemsError);
