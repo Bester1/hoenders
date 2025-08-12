@@ -1741,7 +1741,7 @@ async function loadStoredData() {
     }
     
     // Load saved email template
-    loadEmailTemplate();
+    await loadEmailTemplate();
 }
 
 // Settings functions
@@ -1763,36 +1763,87 @@ function saveSettings() {
 }
 
 
-function saveEmailTemplate() {
+async function saveEmailTemplate() {
     const template = {
         subject: document.getElementById('emailSubject').value,
         body: document.getElementById('emailTemplate').value
     };
     
-    localStorage.setItem('plaasHoendersEmailTemplate', JSON.stringify(template));
-    addActivity('Email template updated');
-    alert('Email template saved!');
+    try {
+        // Save to localStorage (existing functionality)
+        localStorage.setItem('plaasHoendersEmailTemplate', JSON.stringify(template));
+        
+        // Save to Supabase database
+        if (supabaseClient) {
+            const { error: settingsError } = await supabaseClient
+                .from('settings')
+                .upsert({
+                    id: 'main',
+                    email_template: template
+                });
+            
+            if (settingsError) {
+                console.error('Error saving email template to database:', settingsError);
+                addActivity('Email template updated (localStorage only - database error)');
+                alert('Email template saved to browser storage. Database save failed.');
+                return;
+            }
+        }
+        
+        addActivity('Email template updated and saved to database');
+        alert('Email template saved successfully!');
+    } catch (error) {
+        console.error('Error saving email template:', error);
+        addActivity('Email template updated (localStorage only)');
+        alert('Email template saved to browser storage only.');
+    }
 }
 
-function loadEmailTemplate() {
-    const storedTemplate = localStorage.getItem('plaasHoendersEmailTemplate');
-    if (storedTemplate) {
-        try {
-            const template = JSON.parse(storedTemplate);
+async function loadEmailTemplate() {
+    let template = null;
+    
+    try {
+        // Try to load from database first
+        if (supabaseClient) {
+            const { data: settingsData, error: settingsError } = await supabaseClient
+                .from('settings')
+                .select('email_template')
+                .eq('id', 'main')
+                .single();
             
-            const subjectElement = document.getElementById('emailSubject');
-            const bodyElement = document.getElementById('emailTemplate');
-            
-            if (subjectElement && template.subject) {
-                subjectElement.value = template.subject;
+            if (settingsData && settingsData.email_template) {
+                template = settingsData.email_template;
+                console.log('✅ Email template loaded from database');
             }
-            if (bodyElement && template.body) {
-                bodyElement.value = template.body;
+        }
+    } catch (error) {
+        console.error('Error loading email template from database:', error);
+    }
+    
+    // Fall back to localStorage if database loading failed
+    if (!template) {
+        const storedTemplate = localStorage.getItem('plaasHoendersEmailTemplate');
+        if (storedTemplate) {
+            try {
+                template = JSON.parse(storedTemplate);
+                console.log('✅ Email template loaded from localStorage');
+            } catch (error) {
+                console.error('Error loading email template from localStorage:', error);
             }
-            
-            console.log('✅ Email template loaded from storage');
-        } catch (error) {
-            console.error('Error loading email template:', error);
+        }
+    }
+    
+    // Apply template to UI elements
+    if (template) {
+        const subjectElement = document.getElementById('emailSubject');
+        const bodyElement = document.getElementById('emailTemplate');
+        
+        if (subjectElement && template.subject) {
+            subjectElement.value = template.subject;
+        }
+        
+        if (bodyElement && template.body) {
+            bodyElement.value = template.body;
         }
     }
 }
