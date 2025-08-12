@@ -257,54 +257,6 @@
             border: 1px solid rgba(239, 68, 68, 0.3);
 }
         
-        /* Beautiful Product Card Background Styling */
-        .product-card-bg {
-            position: relative;
-            overflow: hidden;
-            background: linear-gradient(135deg, rgba(251, 146, 60, 0.05) 0%, rgba(254, 215, 170, 0.05) 100%);
-        }
-        
-        .product-card-bg::before {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 120px;
-            height: 80px;
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80"><defs><linearGradient id="sunsetBg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23ff9a56;stop-opacity:0.2"/><stop offset="100%" style="stop-color:%23ff6b6b;stop-opacity:0.1"/></linearGradient></defs><rect width="120" height="80" fill="url(%23sunsetBg)"/><g opacity="0.4"><path d="M20 65 Q15 55 18 45 Q20 40 25 40 Q30 40 32 45 Q35 55 30 65 L20 65" fill="%23000"/><circle cx="22" cy="42" r="1" fill="%23fff"/><path d="M18 40 Q20 38 22 40" stroke="%23000" stroke-width="0.5" fill="none"/><path d="M50 70 Q45 60 48 50 Q50 45 55 45 Q60 45 62 50 Q65 60 60 70 L50 70" fill="%23000"/><circle cx="52" cy="47" r="1" fill="%23fff"/><path d="M85 68 Q80 58 83 48 Q85 43 90 43 Q95 43 97 48 Q100 58 95 68 L85 68" fill="%23000"/><circle cx="87" cy="45" r="1" fill="%23fff"/></g><line x1="0" y1="72" x2="120" y2="72" stroke="%238B4513" stroke-width="1.5" opacity="0.3"/></svg>');
-            background-repeat: no-repeat;
-            background-position: bottom right;
-            background-size: contain;
-            opacity: 0.6;
-            z-index: 0;
-        }
-        
-        .product-card-bg::after {
-            content: '';
-            position: absolute;
-            top: -20px;
-            right: -20px;
-            width: 80px;
-            height: 80px;
-            background: radial-gradient(circle, rgba(254, 215, 170, 0.2) 0%, transparent 70%);
-            border-radius: 50%;
-        }
-        
-        .product-card-content {
-            position: relative;
-            z-index: 1;
-        }
-        
-        /* Add subtle animation on hover */
-        .product-card-bg:hover::before {
-            opacity: 0.4;
-            transition: opacity 0.3s ease;
-        }
-        
-        .product-card-bg:hover::after {
-            transform: scale(1.2);
-            transition: transform 0.3s ease;
-        }
     </style>
 </head>
 <body class="min-h-screen text-white antialiased">

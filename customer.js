@@ -1009,10 +1009,9 @@ function populateAllProducts() {
                 console.log(`🔑 Generated key: "${productName}" → "${productKey}"`);
                 
                 const productCard = document.createElement('div');
-                productCard.className = 'product-card-bg bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
+                productCard.className = 'bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
                 
                 productCard.innerHTML = `
-                    <div class="product-card-content">
                         <div class="mb-4">
                             <h4 class="text-lg font-semibold text-white mb-2">${displayInfo.displayName}</h4>
                             <p class="text-zinc-400 text-sm mb-3">${displayInfo.description}</p>
@@ -1041,7 +1040,6 @@ function populateAllProducts() {
                             </div>
                             <span class="text-xs text-zinc-500" id="total-${productKey}">R0.00</span>
                         </div>
-                    </div>
                 `;
                 
                 productGrid.appendChild(productCard);
