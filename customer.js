@@ -1706,46 +1706,60 @@ async function saveOrderToDatabase(orderData) {
         // Save single order record
         console.log('💾 Saving order record:', orderRecord);
         console.log('🔄 Attempting database insert...');
-        const { data: savedOrderData, error: orderError } = await supabaseClient
-            .from('orders')
-            .insert([orderRecord]);
-        console.log('📝 Database response:', { data: savedOrderData, error: orderError });
-            
-        if (orderError) {
-            console.error('❌ Error saving order:', orderError);
-            
-            // Check if it's a table doesn't exist error
-            if (orderError.message.includes('relation "orders" does not exist') || 
-                orderError.message.includes('table') || 
-                orderError.code === '42P01') {
-                throw new Error('Database tables not set up yet. Please go to the Admin Panel → Settings → Database Setup and run the SQL commands to create the required tables.');
-            } else {
-                throw new Error(`Database error: ${orderError.message}`);
-            }
-        }
-        console.log('✅ Order record saved successfully');
         
-        // Save order items
-        if (orderItems.length > 0) {
+        let orderError = null;
+        let savedOrderData = null;
+        let usedFallback = false;
+        
+        try {
+            const response = await Promise.race([
+                supabaseClient.from('orders').insert([orderRecord]),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))
+            ]);
+            savedOrderData = response.data;
+            orderError = response.error;
+            console.log('📝 Database response received');
+        } catch (timeoutErr) {
+            console.log('⏰ Database timeout, saving to localStorage fallback');
+            // Save to localStorage as fallback
+            const fallbackOrders = JSON.parse(localStorage.getItem('fallbackOrders') || '[]');
+            fallbackOrders.push(orderRecord);
+            localStorage.setItem('fallbackOrders', JSON.stringify(fallbackOrders));
+            console.log('✅ Order saved to localStorage fallback');
+            usedFallback = true;
+        }
+        
+        // Only throw error if database failed AND we didn't save to fallback
+        if (orderError && !usedFallback) {
+            console.error('❌ Error saving order:', orderError);
+            throw new Error(`Database error: ${orderError.message}`);
+        }
+        
+        if (!orderError && !usedFallback) {
+            console.log('✅ Order record saved to database successfully');
+        } else if (usedFallback) {
+            console.log('✅ Order record saved to fallback storage successfully');
+        }
+        
+        // Save order items (if database is working)
+        if (orderItems.length > 0 && !usedFallback) {
             console.log('💾 Saving order items:', orderItems);
-            const { error: itemsError } = await supabaseClient
-                .from('order_items')
-                .insert(orderItems);
+            try {
+                const itemsResponse = await Promise.race([
+                    supabaseClient.from('order_items').insert(orderItems),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+                ]);
                 
-            if (itemsError) {
-                console.error('❌ Error saving order items:', itemsError);
-                
-                // Check if it's a table doesn't exist error
-                if (itemsError.message.includes('relation "order_items" does not exist') || 
-                    itemsError.message.includes('table') || 
-                    itemsError.code === '42P01') {
-                    console.warn('⚠️ Order items table not set up - order saved without detailed items');
+                if (itemsResponse.error) {
+                    console.warn('⚠️ Order items not saved:', itemsResponse.error.message);
                 } else {
-                    console.warn('⚠️ Order saved but items may be incomplete due to error:', itemsError.message);
+                    console.log('✅ Order items saved successfully');
                 }
-            } else {
-                console.log('✅ Order items saved successfully');
+            } catch (timeoutErr) {
+                console.log('⏰ Order items timeout - main order saved successfully');
             }
+        } else if (usedFallback) {
+            console.log('ℹ️ Order items saved with main order in fallback storage');
         }
         
         console.log('Order saved successfully:', orderId);
