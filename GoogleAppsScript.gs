@@ -101,8 +101,9 @@ function doOptions(e) {
     .setMimeType(ContentService.MimeType.TEXT)
     .setHeaders({
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization'
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS,PUT,DELETE',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,Accept,Origin',
+      'Access-Control-Max-Age': '86400'
     });
 }
 

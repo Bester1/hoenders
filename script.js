@@ -969,7 +969,10 @@ function generateEmailBody(orderData) {
         // Generate detailed invoice table
         invoiceDetails = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
         invoiceDetails += '<tr style="background-color: #f0f0f0;"><th>Description</th><th>Quantity</th>';
-        if (invoice.source === 'PDF') {
+        
+        // Show weight column if ANY item has weight data
+        const hasWeightData = invoice.items.some(item => item.weight && item.weight > 0);
+        if (hasWeightData) {
             invoiceDetails += '<th>KG</th>';
         }
         invoiceDetails += '<th>Unit Price</th><th>Total</th></tr>';
@@ -978,7 +981,7 @@ function generateEmailBody(orderData) {
             invoiceDetails += '<tr>';
             invoiceDetails += `<td>${item.originalDescription || item.product}</td>`;
             invoiceDetails += `<td>${item.quantity}</td>`;
-            if (invoice.source === 'PDF' && item.weight) {
+            if (hasWeightData && item.weight) {
                 invoiceDetails += `<td>${item.weight.toFixed(2)}</td>`;
             }
             invoiceDetails += `<td>R${(item.unitPrice || 0).toFixed(2)}</td>`;
@@ -1026,7 +1029,10 @@ function generateEmailBodyMultiProduct(orderData) {
         // Generate detailed invoice table
         invoiceDetails = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
         invoiceDetails += '<tr style="background-color: #f0f0f0;"><th>Description</th><th>Quantity</th>';
-        if (invoice.source === 'PDF') {
+        
+        // Show weight column if ANY item has weight data
+        const hasWeightData = invoice.items.some(item => item.weight && item.weight > 0);
+        if (hasWeightData) {
             invoiceDetails += '<th>KG</th>';
         }
         invoiceDetails += '<th>Unit Price</th><th>Total</th></tr>';
@@ -1035,7 +1041,7 @@ function generateEmailBodyMultiProduct(orderData) {
             invoiceDetails += '<tr>';
             invoiceDetails += `<td>${item.originalDescription || item.product}</td>`;
             invoiceDetails += `<td>${item.quantity}</td>`;
-            if (invoice.source === 'PDF' && item.weight) {
+            if (hasWeightData && item.weight) {
                 invoiceDetails += `<td>${item.weight.toFixed(2)}</td>`;
             }
             invoiceDetails += `<td>R${(item.unitPrice || 0).toFixed(2)}</td>`;
