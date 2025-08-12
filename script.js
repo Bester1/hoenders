@@ -1446,7 +1446,7 @@ async function generateInvoice(orderId) {
         subtotal: subtotal,
         tax: 0, // NO VAT
         total: subtotal, // Total = subtotal (no VAT)
-        status: 'generated'
+        status: order.source === 'Customer Portal' ? 'provisional' : 'generated'
     };
     
     // Add invoice to both global and import-specific collections
@@ -1536,6 +1536,10 @@ function updateInvoicesDisplay(importId = null) {
                 </div>
                 <div class="invoice-actions">
                     <button onclick="previewInvoice('${invoice.invoiceId}')" class="btn-small btn-primary">Preview</button>
+                    ${invoice.status === 'provisional' || invoice.status === 'draft' ? 
+                        `<button onclick="editInvoiceWeights('${invoice.invoiceId}')" class="btn-small btn-secondary">
+                            <i class="fas fa-edit"></i> Edit Weights
+                        </button>` : ''}
                     <button onclick="downloadInvoice('${invoice.invoiceId}')" class="btn-small btn-secondary">Download PDF</button>
                 </div>
             </div>
@@ -5170,3 +5174,210 @@ async function deleteSelectedOrders() {
         alert(`Error deleting orders: ${error.message}`);
     }
 }
+
+// Weight Editing Functions
+let currentEditingInvoice = null;
+let editingInvoiceData = null;
+
+function editInvoiceWeights(invoiceId) {
+    // Find the invoice
+    const invoice = invoices.find(inv => inv.invoiceId === invoiceId);
+    if (!invoice) {
+        alert('Invoice not found');
+        return;
+    }
+    
+    // Check if invoice can be edited
+    if (invoice.status !== 'provisional' && invoice.status !== 'draft') {
+        alert('Only provisional or draft invoices can have weights edited');
+        return;
+    }
+    
+    currentEditingInvoice = invoiceId;
+    editingInvoiceData = JSON.parse(JSON.stringify(invoice)); // Deep copy
+    
+    // Update modal header
+    document.getElementById('weightEditInvoiceTitle').textContent = `${invoice.invoiceId}`;
+    document.getElementById('weightEditInvoiceInfo').textContent = 
+        `Customer: ${invoice.customerName} | Date: ${invoice.date} | Status: ${invoice.status.toUpperCase()}`;
+    
+    // Populate the table
+    populateWeightEditTable();
+    
+    // Show modal
+    document.getElementById('weightEditModal').style.display = 'flex';
+    
+    console.log('📝 Opened weight editing for invoice:', invoiceId);
+}
+
+function populateWeightEditTable() {
+    const tableBody = document.getElementById('weightEditTableBody');
+    const items = editingInvoiceData.items || [];
+    
+    let tableHTML = '';
+    
+    items.forEach((item, index) => {
+        const originalWeight = item.weight || 0;
+        const unitPrice = item.unitPrice || 0;
+        const newTotal = originalWeight * unitPrice;
+        
+        tableHTML += `
+            <tr data-item-index="${index}">
+                <td><strong>${item.product}</strong></td>
+                <td>${item.quantity || 1}</td>
+                <td>${originalWeight.toFixed(2)}</td>
+                <td>
+                    <input type="number" 
+                           class="weight-input" 
+                           data-item-index="${index}"
+                           value="${originalWeight.toFixed(2)}" 
+                           min="0" 
+                           step="0.01"
+                           onchange="updateItemWeight(${index}, this.value)"
+                           onkeyup="updateItemWeight(${index}, this.value)">
+                </td>
+                <td>R${unitPrice.toFixed(2)}</td>
+                <td class="new-total" id="itemTotal-${index}">R${newTotal.toFixed(2)}</td>
+            </tr>
+        `;
+    });
+    
+    tableBody.innerHTML = tableHTML;
+    updateEditTotals();
+}
+
+function updateItemWeight(itemIndex, newWeight) {
+    const weight = parseFloat(newWeight) || 0;
+    const item = editingInvoiceData.items[itemIndex];
+    const originalWeight = item.weight;
+    
+    // Update the item weight in our editing data
+    editingInvoiceData.items[itemIndex].weight = weight;
+    editingInvoiceData.items[itemIndex].total = weight * item.unitPrice;
+    
+    // Update the total display for this item
+    const newTotal = weight * item.unitPrice;
+    document.getElementById(`itemTotal-${itemIndex}`).textContent = `R${newTotal.toFixed(2)}`;
+    
+    // Highlight changed weights
+    const input = document.querySelector(`input[data-item-index="${itemIndex}"]`);
+    if (Math.abs(weight - originalWeight) > 0.001) {
+        input.classList.add('weight-changed');
+    } else {
+        input.classList.remove('weight-changed');
+    }
+    
+    // Update totals
+    updateEditTotals();
+}
+
+function updateEditTotals() {
+    const items = editingInvoiceData.items || [];
+    const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0);
+    const tax = 0; // No VAT for provisional invoices
+    const total = subtotal + tax;
+    
+    // Update the invoice data
+    editingInvoiceData.subtotal = subtotal;
+    editingInvoiceData.tax = tax;
+    editingInvoiceData.total = total;
+    
+    // Update display
+    document.getElementById('weightEditSubtotal').textContent = `R${subtotal.toFixed(2)}`;
+    document.getElementById('weightEditVAT').textContent = `R${tax.toFixed(2)}`;
+    document.getElementById('weightEditTotal').textContent = `R${total.toFixed(2)}`;
+    
+    // Show/hide VAT line
+    const vatLine = document.getElementById('weightEditVATLine');
+    vatLine.style.display = tax > 0 ? 'flex' : 'none';
+}
+
+function saveWeightEdits() {
+    if (!currentEditingInvoice || !editingInvoiceData) {
+        alert('No invoice data to save');
+        return;
+    }
+    
+    // Check if any weights were actually changed
+    const originalInvoice = invoices.find(inv => inv.invoiceId === currentEditingInvoice);
+    let hasChanges = false;
+    
+    editingInvoiceData.items.forEach((editedItem, index) => {
+        const originalItem = originalInvoice.items[index];
+        if (Math.abs(editedItem.weight - originalItem.weight) > 0.001) {
+            hasChanges = true;
+        }
+    });
+    
+    if (!hasChanges) {
+        alert('No weight changes to save');
+        closeWeightEditModal();
+        return;
+    }
+    
+    // Update the original invoice
+    const invoiceIndex = invoices.findIndex(inv => inv.invoiceId === currentEditingInvoice);
+    if (invoiceIndex !== -1) {
+        // Update the invoice
+        invoices[invoiceIndex] = JSON.parse(JSON.stringify(editingInvoiceData));
+        invoices[invoiceIndex].lastModified = new Date().toISOString();
+        invoices[invoiceIndex].status = 'draft'; // Mark as draft after manual editing
+        
+        // Also update in the import-specific collection
+        if (currentImportId && imports[currentImportId]) {
+            const importInvoiceIndex = imports[currentImportId].invoices.findIndex(
+                inv => inv.invoiceId === currentEditingInvoice
+            );
+            if (importInvoiceIndex !== -1) {
+                imports[currentImportId].invoices[importInvoiceIndex] = JSON.parse(JSON.stringify(editingInvoiceData));
+                imports[currentImportId].invoices[importInvoiceIndex].status = 'draft';
+            }
+        }
+        
+        // Save to storage
+        saveToStorage();
+        
+        // Update displays
+        updateInvoicesDisplay();
+        updateDashboard();
+        
+        // Log changes
+        const changedItems = editingInvoiceData.items.filter((item, index) => {
+            const originalItem = originalInvoice.items[index];
+            return Math.abs(item.weight - originalItem.weight) > 0.001;
+        });
+        
+        console.log(`✅ Updated weights for ${changedItems.length} items in invoice ${currentEditingInvoice}`);
+        changedItems.forEach(item => {
+            console.log(`📦 ${item.product}: ${item.weight}kg (R${item.total.toFixed(2)})`);
+        });
+        
+        addActivity(`Manual weight update: ${currentEditingInvoice} (${changedItems.length} items changed)`);
+        
+        alert(`Successfully updated weights for ${changedItems.length} items. Invoice status changed to DRAFT.`);
+        
+        closeWeightEditModal();
+    } else {
+        alert('Error: Could not find invoice to update');
+    }
+}
+
+function closeWeightEditModal() {
+    document.getElementById('weightEditModal').style.display = 'none';
+    currentEditingInvoice = null;
+    editingInvoiceData = null;
+}
+
+// Close modal when clicking outside
+document.getElementById('weightEditModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeWeightEditModal();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('weightEditModal').style.display === 'flex') {
+        closeWeightEditModal();
+    }
+});
