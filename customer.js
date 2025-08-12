@@ -903,57 +903,7 @@ function setupBeautifulPortalEventListeners() {
     }
 }
 
-/**
- * Show a step in the beautiful portal
- * @function showBeautifulStep
- * @param {number} stepNumber - Step to show
- */
-function showBeautifulStep(stepNumber) {
-    // Hide all steps
-    for (let i = 1; i <= 4; i++) {
-        const step = document.getElementById(`step-${i}`);
-        if (step) {
-            step.classList.remove('active');
-        }
-    }
-    
-    // Show current step
-    const currentStepEl = document.getElementById(`step-${stepNumber}`);
-    if (currentStepEl) {
-        currentStepEl.classList.add('active');
-    }
-    
-    // Update step indicators
-    updateBeautifulStepIndicators(stepNumber);
-}
 
-/**
- * Update step indicators in beautiful portal
- * @function updateBeautifulStepIndicators
- * @param {number} currentStep - Current active step
- */
-function updateBeautifulStepIndicators(currentStep) {
-    for (let i = 1; i <= 4; i++) {
-        const indicator = document.getElementById(`step-indicator-${i}`);
-        const span = indicator?.querySelector('span');
-        
-        if (indicator && span) {
-            if (i < currentStep) {
-                // Completed step
-                indicator.className = 'flex items-center justify-center w-8 h-8 bg-green-500 rounded-full border border-green-400';
-                span.innerHTML = '✓';
-            } else if (i === currentStep) {
-                // Current step
-                indicator.className = 'flex items-center justify-center w-8 h-8 bg-orange-500 rounded-full border border-orange-400';
-                span.textContent = i;
-            } else {
-                // Future step
-                indicator.className = 'flex items-center justify-center w-8 h-8 bg-zinc-800/50 rounded-full border border-zinc-800/30';
-                span.textContent = i;
-            }
-        }
-    }
-}
 
 // Removed old populateProducts() function - replaced with populateAllProducts() in step navigation
 
