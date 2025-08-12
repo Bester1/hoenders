@@ -1020,8 +1020,8 @@ function populateAllProducts() {
                             <i class="fas fa-box"></i> ${priceData.packaging || 'Standard packaging'}
                         </div>
                         <div class="flex justify-between items-center mb-4">
-                            <span class="text-orange-400 font-semibold">R${priceData.selling.toFixed(2)}/kg</span>
-                            <span class="text-xs text-zinc-500">~${estimatedWeight}kg est.</span>
+                            <span class="text-orange-400 font-semibold">R${priceData.selling.toFixed(2)}${priceData.unit === 'per potjie' ? '/potjie' : priceData.unit === 'per unit' ? '/unit' : '/kg'}</span>
+                            <span class="text-xs text-zinc-500">${priceData.unit === 'per potjie' || priceData.unit === 'per unit' ? estimatedWeight : `~${estimatedWeight} est.`}</span>
                             </div>
                         </div>
                         
