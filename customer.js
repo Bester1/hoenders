@@ -1798,13 +1798,12 @@ async function saveOrderToDatabase(orderData) {
         // Save order to database with timeout handling
         console.log('💾 Saving order to database...');
         
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Database insert timeout')), 30000)
-        );
+        // Try the database insert with better error handling
+        console.log('💾 About to insert order record:', JSON.stringify(orderRecord, null, 2));
         
-        const insertPromise = supabaseClient.from('orders').insert([orderRecord]);
+        const response = await supabaseClient.from('orders').insert([orderRecord]);
         
-        const response = await Promise.race([insertPromise, timeoutPromise]);
+        console.log('📡 Database response:', response);
         
         if (response.error) {
             console.error('❌ Error saving order:', response.error);
