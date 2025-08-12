@@ -981,19 +981,21 @@ function generateEmailBody(orderData) {
             invoiceDetails += '<tr>';
             invoiceDetails += `<td>${item.originalDescription || item.product}</td>`;
             invoiceDetails += `<td>${item.quantity}</td>`;
-            if (hasWeightData && item.weight) {
-                invoiceDetails += `<td>${item.weight.toFixed(2)}</td>`;
+            if (hasWeightData) {
+                invoiceDetails += `<td>${item.weight ? item.weight.toFixed(2) : '0.00'}</td>`;
             }
             invoiceDetails += `<td>R${(item.unitPrice || 0).toFixed(2)}</td>`;
             invoiceDetails += `<td>R${(item.total || 0).toFixed(2)}</td>`;
             invoiceDetails += '</tr>';
         });
         
-        invoiceDetails += `<tr style="font-weight: bold; background-color: #f9f9f9;"><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">Subtotal</td><td>R${invoice.subtotal.toFixed(2)}</td></tr>`;
+        // Calculate correct colspan based on whether we have weight data
+        const colspan = hasWeightData ? '4' : '3';
+        invoiceDetails += `<tr style="font-weight: bold; background-color: #f9f9f9;"><td colspan="${colspan}">Subtotal</td><td>R${invoice.subtotal.toFixed(2)}</td></tr>`;
         if (invoice.tax > 0) {
-            invoiceDetails += `<tr><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">VAT (15%)</td><td>R${invoice.tax.toFixed(2)}</td></tr>`;
+            invoiceDetails += `<tr><td colspan="${colspan}">VAT (15%)</td><td>R${invoice.tax.toFixed(2)}</td></tr>`;
         }
-        invoiceDetails += `<tr style="font-weight: bold; background-color: #e0e0e0;"><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">Total</td><td>R${invoice.total.toFixed(2)}</td></tr>`;
+        invoiceDetails += `<tr style="font-weight: bold; background-color: #e0e0e0;"><td colspan="${colspan}">Total</td><td>R${invoice.total.toFixed(2)}</td></tr>`;
         invoiceDetails += '</table>';
     } else {
         // Fallback for orders without detailed invoice
@@ -1041,19 +1043,21 @@ function generateEmailBodyMultiProduct(orderData) {
             invoiceDetails += '<tr>';
             invoiceDetails += `<td>${item.originalDescription || item.product}</td>`;
             invoiceDetails += `<td>${item.quantity}</td>`;
-            if (hasWeightData && item.weight) {
-                invoiceDetails += `<td>${item.weight.toFixed(2)}</td>`;
+            if (hasWeightData) {
+                invoiceDetails += `<td>${item.weight ? item.weight.toFixed(2) : '0.00'}</td>`;
             }
             invoiceDetails += `<td>R${(item.unitPrice || 0).toFixed(2)}</td>`;
             invoiceDetails += `<td>R${(item.total || 0).toFixed(2)}</td>`;
             invoiceDetails += '</tr>';
         });
         
-        invoiceDetails += `<tr style="font-weight: bold; background-color: #f9f9f9;"><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">Subtotal</td><td>R${invoice.subtotal.toFixed(2)}</td></tr>`;
+        // Calculate correct colspan based on whether we have weight data
+        const colspan = hasWeightData ? '4' : '3';
+        invoiceDetails += `<tr style="font-weight: bold; background-color: #f9f9f9;"><td colspan="${colspan}">Subtotal</td><td>R${invoice.subtotal.toFixed(2)}</td></tr>`;
         if (invoice.tax > 0) {
-            invoiceDetails += `<tr><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">VAT (15%)</td><td>R${invoice.tax.toFixed(2)}</td></tr>`;
+            invoiceDetails += `<tr><td colspan="${colspan}">VAT (15%)</td><td>R${invoice.tax.toFixed(2)}</td></tr>`;
         }
-        invoiceDetails += `<tr style="font-weight: bold; background-color: #e0e0e0;"><td colspan="${invoice.source === 'PDF' ? '4' : '3'}">Total</td><td>R${invoice.total.toFixed(2)}</td></tr>`;
+        invoiceDetails += `<tr style="font-weight: bold; background-color: #e0e0e0;"><td colspan="${colspan}">Total</td><td>R${invoice.total.toFixed(2)}</td></tr>`;
         invoiceDetails += '</table>';
     } else {
         // Fallback for orders without detailed invoice
@@ -1729,6 +1733,9 @@ async function loadStoredData() {
     if (document.querySelector('#orders.active')) {
         refreshPortalOrders();
     }
+    
+    // Load saved email template
+    loadEmailTemplate();
 }
 
 // Settings functions
@@ -1759,6 +1766,29 @@ function saveEmailTemplate() {
     localStorage.setItem('plaasHoendersEmailTemplate', JSON.stringify(template));
     addActivity('Email template updated');
     alert('Email template saved!');
+}
+
+function loadEmailTemplate() {
+    const storedTemplate = localStorage.getItem('plaasHoendersEmailTemplate');
+    if (storedTemplate) {
+        try {
+            const template = JSON.parse(storedTemplate);
+            
+            const subjectElement = document.getElementById('emailSubject');
+            const bodyElement = document.getElementById('emailTemplate');
+            
+            if (subjectElement && template.subject) {
+                subjectElement.value = template.subject;
+            }
+            if (bodyElement && template.body) {
+                bodyElement.value = template.body;
+            }
+            
+            console.log('✅ Email template loaded from storage');
+        } catch (error) {
+            console.error('Error loading email template:', error);
+        }
+    }
 }
 
 // Utility functions
@@ -2478,6 +2508,35 @@ function clearAllEmails() {
         saveToStorage();
         console.log(`✅ Cleared all emails from queue (${total} emails removed)`);
         addActivity(`Cleared entire email queue (${total} emails removed)`);
+    }
+}
+
+function refreshEmailQueueForInvoice(invoiceId) {
+    // Find the invoice
+    const updatedInvoice = invoices.find(inv => inv.invoiceId === invoiceId);
+    if (!updatedInvoice) return;
+    
+    // Find email queue items for this order
+    const queueItemsToUpdate = emailQueue.filter(email => 
+        email.orderData && email.orderData.orderId === updatedInvoice.orderId
+    );
+    
+    if (queueItemsToUpdate.length > 0) {
+        console.log(`🔄 Refreshing ${queueItemsToUpdate.length} email queue items for invoice ${invoiceId}`);
+        
+        queueItemsToUpdate.forEach(email => {
+            // Regenerate email body with updated invoice data
+            if (email.orderData.products && email.orderData.products.length > 1) {
+                email.body = generateEmailBodyMultiProduct(email.orderData);
+            } else {
+                email.body = generateEmailBody(email.orderData);
+            }
+            console.log(`✅ Updated email body for ${email.to}`);
+        });
+        
+        updateEmailQueueDisplay();
+        saveToStorage();
+        addActivity(`Updated ${queueItemsToUpdate.length} queued emails with new invoice weights`);
     }
 }
 
@@ -5445,6 +5504,9 @@ function saveWeightEdits() {
         });
         
         addActivity(`Manual weight update: ${currentEditingInvoice} (${changedItems.length} items changed)`);
+        
+        // Refresh any email queue items for this order to use updated invoice data
+        refreshEmailQueueForInvoice(currentEditingInvoice);
         
         alert(`Successfully updated weights for ${changedItems.length} items. Invoice status changed to DRAFT.`);
         
