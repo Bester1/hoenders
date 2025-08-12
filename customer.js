@@ -4257,10 +4257,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const password = this.value;
             const errorElement = document.getElementById('registerPasswordError');
             
-            if (password.length > 0 && password.length < 8) {
-                errorElement.textContent = `Password too short (${password.length}/8 characters)`;
-            } else {
-                errorElement.textContent = '';
+            if (errorElement) {
+                if (password.length > 0 && password.length < 8) {
+                    errorElement.textContent = `Password too short (${password.length}/8 characters)`;
+                } else {
+                    errorElement.textContent = '';
+                }
             }
         });
     }
@@ -4270,4 +4272,113 @@ document.addEventListener('DOMContentLoaded', function() {
     if (googleSignInBtn) {
         googleSignInBtn.addEventListener('click', handleGoogleLogin);
     }
+
+    // Register Form Handler
+    const registerForm = document.getElementById('customerRegisterForm');
+    if (registerForm) {
+        registerForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('registerName').value.trim();
+            const email = document.getElementById('registerEmail').value.trim();
+            const phone = document.getElementById('registerPhone').value.trim();
+            const address = document.getElementById('registerAddress').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            
+            const messageElement = document.getElementById('registerMessage');
+            const submitBtn = document.getElementById('registerBtn');
+            
+            if (!name || !email || !password) {
+                showFormMessage(messageElement, 'Please fill in all required fields', 'error');
+                return;
+            }
+            
+            if (password.length < 8) {
+                showFormMessage(messageElement, 'Password must be at least 8 characters', 'error');
+                return;
+            }
+            
+            try {
+                submitBtn.textContent = 'Creating Account...';
+                submitBtn.disabled = true;
+                
+                const { data, error } = await supabase.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: {
+                            full_name: name,
+                            phone: phone,
+                            address: address
+                        }
+                    }
+                });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                showFormMessage(messageElement, 'Account created successfully! Please check your email to verify your account.', 'success');
+                registerForm.reset();
+                
+            } catch (error) {
+                console.error('Registration error:', error);
+                showFormMessage(messageElement, error.message || 'Registration failed. Please try again.', 'error');
+            } finally {
+                submitBtn.textContent = 'Register';
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // Login Form Handler
+    const loginForm = document.getElementById('customerLoginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            
+            const messageElement = document.getElementById('loginMessage');
+            const submitBtn = document.getElementById('loginBtn');
+            
+            if (!email || !password) {
+                showFormMessage(messageElement, 'Please enter both email and password', 'error');
+                return;
+            }
+            
+            try {
+                submitBtn.textContent = 'Signing In...';
+                submitBtn.disabled = true;
+                
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                // Auth state change will automatically handle navigation
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                showFormMessage(messageElement, error.message || 'Login failed. Please try again.', 'error');
+            } finally {
+                submitBtn.textContent = 'Login';
+                submitBtn.disabled = false;
+            }
+        });
+    }
 });
+
+// Helper function to show form messages
+function showFormMessage(element, message, type) {
+    if (element) {
+        element.textContent = message;
+        element.className = `form-message ${type}`;
+        element.style.display = 'block';
+    }
+}
