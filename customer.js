@@ -126,6 +126,30 @@ async function initializeCustomerPortal() {
         
         showLoadingSpinner(false);
         
+        // Set up close portal button
+        const closePortalBtn = document.getElementById('closePortal');
+        if (closePortalBtn) {
+            closePortalBtn.addEventListener('click', () => {
+                // Reset to products view and clear any order state
+                showBeautifulStep(1);
+                // Clear cart and reset form
+                cart = {};
+                updateCartDisplay();
+                const productGrid = document.getElementById('productGrid');
+                if (productGrid) {
+                    // Reset all quantity inputs to 0
+                    const quantityInputs = productGrid.querySelectorAll('.quantity-input');
+                    quantityInputs.forEach(input => input.value = '0');
+                    // Update totals
+                    Object.keys(cart).forEach(productKey => {
+                        const totalElement = document.getElementById(`total-${productKey}`);
+                        if (totalElement) totalElement.textContent = 'R0.00';
+                    });
+                }
+                console.log('Portal closed, returned to products view');
+            });
+        }
+        
         // Listen for auth state changes
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
             console.info('Auth state changed:', event);
