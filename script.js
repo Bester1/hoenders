@@ -629,7 +629,8 @@ async function loadCustomerPortalOrders() {
             
             // Transform customer portal orders to match admin panel format
             window.customerPortalOrders = ordersData.map(order => ({
-                orderId: order.order_id,
+                orderId: order.order_id,    // Display field - use order_id from database
+                order_id: order.order_id,   // Database field - for lookups
                 date: order.order_date || order.created_at,
                 name: order.customers?.name || order.customer_name,
                 email: order.customers?.email || order.customer_email,
@@ -968,7 +969,8 @@ function addInvoiceToEmailQueue(invoiceId) {
         email: invoice.customerEmail,
         phone: invoice.customerPhone,
         address: invoice.customerAddress,
-        orderId: invoice.orderId,
+        orderId: invoice.orderId || invoice.order_id,  // Use whichever field exists
+        order_id: invoice.order_id || invoice.orderId, // Ensure both fields exist
         invoiceId: invoice.invoiceId,
         total: invoice.total
     };
@@ -1401,7 +1403,8 @@ async function generateInvoice(orderId) {
     const currentOrders = getCurrentOrders();
     
     // Check if this is a customer portal order (new single-record format)
-    const customerPortalOrder = currentOrders.find(o => (o.orderId === orderId || o.order_id === orderId) && (o.source === 'Customer Portal' || o.source === 'customer_portal'));
+    // Always use orderId for lookup since that's what the UI passes
+    const customerPortalOrder = currentOrders.find(o => o.orderId === orderId && (o.source === 'Customer Portal' || o.source === 'customer_portal'));
     
     let order, invoiceItems = [], subtotal = 0;
     
@@ -1523,7 +1526,8 @@ async function generateInvoice(orderId) {
     
     const invoice = {
         invoiceId: 'INV-' + Date.now(),
-        orderId: order.orderId,
+        orderId: order.orderId,           // Display field - for UI
+        order_id: order.order_id,         // Database field - for lookups  
         date: new Date().toISOString().split('T')[0],
         customerName: order.name,
         customerEmail: order.email,
@@ -2653,9 +2657,12 @@ function refreshEmailQueueForInvoice(invoiceId) {
     const updatedInvoice = invoices.find(inv => inv.invoiceId === invoiceId);
     if (!updatedInvoice) return;
     
-    // Find email queue items for this order
+    // Find email queue items for this order - check both orderId fields
     const queueItemsToUpdate = emailQueue.filter(email => 
-        email.orderData && email.orderData.orderId === updatedInvoice.orderId
+        email.orderData && (
+            email.orderData.orderId === updatedInvoice.orderId ||
+            email.orderData.orderId === updatedInvoice.order_id
+        )
     );
     
     if (queueItemsToUpdate.length > 0) {
