@@ -531,13 +531,31 @@ Savings/Spaar rek</textarea>
                 </div>
 
                 <div class="email-queue">
-                    <h3>Email Queue</h3>
+                    <div class="email-queue-header">
+                        <h3>Email Queue</h3>
+                        <div class="queue-management">
+                            <button onclick="clearSentEmails()" class="btn-secondary btn-small">
+                                <i class="fas fa-check"></i> Clear Sent
+                            </button>
+                            <button onclick="clearFailedEmails()" class="btn-secondary btn-small">
+                                <i class="fas fa-times"></i> Clear Failed
+                            </button>
+                            <button onclick="clearAllEmails()" class="btn-danger btn-small">
+                                <i class="fas fa-trash"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
                     <div id="emailQueue" class="queue-list">
                         <p class="no-data">No emails in queue</p>
                     </div>
-                    <button onclick="sendQueuedEmails()" class="btn-primary">
-                        <i class="fas fa-paper-plane"></i> Send All Queued Emails
-                    </button>
+                    <div class="email-queue-footer">
+                        <div class="queue-stats">
+                            <span id="queueStats">0 emails in queue</span>
+                        </div>
+                        <button onclick="sendQueuedEmails()" class="btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send All Pending Emails
+                        </button>
+                    </div>
                 </div>
             </section>
 

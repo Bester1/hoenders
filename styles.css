@@ -5204,3 +5204,155 @@ body.modal-open {
         min-width: 600px;
     }
 }
+
+/* Email Queue Management Styles */
+.email-queue-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.email-queue-header h3 {
+    margin: 0;
+    color: #374151;
+}
+
+.queue-management {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.queue-management .btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.queue-management .btn-small i {
+    font-size: 11px;
+}
+
+.email-queue-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.queue-stats {
+    font-size: 0.9em;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.queue-item {
+    padding: 12px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+}
+
+.queue-item:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.queue-item.sent {
+    background: #f0f9ff;
+    border-color: #3b82f6;
+}
+
+.queue-item.failed {
+    background: #fef2f2;
+    border-color: #ef4444;
+}
+
+.queue-item.pending {
+    background: #fffbeb;
+    border-color: #f59e0b;
+}
+
+.queue-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.queue-info strong {
+    color: #111827;
+    font-size: 0.95em;
+}
+
+.queue-subject {
+    color: #6b7280;
+    font-size: 0.85em;
+    line-height: 1.3;
+}
+
+.queue-status {
+    font-size: 0.75em;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    width: fit-content;
+    margin-top: 4px;
+}
+
+.status-sent {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-failed {
+    background: #fecaca;
+    color: #991b1b;
+}
+
+.status-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.queue-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .email-queue-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .queue-management {
+        justify-content: center;
+    }
+    
+    .email-queue-footer {
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+    }
+    
+    .queue-stats {
+        text-align: center;
+    }
+    
+    .queue-actions {
+        justify-content: center;
+    }
+}

@@ -1119,6 +1119,7 @@ function updateEmailQueueDisplay() {
     
     if (emailQueue.length === 0) {
         queueContainer.innerHTML = '<p class="no-data">No emails in queue</p>';
+        updateQueueStats();
         return;
     }
 
@@ -1130,13 +1131,14 @@ function updateEmailQueueDisplay() {
                 <span class="queue-status status-${email.status}">${email.status.toUpperCase()}</span>
             </div>
             <div class="queue-actions">
-                ${email.status === 'pending' ? `<button onclick="removeFromQueue('${email.id}')" class="btn-small btn-danger">Remove</button>` : ''}
+                <button onclick="removeFromQueue('${email.id}')" class="btn-small btn-danger">Remove</button>
                 ${email.status === 'failed' ? `<button onclick="retryEmail('${email.id}')" class="btn-small btn-secondary">Retry</button>` : ''}
             </div>
         </div>
     `).join('');
 
     queueContainer.innerHTML = queueHTML;
+    updateQueueStats();
 }
 
 async function testEmail() {
@@ -2375,9 +2377,15 @@ function deleteProduct(product) {
 }
 
 function removeFromQueue(emailId) {
+    const email = emailQueue.find(e => e.id == emailId);
+    const emailAddress = email ? email.to : 'unknown';
+    
     emailQueue = emailQueue.filter(e => e.id != emailId);
     updateEmailQueueDisplay();
     saveToStorage();
+    
+    console.log(`✅ Removed email to ${emailAddress} from queue`);
+    addActivity(`Removed email to ${emailAddress} from queue`);
 }
 
 async function retryEmail(emailId) {
@@ -2386,6 +2394,84 @@ async function retryEmail(emailId) {
         email.status = 'pending';
         updateEmailQueueDisplay();
         saveToStorage();
+    }
+}
+
+// Queue Statistics and Management
+function updateQueueStats() {
+    const statsElement = document.getElementById('queueStats');
+    if (!statsElement) return;
+    
+    const total = emailQueue.length;
+    const pending = emailQueue.filter(e => e.status === 'pending').length;
+    const sent = emailQueue.filter(e => e.status === 'sent').length;
+    const failed = emailQueue.filter(e => e.status === 'failed').length;
+    
+    if (total === 0) {
+        statsElement.textContent = 'No emails in queue';
+    } else {
+        statsElement.textContent = `${total} emails: ${pending} pending, ${sent} sent, ${failed} failed`;
+    }
+}
+
+// Bulk Queue Management Functions
+function clearSentEmails() {
+    const sentCount = emailQueue.filter(e => e.status === 'sent').length;
+    
+    if (sentCount === 0) {
+        alert('No sent emails to clear');
+        return;
+    }
+    
+    const confirmed = confirm(`Remove ${sentCount} sent emails from the queue?`);
+    if (confirmed) {
+        emailQueue = emailQueue.filter(e => e.status !== 'sent');
+        updateEmailQueueDisplay();
+        saveToStorage();
+        console.log(`✅ Cleared ${sentCount} sent emails from queue`);
+        addActivity(`Cleared ${sentCount} sent emails from queue`);
+    }
+}
+
+function clearFailedEmails() {
+    const failedCount = emailQueue.filter(e => e.status === 'failed').length;
+    
+    if (failedCount === 0) {
+        alert('No failed emails to clear');
+        return;
+    }
+    
+    const confirmed = confirm(`Remove ${failedCount} failed emails from the queue?`);
+    if (confirmed) {
+        emailQueue = emailQueue.filter(e => e.status !== 'failed');
+        updateEmailQueueDisplay();
+        saveToStorage();
+        console.log(`✅ Cleared ${failedCount} failed emails from queue`);
+        addActivity(`Cleared ${failedCount} failed emails from queue`);
+    }
+}
+
+function clearAllEmails() {
+    if (emailQueue.length === 0) {
+        alert('Email queue is already empty');
+        return;
+    }
+    
+    const total = emailQueue.length;
+    const pending = emailQueue.filter(e => e.status === 'pending').length;
+    
+    let confirmMessage = `Remove all ${total} emails from the queue?`;
+    if (pending > 0) {
+        confirmMessage += `\n\nWarning: This includes ${pending} pending emails that haven't been sent yet!`;
+    }
+    
+    const confirmed = confirm(confirmMessage);
+    if (confirmed) {
+        emailQueue = [];
+        updateEmailQueueDisplay();
+        saveToStorage();
+        console.log(`✅ Cleared all emails from queue (${total} emails removed)`);
+        addActivity(`Cleared entire email queue (${total} emails removed)`);
     }
 }
 
