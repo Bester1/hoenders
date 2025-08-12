@@ -1232,6 +1232,11 @@ function updateCartSummary() {
     
     // Create a lookup from productKey back to full name
     function getProductNameFromKey(productKey) {
+        // Handle Borsstukke pack size keys
+        if (productKey.includes('BORSSTUKKE_MET_BEEN_EN_VEL_') && productKey.includes('PACK')) {
+            return 'BORSSTUKKE MET BEEN EN VEL';
+        }
+        
         // The key generation uses: productName.replace(/[^A-Z0-9]/g, '_')
         // So we need to map the generated keys back to original names
         const allProducts = getCustomerPricing();
@@ -1266,8 +1271,16 @@ function updateCartSummary() {
                 
                 if (product) {
                     const displayInfo = getProductDisplayInfo(productName);
-                    const estimatedWeightStr = getEstimatedWeight(productName);
-                    const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
+                    
+                    // Calculate weight considering pack size for Borsstukke
+                    let estimatedWeight;
+                    if (productKey.includes('BORSSTUKKE_MET_BEEN_EN_VEL_') && productKey.includes('PACK')) {
+                        const packSize = productKey.includes('_4PACK') ? '4' : '2';
+                        estimatedWeight = packSize === '4' ? 2.09 : 1.05; // 4-pack vs 2-pack weight
+                    } else {
+                        const estimatedWeightStr = getEstimatedWeight(productName);
+                        estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
+                    }
                     
                     const weight = estimatedWeight * qty;
                     const amount = product.selling * weight;
@@ -1278,9 +1291,17 @@ function updateCartSummary() {
                     
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'flex justify-between items-center py-2 border-b border-zinc-700/30';
+                    
+                    // Check if this is a Borsstukke with pack size
+                    let packSizeInfo = '';
+                    if (productKey.includes('BORSSTUKKE_MET_BEEN_EN_VEL_') && productKey.includes('PACK')) {
+                        const packSize = productKey.includes('_2PACK') ? '2-pack' : '4-pack';
+                        packSizeInfo = ` (${packSize})`;
+                    }
+                    
                     itemDiv.innerHTML = `
                         <div>
-                            <p class="text-white font-medium">${displayInfo.displayName}</p>
+                            <p class="text-white font-medium">${displayInfo.displayName}${packSizeInfo}</p>
                             <p class="text-zinc-400 text-sm">${qty}x (~${weight.toFixed(1)}kg)</p>
                         </div>
                         <p class="text-orange-400 font-semibold">R${amount.toFixed(2)}</p>
@@ -1500,8 +1521,16 @@ function populateOrderReview() {
                 
                 if (product) {
                     const displayInfo = getProductDisplayInfo(productName);
-                    const estimatedWeightStr = getEstimatedWeight(productName);
-                    const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
+                    
+                    // Calculate weight considering pack size for Borsstukke
+                    let estimatedWeight;
+                    if (productKey.includes('BORSSTUKKE_MET_BEEN_EN_VEL_') && productKey.includes('PACK')) {
+                        const packSize = productKey.includes('_4PACK') ? '4' : '2';
+                        estimatedWeight = packSize === '4' ? 2.09 : 1.05; // 4-pack vs 2-pack weight
+                    } else {
+                        const estimatedWeightStr = getEstimatedWeight(productName);
+                        estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
+                    }
                     
                     const weight = estimatedWeight * qty;
                     const amount = product.selling * weight;
@@ -1758,20 +1787,40 @@ function getProductNameFromKey(productKey) {
  * @returns {number} - Estimated weight in kg
  */
 function estimateProductWeight(productName, quantity) {
-    // Typical weights per item (in kg)
+    // Actual average weights per item based on your data (in kg)
     const typicalWeights = {
-        'HEEL HOENDER': 1.8,
-        'PLAT HOENDER (FLATTY\'S)': 1.0,
-        'BRAAIPAKKE': 2.0,
-        'HEEL HALWE HOENDERS': 0.9,
-        'BORSSTUKKE MET BEEN EN VEL': 0.8,
-        'VLERKIES': 0.3,
-        'BOUDE EN DYE': 0.6,
-        'FILETTE (sonder vel)': 0.4,
-        'SUIWER HEUNING': 0.5
+        'HEEL HOENDER': 2.19,                    // heel
+        'PLAT HOENDER (FLATTY\'S)': 2.10,        // plat  
+        'BRAAIPAKKE': 2.07,                      // braaipak
+        'HEEL HALWE HOENDERS': 1.05,             // halwe hoender
+        'BORSSTUKKE MET BEEN EN VEL': 1.05,      // 2bors (will be adjusted by pack size)
+        'VLERKIES': 0.85,                        // vlerke
+        'BOUDE EN DYE': 0.76,                    // boud/dy
+        'FILETTE (sonder vel)': 1.04,            // Fillets
+        'SUIWER HEUNING': 1.00,                  // heuning
+        'DROË WORS': 1.23,                       // guns
+        'GROEN VYE': 1.00,                       // Groen vye
+        'KAASWORS': 0.57,                        // Kaaswors
+        'LEWER': 0.50,                           // lewer
+        'ONTBEEN HOENDER': 1.53,                 // Ontbeen
+        'PATTIES': 0.58,                         // Patties
+        'PEP ROLL': 1.83,                        // Pep rol
+        'STRIPS': 0.50,                          // Strips
+        'VYE ROLL': 1.75                         // Vye rol
     };
     
-    const baseWeight = typicalWeights[productName] || 1.0; // Default 1kg if unknown
+    let baseWeight = typicalWeights[productName] || 1.0; // Default 1kg if unknown
+    
+    // Handle Borsstukke pack size adjustment - now also check productName for cart keys
+    if (productName === 'BORSSTUKKE MET BEEN EN VEL') {
+        // First check if 4-pack option is selected in UI
+        const packSizeElement = document.querySelector(`input[name="borsstukke_pack_size"]:checked`);
+        if (packSizeElement && packSizeElement.value === '4') {
+            baseWeight = 2.09; // 4bors weight
+        }
+        // Default is 2-pack (1.05kg already set above)
+    }
+    
     return baseWeight * quantity;
 }
 
@@ -2290,6 +2339,22 @@ function createCategoryProductCards(products, pricing) {
                     <span class="packaging-info">${priceData.packaging || 'Standard packaging'}</span>
                 </div>
                 
+                ${productName === 'BORSSTUKKE MET BEEN EN VEL' ? `
+                    <div class="pack-size-options">
+                        <h5 class="pack-size-title">Pack Size:</h5>
+                        <div class="pack-size-controls">
+                            <label class="pack-size-option">
+                                <input type="radio" name="borsstukke_pack_size" value="2" checked>
+                                <span class="pack-option-text">2-Pack (~1.05kg)</span>
+                            </label>
+                            <label class="pack-size-option">
+                                <input type="radio" name="borsstukke_pack_size" value="4">
+                                <span class="pack-option-text">4-Pack (~2.09kg)</span>
+                            </label>
+                        </div>
+                    </div>
+                ` : ''}
+                
                 <div class="product-actions">
                     ${availability.available ? `
                         <button class="btn btn-primary add-to-cart" data-product="${productName}">
@@ -2396,7 +2461,15 @@ function setupProductInteractions() {
  */
 function handleAddToCart(productName) {
     const displayInfo = getProductDisplayInfo(productName);
-    const productKey = productName.replace(/[^A-Z0-9]/g, '_');
+    let productKey = productName.replace(/[^A-Z0-9]/g, '_');
+    
+    // Handle Borsstukke pack size selection
+    if (productName === 'BORSSTUKKE MET BEEN EN VEL') {
+        const packSizeElement = document.querySelector(`input[name="borsstukke_pack_size"]:checked`);
+        const packSize = packSizeElement ? packSizeElement.value : '2';
+        productKey = `${productKey}_${packSize}PACK`; // e.g., BORSSTUKKE_MET_BEEN_EN_VEL_2PACK
+        console.log(`📦 Borsstukke pack size selected: ${packSize}-pack`);
+    }
     
     // Add one item to cart (quantity 1)
     const currentQty = cart[productKey] || 0;
