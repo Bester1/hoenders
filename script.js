@@ -1463,7 +1463,13 @@ async function generateInvoice(orderId) {
     
     // Add invoice to both global and import-specific collections
     invoices.push(invoice);
-    imports[currentImportId].invoices.push(invoice);
+    
+    // Only add to import-specific collection if there's an associated import
+    // Customer Portal orders don't have imports
+    if (currentImportId && imports[currentImportId]) {
+        imports[currentImportId].invoices.push(invoice);
+    }
+    
     order.status = 'invoiced';
     
     updateOrdersTable();
@@ -3989,7 +3995,12 @@ function generateInvoiceFromPDFDataMultiProduct(order) {
     
     // Add to collections
     invoices.push(invoice);
-    imports[currentImportId].invoices.push(invoice);
+    
+    // Only add to import-specific collection if there's an associated import
+    if (currentImportId && imports[currentImportId]) {
+        imports[currentImportId].invoices.push(invoice);
+    }
+    
     order.status = 'invoiced';
     
     // Add to email queue (adapted for multi-product)
@@ -4023,7 +4034,12 @@ function generateInvoiceFromPDFData(order) {
     
     // Add to collections
     invoices.push(invoice);
-    imports[currentImportId].invoices.push(invoice);
+    
+    // Only add to import-specific collection if there's an associated import
+    if (currentImportId && imports[currentImportId]) {
+        imports[currentImportId].invoices.push(invoice);
+    }
+    
     order.status = 'invoiced';
     
     // Add to email queue
