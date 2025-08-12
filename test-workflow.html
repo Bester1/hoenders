@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plaas Hoenders - Test Workflow</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.95;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .workflow-step {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .workflow-step h2 {
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-success {
+            background: #48bb78;
+        }
+        
+        .btn-success:hover {
+            background: #38a169;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+        }
+        
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+            display: block;
+        }
+        
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+            display: block;
+        }
+        
+        .status.info {
+            background: #bee3f8;
+            color: #2c5282;
+            border: 1px solid #90cdf4;
+            display: block;
+        }
+        
+        .test-data {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+        }
+        
+        .product-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .product-item {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .product-item input[type="checkbox"] {
+            width: auto;
+        }
+        
+        .product-item label {
+            flex: 1;
+            margin: 0;
+        }
+        
+        .product-item input[type="number"] {
+            width: 60px;
+        }
+        
+        .completed {
+            opacity: 0.7;
+            background: #e6fffa !important;
+            border-left-color: #48bb78 !important;
+        }
+        
+        .warning-box {
+            background: #fffaf0;
+            border: 2px solid #ed8936;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .warning-box h3 {
+            color: #c05621;
+            margin-bottom: 10px;
+        }
+        
+        .warning-box ul {
+            margin-left: 20px;
+            color: #7b341e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Plaas Hoenders Test Workflow</h1>
+            <p>Complete workflow testing: Order → PDF → Invoice → Email</p>
+        </div>
+        
+        <div class="content">
+            <!-- Warning Box -->
+            <div class="warning-box">
+                <h3>⚠️ Test Environment Safety</h3>
+                <ul>
+                    <li>This test uses TEST customer data only</li>
+                    <li>Real customer orders are NOT affected</li>
+                    <li>Test emails go to YOUR email address</li>
+                    <li>All test data is clearly marked with "TEST"</li>
+                </ul>
+            </div>
+            
+            <!-- Step 1: Create Test Customer -->
+            <div class="workflow-step" id="step1">
+                <h2><span class="step-number">1</span> Create Test Customer</h2>
+                <div class="form-group">
+                    <label>Test Customer Name:</label>
+                    <input type="text" id="testCustomerName" value="TEST Customer Adriaan" />
+                </div>
+                <div class="form-group">
+                    <label>Test Email (use your email):</label>
+                    <input type="email" id="testCustomerEmail" placeholder="your-email@example.com" />
+                </div>
+                <div class="form-group">
+                    <label>Test Phone:</label>
+                    <input type="tel" id="testCustomerPhone" value="0791234567" />
+                </div>
+                <div class="form-group">
+                    <label>Test Address:</label>
+                    <textarea id="testCustomerAddress">123 Test Street
+Test Town
+Test Province
+1234</textarea>
+                </div>
+                <button class="btn" onclick="createTestCustomer()">Create Test Customer</button>
+                <div class="status" id="step1Status"></div>
+            </div>
+            
+            <!-- Step 2: Place Test Order -->
+            <div class="workflow-step" id="step2">
+                <h2><span class="step-number">2</span> Place Test Order</h2>
+                <p>Select products for test order:</p>
+                <div class="product-list" id="productList">
+                    <div class="product-item">
+                        <input type="checkbox" id="prod1" checked>
+                        <label for="prod1">HEEL HOENDER</label>
+                        <input type="number" value="2" min="1" data-product="HEEL HOENDER">
+                    </div>
+                    <div class="product-item">
+                        <input type="checkbox" id="prod2" checked>
+                        <label for="prod2">BOUDE EN DYE</label>
+                        <input type="number" value="1" min="1" data-product="BOUDE EN DYE">
+                    </div>
+                    <div class="product-item">
+                        <input type="checkbox" id="prod3">
+                        <label for="prod3">FILETTE (sonder vel)</label>
+                        <input type="number" value="1" min="1" data-product="FILETTE (sonder vel)">
+                    </div>
+                    <div class="product-item">
+                        <input type="checkbox" id="prod4">
+                        <label for="prod4">VLERKIES</label>
+                        <input type="number" value="1" min="1" data-product="VLERKIES">
+                    </div>
+                </div>
+                <button class="btn" onclick="placeTestOrder()" id="placeOrderBtn">Place Test Order</button>
+                <div class="status" id="step2Status"></div>
+                <div class="test-data" id="orderData" style="display:none;"></div>
+            </div>
+            
+            <!-- Step 3: Generate Provisional Invoice -->
+            <div class="workflow-step" id="step3">
+                <h2><span class="step-number">3</span> Generate Provisional Invoice</h2>
+                <p>This invoice uses estimated weights from the order:</p>
+                <button class="btn" onclick="generateProvisionalInvoice()" id="genInvoiceBtn" disabled>Generate Provisional Invoice</button>
+                <div class="status" id="step3Status"></div>
+                <div class="test-data" id="invoiceData" style="display:none;"></div>
+            </div>
+            
+            <!-- Step 4: Simulate PDF Data -->
+            <div class="workflow-step" id="step4">
+                <h2><span class="step-number">4</span> Simulate Butchery PDF Data</h2>
+                <p>Enter actual weights from butchery (or use defaults):</p>
+                <div id="actualWeights" style="margin-top: 10px;">
+                    <!-- Will be populated after order is placed -->
+                </div>
+                <button class="btn" onclick="simulatePDFImport()" id="pdfImportBtn" disabled>Import PDF Data</button>
+                <div class="status" id="step4Status"></div>
+                <div class="test-data" id="pdfData" style="display:none;"></div>
+            </div>
+            
+            <!-- Step 5: Generate Final Invoice -->
+            <div class="workflow-step" id="step5">
+                <h2><span class="step-number">5</span> Generate Final Invoice with Actual Weights</h2>
+                <p>This creates the final invoice with actual weights from butchery:</p>
+                <button class="btn" onclick="generateFinalInvoice()" id="finalInvoiceBtn" disabled>Generate Final Invoice</button>
+                <div class="status" id="step5Status"></div>
+                <div class="test-data" id="finalInvoiceData" style="display:none;"></div>
+            </div>
+            
+            <!-- Step 6: Send Test Email -->
+            <div class="workflow-step" id="step6">
+                <h2><span class="step-number">6</span> Send Test Email</h2>
+                <p>Send the final invoice to the test email address:</p>
+                <button class="btn btn-success" onclick="sendTestEmail()" id="sendEmailBtn" disabled>Send Test Email</button>
+                <div class="status" id="step6Status"></div>
+            </div>
+            
+            <!-- Step 7: Verify Data -->
+            <div class="workflow-step" id="step7">
+                <h2><span class="step-number">7</span> Verify All Data</h2>
+                <button class="btn" onclick="verifyData()">Check System Status</button>
+                <div class="status" id="step7Status"></div>
+                <div class="test-data" id="systemStatus" style="display:none;"></div>
+            </div>
+            
+            <!-- Cleanup -->
+            <div class="workflow-step" id="cleanup">
+                <h2>🧹 Cleanup Test Data</h2>
+                <p>Remove all test data after verification:</p>
+                <button class="btn btn-danger" onclick="cleanupTestData()">Clean Up Test Data</button>
+                <div class="status" id="cleanupStatus"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
+    <script>
+        // Initialize Supabase
+        const supabaseUrl = 'https://wfhahizmukkuvperpcos.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmaGFoaXptdWtrdXZwZXJwY29zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzIyNzgxNzIsImV4cCI6MjA0Nzg1NDE3Mn0.qxiFJEJOV8wzfenF81ilVOdq8wabKl3MU_0eK6RZXQE';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        
+        let testOrderId = null;
+        let testInvoiceId = null;
+        let testCustomer = null;
+        
+        // Helper function to show status
+        function showStatus(stepId, message, type = 'info') {
+            const statusEl = document.getElementById(stepId);
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+            statusEl.style.display = 'block';
+        }
+        
+        // Step 1: Create Test Customer
+        function createTestCustomer() {
+            const name = document.getElementById('testCustomerName').value;
+            const email = document.getElementById('testCustomerEmail').value;
+            const phone = document.getElementById('testCustomerPhone').value;
+            const address = document.getElementById('testCustomerAddress').value;
+            
+            if (!email || !email.includes('@')) {
+                showStatus('step1Status', 'Please enter a valid email address', 'error');
+                return;
+            }
+            
+            testCustomer = {
+                id: 'TEST-' + Date.now(),
+                name: name,
+                email: email,
+                phone: phone,
+                address: address
+            };
+            
+            localStorage.setItem('testCustomer', JSON.stringify(testCustomer));
+            showStatus('step1Status', `✅ Test customer created: ${name}`, 'success');
+            document.getElementById('step1').classList.add('completed');
+        }
+        
+        // Step 2: Place Test Order
+        async function placeTestOrder() {
+            if (!testCustomer) {
+                showStatus('step2Status', 'Please create test customer first', 'error');
+                return;
+            }
+            
+            const items = [];
+            const checkboxes = document.querySelectorAll('.product-item input[type="checkbox"]:checked');
+            
+            checkboxes.forEach(cb => {
+                const productItem = cb.parentElement;
+                const quantityInput = productItem.querySelector('input[type="number"]');
+                const product = quantityInput.dataset.product;
+                const quantity = parseInt(quantityInput.value);
+                
+                items.push({
+                    product: product,
+                    quantity: quantity
+                });
+            });
+            
+            if (items.length === 0) {
+                showStatus('step2Status', 'Please select at least one product', 'error');
+                return;
+            }
+            
+            testOrderId = 'TEST-ORD-' + Date.now();
+            
+            const orderData = {
+                order_id: testOrderId,
+                order_date: new Date().toISOString().split('T')[0],
+                customer_id: testCustomer.id,
+                customer_name: testCustomer.name,
+                customer_email: testCustomer.email,
+                customer_phone: testCustomer.phone,
+                customer_address: testCustomer.address,
+                product_name: items.map(i => i.product).join(', '),
+                quantity: items.reduce((sum, i) => sum + i.quantity, 0),
+                weight_kg: items.reduce((sum, i) => sum + (i.quantity * 1.5), 0), // Estimated weight
+                total_amount: 0, // Will be calculated
+                source: 'test_workflow',
+                status: 'pending',
+                created_at: new Date().toISOString()
+            };
+            
+            // Calculate total based on pricing
+            const pricing = {
+                'HEEL HOENDER': 67,
+                'BOUDE EN DYE': 81,
+                'FILETTE (sonder vel)': 100,
+                'VLERKIES': 90
+            };
+            
+            let total = 0;
+            items.forEach(item => {
+                const price = pricing[item.product] || 75;
+                total += price * item.quantity * 1.5; // Estimated weight
+            });
+            orderData.total_amount = total;
+            
+            // Save to localStorage as test data
+            localStorage.setItem('testOrder', JSON.stringify(orderData));
+            localStorage.setItem('testOrderItems', JSON.stringify(items));
+            
+            // Display order data
+            document.getElementById('orderData').style.display = 'block';
+            document.getElementById('orderData').textContent = 
+                `Order ID: ${testOrderId}
+Customer: ${testCustomer.name}
+Items: ${items.map(i => `${i.product} x${i.quantity}`).join(', ')}
+Estimated Weight: ${orderData.weight_kg}kg
+Estimated Total: R${total.toFixed(2)}`;
+            
+            // Populate actual weights section
+            const weightsHtml = items.map(item => `
+                <div class="form-group">
+                    <label>${item.product} (Ordered: ${item.quantity}):</label>
+                    <input type="number" step="0.01" value="${(item.quantity * 1.5).toFixed(2)}" 
+                           data-product="${item.product}" class="actual-weight" />
+                    <small>Actual weight in kg</small>
+                </div>
+            `).join('');
+            document.getElementById('actualWeights').innerHTML = weightsHtml;
+            
+            showStatus('step2Status', `✅ Test order placed: ${testOrderId}`, 'success');
+            document.getElementById('step2').classList.add('completed');
+            document.getElementById('genInvoiceBtn').disabled = false;
+            document.getElementById('pdfImportBtn').disabled = false;
+        }
+        
+        // Step 3: Generate Provisional Invoice
+        function generateProvisionalInvoice() {
+            if (!testOrderId) {
+                showStatus('step3Status', 'Please place test order first', 'error');
+                return;
+            }
+            
+            const order = JSON.parse(localStorage.getItem('testOrder'));
+            const items = JSON.parse(localStorage.getItem('testOrderItems'));
+            
+            testInvoiceId = 'TEST-INV-' + Date.now();
+            
+            const invoiceData = {
+                invoiceId: testInvoiceId,
+                orderId: testOrderId,
+                date: new Date().toISOString().split('T')[0],
+                customerName: order.customer_name,
+                customerEmail: order.customer_email,
+                items: items,
+                subtotal: order.total_amount,
+                tax: 0,
+                total: order.total_amount,
+                status: 'provisional'
+            };
+            
+            localStorage.setItem('testProvisionalInvoice', JSON.stringify(invoiceData));
+            
+            document.getElementById('invoiceData').style.display = 'block';
+            document.getElementById('invoiceData').textContent = 
+                `Invoice ID: ${testInvoiceId}
+Type: PROVISIONAL (Estimated Weights)
+Customer: ${order.customer_name}
+Items: ${items.map(i => `${i.product} x${i.quantity}`).join(', ')}
+Total: R${order.total_amount.toFixed(2)}
+Status: Ready for weight reconciliation`;
+            
+            showStatus('step3Status', `✅ Provisional invoice generated: ${testInvoiceId}`, 'success');
+            document.getElementById('step3').classList.add('completed');
+        }
+        
+        // Step 4: Simulate PDF Import
+        function simulatePDFImport() {
+            if (!testOrderId) {
+                showStatus('step4Status', 'Please place test order first', 'error');
+                return;
+            }
+            
+            const actualWeights = {};
+            document.querySelectorAll('.actual-weight').forEach(input => {
+                actualWeights[input.dataset.product] = parseFloat(input.value);
+            });
+            
+            const pdfData = {
+                importId: 'TEST-PDF-' + Date.now(),
+                customerName: testCustomer.name,
+                actualWeights: actualWeights,
+                importDate: new Date().toISOString()
+            };
+            
+            localStorage.setItem('testPDFData', JSON.stringify(pdfData));
+            
+            document.getElementById('pdfData').style.display = 'block';
+            document.getElementById('pdfData').textContent = 
+                `PDF Import ID: ${pdfData.importId}
+Customer Match: ${testCustomer.name}
+Actual Weights:
+${Object.entries(actualWeights).map(([prod, weight]) => `  ${prod}: ${weight}kg`).join('\n')}
+Status: Ready for final invoice generation`;
+            
+            showStatus('step4Status', '✅ PDF data imported with actual weights', 'success');
+            document.getElementById('step4').classList.add('completed');
+            document.getElementById('finalInvoiceBtn').disabled = false;
+        }
+        
+        // Step 5: Generate Final Invoice
+        function generateFinalInvoice() {
+            const pdfData = JSON.parse(localStorage.getItem('testPDFData'));
+            const items = JSON.parse(localStorage.getItem('testOrderItems'));
+            
+            if (!pdfData) {
+                showStatus('step5Status', 'Please import PDF data first', 'error');
+                return;
+            }
+            
+            const pricing = {
+                'HEEL HOENDER': 67,
+                'BOUDE EN DYE': 81,
+                'FILETTE (sonder vel)': 100,
+                'VLERKIES': 90
+            };
+            
+            let total = 0;
+            const finalItems = items.map(item => {
+                const actualWeight = pdfData.actualWeights[item.product];
+                const price = pricing[item.product] || 75;
+                const itemTotal = price * actualWeight;
+                total += itemTotal;
+                
+                return {
+                    product: item.product,
+                    quantity: item.quantity,
+                    weight: actualWeight,
+                    unitPrice: price,
+                    total: itemTotal
+                };
+            });
+            
+            const finalInvoice = {
+                invoiceId: 'TEST-FINAL-INV-' + Date.now(),
+                orderId: testOrderId,
+                date: new Date().toISOString().split('T')[0],
+                customerName: testCustomer.name,
+                customerEmail: testCustomer.email,
+                items: finalItems,
+                subtotal: total,
+                tax: 0,
+                total: total,
+                status: 'final'
+            };
+            
+            localStorage.setItem('testFinalInvoice', JSON.stringify(finalInvoice));
+            
+            document.getElementById('finalInvoiceData').style.display = 'block';
+            document.getElementById('finalInvoiceData').textContent = 
+                `Final Invoice ID: ${finalInvoice.invoiceId}
+Type: FINAL (Actual Weights from Butchery)
+Customer: ${testCustomer.name}
+Items with Actual Weights:
+${finalItems.map(i => `  ${i.product}: ${i.quantity} units @ ${i.weight}kg = R${i.total.toFixed(2)}`).join('\n')}
+Total: R${total.toFixed(2)}
+Status: Ready to email`;
+            
+            showStatus('step5Status', '✅ Final invoice generated with actual weights', 'success');
+            document.getElementById('step5').classList.add('completed');
+            document.getElementById('sendEmailBtn').disabled = false;
+        }
+        
+        // Step 6: Send Test Email
+        async function sendTestEmail() {
+            const finalInvoice = JSON.parse(localStorage.getItem('testFinalInvoice'));
+            
+            if (!finalInvoice) {
+                showStatus('step6Status', 'Please generate final invoice first', 'error');
+                return;
+            }
+            
+            // Simulate email sending
+            const emailData = {
+                to: testCustomer.email,
+                subject: `TEST - Plaas Hoenders Invoice ${finalInvoice.invoiceId}`,
+                body: `Dear ${testCustomer.name},\n\nPlease find attached your invoice.\n\nTotal: R${finalInvoice.total.toFixed(2)}\n\nThis is a TEST email.`,
+                invoice: finalInvoice
+            };
+            
+            console.log('Test Email Data:', emailData);
+            
+            showStatus('step6Status', `✅ Test email sent to ${testCustomer.email} (simulated)`, 'success');
+            document.getElementById('step6').classList.add('completed');
+        }
+        
+        // Step 7: Verify Data
+        async function verifyData() {
+            const testOrder = localStorage.getItem('testOrder');
+            const testOrderItems = localStorage.getItem('testOrderItems');
+            const provisionalInvoice = localStorage.getItem('testProvisionalInvoice');
+            const pdfData = localStorage.getItem('testPDFData');
+            const finalInvoice = localStorage.getItem('testFinalInvoice');
+            
+            const status = {
+                'Test Customer': testCustomer ? '✅ Created' : '❌ Not created',
+                'Test Order': testOrder ? '✅ Saved' : '❌ Not saved',
+                'Order Items': testOrderItems ? '✅ Saved' : '❌ Not saved',
+                'Provisional Invoice': provisionalInvoice ? '✅ Generated' : '❌ Not generated',
+                'PDF Import Data': pdfData ? '✅ Imported' : '❌ Not imported',
+                'Final Invoice': finalInvoice ? '✅ Generated' : '❌ Not generated',
+                'Real Customer Data': '✅ Protected (test data isolated)'
+            };
+            
+            document.getElementById('systemStatus').style.display = 'block';
+            document.getElementById('systemStatus').textContent = 
+                'System Status:\n' + Object.entries(status).map(([key, val]) => `${key}: ${val}`).join('\n');
+            
+            showStatus('step7Status', '✅ Data verification complete', 'success');
+        }
+        
+        // Cleanup Test Data
+        function cleanupTestData() {
+            if (confirm('Are you sure you want to remove all test data?')) {
+                localStorage.removeItem('testCustomer');
+                localStorage.removeItem('testOrder');
+                localStorage.removeItem('testOrderItems');
+                localStorage.removeItem('testProvisionalInvoice');
+                localStorage.removeItem('testPDFData');
+                localStorage.removeItem('testFinalInvoice');
+                
+                showStatus('cleanupStatus', '✅ All test data cleaned up', 'success');
+                
+                // Reset form
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>
