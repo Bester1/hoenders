@@ -256,6 +256,55 @@
             color: rgb(239, 68, 68);
             border: 1px solid rgba(239, 68, 68, 0.3);
 }
+        
+        /* Beautiful Product Card Background Styling */
+        .product-card-bg {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(251, 146, 60, 0.05) 0%, rgba(254, 215, 170, 0.05) 100%);
+        }
+        
+        .product-card-bg::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 150px;
+            height: 100px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150"><g opacity="0.15"><path d="M40 120 Q30 100 35 80 Q40 70 50 70 Q60 70 65 80 Q70 100 60 120 L40 120" fill="%23000"/><circle cx="45" cy="75" r="2" fill="%23fff"/><path d="M35 70 Q40 65 45 70" stroke="%23000" stroke-width="1" fill="none"/><path d="M100 125 Q90 105 95 85 Q100 75 110 75 Q120 75 125 85 Q130 105 120 125 L100 125" fill="%23000"/><circle cx="105" cy="80" r="2" fill="%23fff"/><path d="M150 130 Q140 110 145 90 Q150 80 160 80 Q170 80 175 90 Q180 110 170 130 L150 130" fill="%23000"/></g><line x1="0" y1="135" x2="200" y2="135" stroke="%23000" stroke-width="2" opacity="0.1"/></svg>');
+            background-repeat: no-repeat;
+            background-position: bottom right;
+            background-size: contain;
+            opacity: 0.3;
+            z-index: 0;
+        }
+        
+        .product-card-bg::after {
+            content: '';
+            position: absolute;
+            top: -20px;
+            right: -20px;
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, rgba(254, 215, 170, 0.2) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        
+        .product-card-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Add subtle animation on hover */
+        .product-card-bg:hover::before {
+            opacity: 0.4;
+            transition: opacity 0.3s ease;
+        }
+        
+        .product-card-bg:hover::after {
+            transform: scale(1.2);
+            transition: transform 0.3s ease;
+        }
     </style>
 </head>
 <body class="min-h-screen text-white antialiased">

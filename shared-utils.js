@@ -213,25 +213,26 @@ function getProductDisplayInfo(productName) {
  */
 function getEstimatedWeight(productName) {
     const weightMap = {
-        'HEEL HOENDER': '2.5kg',
-        'PLAT HOENDER (FLATTY\'S)': '1.8kg', 
-        'BRAAIPAKKE': '2.2kg',
-        'HEEL HALWE HOENDERS': '1.2kg',
-        'BORSSTUKKE MET BEEN EN VEL': '0.8kg',
-        'VLERKIES': '0.4kg',
-        'BOUDE EN DYE': '0.6kg',
-        'GUNS Boud en dy aanmekaar': '0.7kg',
-        'FILETTE (sonder vel)': '0.5kg',
-        'ONTBEENDE HOENDER': '1.8kg',
-        'SOSATIE': '0.6kg',
-        'CRUMBED STRIPS': '0.3kg',
-        'DRUMSTICKSSS': '0.5kg',
-        'DIE BOUDE ALLEEN': '0.4kg',
-        'DIE DYE ALLEEN': '0.3kg',
-        'TITTES (borsstukke sonder been en vel)': '0.6kg',
-        'GEVULDE HOENDER ROLLE OPSIE 2': '0.5kg',
-        'SUIWER HEUNING': '1.0kg',
-        'EIERS': '0.6kg'
+        'HEEL HOENDER': '2.19kg',                    // Correct from your data
+        'PLAT HOENDER (FLATTY\'S)': '2.10kg',        // plat  
+        'BRAAIPAKKE': '2.07kg',                      // braaipak
+        'HEEL HALWE HOENDERS': '1.05kg',             // halwe hoender
+        'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)': '1.05kg',  // 2bors
+        'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)': '2.09kg',  // 4bors
+        'VLERKIES': '0.85kg',                        // vlerke
+        'BOUDE EN DYE': '0.76kg',                    // boud/dy
+        'GUNS Boud en dy aanmekaar': '1.23kg',       // guns
+        'FILETTE (sonder vel)': '1.04kg',            // Fillets
+        'STRIPS': '0.50kg',                          // Strips
+        'ONTBEENDE HOENDER': '1.53kg',               // Ontbeen
+        'LEWER': '0.50kg',                           // lewer (500g packs)
+        'NEKKIES': '0.50kg',                         // 500g sakkies
+        'HOENDER PATTIES': '0.58kg',                 // Patties
+        'HOENDER KAASWORS': '0.57kg',                // Kaaswors (500g packs)
+        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': '1.75kg',  // Vye rol
+        'GEVULDE HOENDER ROLLE OPSIE 2': '1.83kg',   // Pep rol
+        'INGELEGDE GROEN VYE': '375ml potjie',       // Not kg - per unit
+        'SUIWER HEUNING': '500g potjie'              // Not kg - per unit
     };
     
     return weightMap[productName] || '1.0kg';

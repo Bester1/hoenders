@@ -1009,36 +1009,38 @@ function populateAllProducts() {
                 console.log(`🔑 Generated key: "${productName}" → "${productKey}"`);
                 
                 const productCard = document.createElement('div');
-                productCard.className = 'bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
+                productCard.className = 'product-card-bg bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
                 
                 productCard.innerHTML = `
-                    <div class="mb-4">
-                        <h4 class="text-lg font-semibold text-white mb-2">${displayInfo.displayName}</h4>
-                        <p class="text-zinc-400 text-sm mb-3">${displayInfo.description}</p>
+                    <div class="product-card-content">
+                        <div class="mb-4">
+                            <h4 class="text-lg font-semibold text-white mb-2">${displayInfo.displayName}</h4>
+                            <p class="text-zinc-400 text-sm mb-3">${displayInfo.description}</p>
                         <div class="text-xs text-zinc-500 mb-3 p-2 bg-zinc-700/30 rounded-lg">
                             <i class="fas fa-box"></i> ${priceData.packaging || 'Standard packaging'}
                         </div>
                         <div class="flex justify-between items-center mb-4">
                             <span class="text-orange-400 font-semibold">R${priceData.selling.toFixed(2)}/kg</span>
                             <span class="text-xs text-zinc-500">~${estimatedWeight}kg est.</span>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <button class="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all" onclick="updateQuantity('${productKey}', -1)">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M5 12h14"></path>
-                                </svg>
-                            </button>
-                            <input type="number" id="qty-${productKey}" min="0" max="20" value="0" class="w-16 h-8 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-center text-sm quantity-input" onchange="setQuantity('${productKey}', this.value)">
-                            <button class="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all" onclick="updateQuantity('${productKey}', 1)">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M12 5v14m-7-7h14"></path>
-                                </svg>
-                            </button>
+                        
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <button class="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all" onclick="updateQuantity('${productKey}', -1)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M5 12h14"></path>
+                                    </svg>
+                                </button>
+                                <input type="number" id="qty-${productKey}" min="0" max="20" value="0" class="w-16 h-8 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-center text-sm quantity-input" onchange="setQuantity('${productKey}', this.value)">
+                                <button class="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all" onclick="updateQuantity('${productKey}', 1)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 5v14m-7-7h14"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <span class="text-xs text-zinc-500" id="total-${productKey}">R0.00</span>
                         </div>
-                        <span class="text-xs text-zinc-500" id="total-${productKey}">R0.00</span>
                     </div>
                 `;
                 
