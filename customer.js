@@ -1775,8 +1775,7 @@ async function saveOrderToDatabase(orderData) {
         
         // Create a single order record with total amount
         const orderRecord = {
-            orderId: orderId,  // Use orderId field for consistency with admin
-            order_id: orderId,  // Keep for compatibility
+            order_id: orderId,  // Use existing database column
             order_date: new Date().toISOString().split('T')[0],
             customer_id: currentCustomer.id,
             customer_name: currentCustomer.name,

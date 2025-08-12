@@ -1332,7 +1332,7 @@ async function generateInvoice(orderId) {
     const currentOrders = getCurrentOrders();
     
     // Check if this is a customer portal order (new single-record format)
-    const customerPortalOrder = currentOrders.find(o => o.orderId === orderId && (o.source === 'Customer Portal' || o.source === 'customer_portal'));
+    const customerPortalOrder = currentOrders.find(o => (o.orderId === orderId || o.order_id === orderId) && (o.source === 'Customer Portal' || o.source === 'customer_portal'));
     
     let order, invoiceItems = [], subtotal = 0;
     
