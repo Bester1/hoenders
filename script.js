@@ -582,44 +582,50 @@ async function exportToExcelForButchery() {
         }
     });
     
+    // Sort products alphabetically for consistent column order
     const productList = Array.from(allProducts).sort();
+    console.log('📊 Products for butchery spreadsheet:', productList);
     
-    // Create CSV header: Email, Name, Address, Phone, then one column per product
-    let csvContent = 'Email,Customer Name,Address,Phone,' + productList.map(p => `"${p}"`).join(',') + '\n';
+    // Create CSV header: Email, Customer Name, Address, Phone, then individual product columns
+    let csvContent = 'Email,Customer Name,Address,Phone';
+    
+    // Add each product as a separate column header
+    productList.forEach(product => {
+        csvContent += `,"${product}"`;
+    });
+    csvContent += '\n';
     
     // Create one row per customer with product quantities in appropriate columns
     monthOrders.forEach(order => {
-        const row = [];
+        // Start with customer info columns
+        let rowData = `"${order.email}","${order.name}","${order.address || ''}","${order.phone || ''}"`;
         
-        // A1: Email
-        row.push(`"${order.email}"`);
-        
-        // B1: Customer Name  
-        row.push(`"${order.name}"`);
-        
-        // C1: Address
-        row.push(`"${order.address || ''}"`);
-        
-        // D1: Phone
-        row.push(`"${order.phone || ''}"`);
-        
-        // E1, F1, G1... : Product quantities
+        // Collect all products and quantities for this customer
         const customerProducts = {};
         
         if (order.products && Array.isArray(order.products)) {
             order.products.forEach(item => {
-                customerProducts[item.product] = (customerProducts[item.product] || 0) + (item.quantity || 0);
+                const productName = item.product;
+                const quantity = item.quantity || 0;
+                customerProducts[productName] = (customerProducts[productName] || 0) + quantity;
             });
         } else if (order.product) {
-            customerProducts[order.product] = (customerProducts[order.product] || 0) + (order.quantity || 0);
+            const productName = order.product;
+            const quantity = order.quantity || 0;
+            customerProducts[productName] = (customerProducts[productName] || 0) + quantity;
         }
         
-        // Add quantity for each product in the correct column
+        // Add quantity for each product column (E, F, G, H, etc.)
         productList.forEach(product => {
-            row.push(customerProducts[product] || 0);
+            const quantity = customerProducts[product] || 0;
+            rowData += `,${quantity}`;
         });
         
-        csvContent += row.join(',') + '\n';
+        csvContent += rowData + '\n';
+        
+        // Log customer order for debugging
+        const customerProductCount = Object.keys(customerProducts).length;
+        console.log(`📋 Customer: ${order.name} - ${customerProductCount} different products:`, customerProducts);
     });
     
     // Add summary section
