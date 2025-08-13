@@ -787,11 +787,15 @@ CREATE TABLE settings (
     current_import_id TEXT,
     pricing JSONB DEFAULT '{}'::jsonb,
     gmail_config JSONB DEFAULT '{}'::jsonb,
+    email_template TEXT,
     email_queue JSONB DEFAULT '[]'::jsonb,
     analysis_history JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add email_template column to existing settings tables
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS email_template TEXT;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE imports ENABLE ROW LEVEL SECURITY;
