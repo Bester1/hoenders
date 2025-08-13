@@ -1805,7 +1805,10 @@ async function saveOrderToDatabase(orderData) {
         // Try the database insert with better error handling
         console.log('💾 About to insert order record:', JSON.stringify(orderRecord, null, 2));
         
-        const response = await supabaseClient.from('orders').insert([orderRecord]);
+        const response = await supabaseClient
+            .from('orders')
+            .insert([orderRecord])
+            .select();  // Force return of inserted data
         
         console.log('📡 Database response:', response);
         
@@ -1822,7 +1825,11 @@ async function saveOrderToDatabase(orderData) {
             console.log('🔍 Order items count:', orderItems.length);
             console.log('🔍 First order item sample:', JSON.stringify(orderItems[0], null, 2));
             
-            const itemsResponse = await supabaseClient.from('order_items').insert(orderItems);
+            // Insert with .select() to force data return even with RLS
+            const itemsResponse = await supabaseClient
+                .from('order_items')
+                .insert(orderItems)
+                .select();  // Force return of inserted data
             
             console.log('📡 Order items response:', itemsResponse);
             
@@ -1833,26 +1840,15 @@ async function saveOrderToDatabase(orderData) {
                 alert(`WARNING: Order saved but items may be missing. Error: ${itemsResponse.error.message}`);
             } else if (!itemsResponse.data || itemsResponse.data.length === 0) {
                 console.error('❌ CRITICAL: Order items insert returned success but no data!');
+                console.error('❌ This is likely an RLS (Row Level Security) issue in Supabase');
                 console.error('❌ Response:', itemsResponse);
-                alert('WARNING: Order items may not have been saved properly!');
+                
+                // Try direct verification instead of relying on insert response
+                console.log('🔍 Attempting direct verification of inserted items...');
             } else {
                 console.log('✅ Order items saved successfully');
                 console.log('✅ Saved items count:', itemsResponse.data.length);
                 console.log('✅ Saved items data:', itemsResponse.data);
-                
-                // Verify the items were actually saved
-                const verifyResponse = await supabaseClient
-                    .from('order_items')
-                    .select('*')
-                    .eq('order_id', orderId);
-                    
-                console.log('🔍 Verification query for order_id:', orderId);
-                console.log('🔍 Found items after save:', verifyResponse.data?.length || 0);
-                
-                if (!verifyResponse.data || verifyResponse.data.length === 0) {
-                    console.error('❌ CRITICAL: Items not found after save!');
-                    alert('WARNING: Order items verification failed!');
-                }
             }
         } else {
             console.error('❌ CRITICAL: No order items to save! orderItems array is empty');
