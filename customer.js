@@ -1685,7 +1685,19 @@ async function handleOrderPlacement() {
     } catch (error) {
         console.error('❌ Error placing order:', error);
         console.error('Error details:', error.message, error.stack);
-        alert(`Fout met bestelling: ${error.message}. Probeer asseblief weer.`);
+        
+        // Provide more specific error messages
+        let userMessage = 'Er was \'n probleem met die bestelling. Probeer asseblief weer.';
+        
+        if (error.message.includes('timeout')) {
+            userMessage = 'Bestelling het te lank gevat - databasis probleem. Probeer asseblief weer oor \'n paar minute.';
+        } else if (error.message.includes('Database operation failed after')) {
+            userMessage = 'Databasis verbinding probleem. Kontroleer jou internet verbinding en probeer weer.';
+        } else if (error.message.includes('Network')) {
+            userMessage = 'Internet verbinding probleem. Kontroleer jou wifi en probeer weer.';
+        }
+        
+        alert(userMessage);
     }
 }
 
@@ -1805,11 +1817,11 @@ async function saveOrderToDatabase(orderData) {
         // Try the database insert with better error handling
         console.log('💾 About to insert order record:', JSON.stringify(orderRecord, null, 2));
         
-        // Add timeout wrapper for database operation
+        // Add timeout wrapper for database operation with increased timeout
         const insertWithTimeout = new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
-                reject(new Error('Database insert timeout after 10 seconds'));
-            }, 10000);
+                reject(new Error('Database insert timeout after 30 seconds'));
+            }, 30000); // Increased from 10s to 30s
             
             supabaseClient
                 .from('orders')
@@ -1825,14 +1837,49 @@ async function saveOrderToDatabase(orderData) {
         });
         
         let response;
-        try {
-            response = await insertWithTimeout;
-            console.log('📡 Database response:', response);
-        } catch (timeoutError) {
-            console.error('❌ Database operation failed:', timeoutError);
-            alert('Order submission failed - database timeout. Please try again.');
-            throw timeoutError;
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        // Retry logic for database operations
+        while (retryCount < maxRetries) {
+            try {
+                response = await insertWithTimeout;
+                break; // Success, exit retry loop
+            } catch (error) {
+                retryCount++;
+                console.log(`❌ Database attempt ${retryCount}/${maxRetries} failed:`, error.message);
+                
+                if (retryCount >= maxRetries) {
+                    throw new Error(`Database operation failed after ${maxRetries} attempts: ${error.message}`);
+                }
+                
+                // Wait before retrying (exponential backoff)
+                const delay = Math.pow(2, retryCount) * 1000; // 2s, 4s, 8s
+                console.log(`⏳ Retrying in ${delay/1000} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                
+                // Recreate the timeout promise for the retry
+                const insertWithTimeout = new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Database insert timeout after 30 seconds'));
+                    }, 30000);
+                    
+                    supabaseClient
+                        .from('orders')
+                        .insert([orderRecord])
+                        .then(result => {
+                            clearTimeout(timeout);
+                            resolve(result);
+                        })
+                        .catch(error => {
+                            clearTimeout(timeout);
+                            reject(error);
+                        });
+                });
+            }
         }
+        
+        console.log('📡 Database response:', response);
         
         if (response.error) {
             console.error('❌ Error saving order:', response.error);
@@ -1850,8 +1897,8 @@ async function saveOrderToDatabase(orderData) {
             // Insert with .select() and timeout to force data return even with RLS
             const itemsInsertWithTimeout = new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => {
-                    reject(new Error('Order items insert timeout after 10 seconds'));
-                }, 10000);
+                    reject(new Error('Order items insert timeout after 30 seconds'));
+                }, 30000); // Increased from 10s to 30s
                 
                 supabaseClient
                     .from('order_items')
