@@ -143,21 +143,21 @@ let pricing = {
     'SUIWER HEUNING': { cost: 60, selling: 70, packaging: '500g potjie', unit: 'per potjie' }
 };
 
-// Load configuration from config.js
-if (typeof AppConfig === 'undefined') {
-    console.error('AppConfig not found. Please ensure config.js is loaded.');
-    alert('Configuration file missing. Please check config.js');
-}
+// Configuration - Direct inline for GitHub Pages deployment
+const AppConfig = {
+    SUPABASE_URL: 'https://ukdmlzuxgnjucwidsygj.supabase.co',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w',
+    GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzBN3lIbR-ZW9ybqb5E6e0XNa7wdrfKmO8d6pQeSVXAd0WM7tT-n9M4jFO42mC1vcS1/exec'
+};
 
 // Supabase Configuration
-const SUPABASE_URL = AppConfig?.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = AppConfig?.SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = AppConfig.SUPABASE_URL;
+const SUPABASE_ANON_KEY = AppConfig.SUPABASE_ANON_KEY;
 const { createClient } = supabase;
-const supabaseClient = SUPABASE_URL && SUPABASE_ANON_KEY ? 
-    createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Email Service Configuration - Google Apps Script
-const GOOGLE_SCRIPT_URL = AppConfig?.GOOGLE_SCRIPT_URL || '';
+const GOOGLE_SCRIPT_URL = AppConfig.GOOGLE_SCRIPT_URL;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
