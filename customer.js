@@ -1826,6 +1826,7 @@ async function saveOrderToDatabase(orderData) {
             supabaseClient
                 .from('orders')
                 .insert([orderRecord])
+                .select() // Force return data even with RLS
                 .then(result => {
                     clearTimeout(timeout);
                     resolve(result);
@@ -1867,6 +1868,7 @@ async function saveOrderToDatabase(orderData) {
                     supabaseClient
                         .from('orders')
                         .insert([orderRecord])
+                        .select() // Force return data even with RLS
                         .then(result => {
                             clearTimeout(timeout);
                             resolve(result);
@@ -1903,6 +1905,7 @@ async function saveOrderToDatabase(orderData) {
                 supabaseClient
                     .from('order_items')
                     .insert(orderItems)
+                    .select() // Force return data even with RLS
                     .then(result => {
                         clearTimeout(timeout);
                         resolve(result);
