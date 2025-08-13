@@ -226,12 +226,66 @@ async function initializeDatabase() {
             console.log('Supabase connected successfully');
             addActivity('Connected to Supabase database');
             
+            // Ensure database schema is up to date
+            await updateDatabaseSchema();
+            
             // Try to migrate existing localStorage data
             await migrateToDatabase();
         }
     } catch (error) {
         console.error('Database initialization error:', error);
         addActivity('Database initialization failed - using local storage');
+    }
+}
+
+async function updateDatabaseSchema() {
+    try {
+        console.log('🔧 Checking database schema...');
+        
+        // Check if email_template column exists by trying to select it
+        const { error } = await supabaseClient
+            .from('settings')
+            .select('email_template')
+            .limit(0);
+            
+        if (error && (error.message.includes('column "email_template" does not exist') || error.code === '42703')) {
+            console.log('⚠️ Email template column missing. Please run this SQL in Supabase SQL Editor:');
+            console.log('%c ALTER TABLE settings ADD COLUMN email_template TEXT;', 'background: #f0f0f0; padding: 5px; font-family: monospace;');
+            
+            // Show user-friendly notification
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed; top: 70px; right: 20px; z-index: 10000;
+                background: #ffeaa7; border: 2px solid #fdcb6e; border-radius: 8px;
+                padding: 15px 20px; max-width: 400px; font-size: 14px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <i class="fas fa-wrench" style="margin-right: 8px; color: #e17055;"></i>
+                    <strong>Database Schema Update Needed</strong>
+                    <button onclick="this.parentElement.parentElement.remove()" style="margin-left: auto; background: none; border: none; font-size: 16px; cursor: pointer;">×</button>
+                </div>
+                <p style="margin: 0 0 8px 0;">Please add this SQL in your Supabase dashboard:</p>
+                <code style="background: white; padding: 4px 8px; border-radius: 4px; display: block; font-family: monospace;">
+                    ALTER TABLE settings ADD COLUMN email_template TEXT;
+                </code>
+            `;
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 15 seconds
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 15000);
+            
+            addActivity('Database schema needs update - see notification');
+        } else if (!error) {
+            console.log('✅ Database schema is up to date');
+        }
+    } catch (error) {
+        console.log('⚠️ Could not check database schema:', error);
     }
 }
 
