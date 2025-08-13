@@ -849,9 +849,13 @@ Savings/Spaar rek</textarea>
         // Configure PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
+    <!-- Load shared styles and components -->
+    <link rel="stylesheet" href="shared-styles.css">
+    
     <!-- Load configuration - this file should contain your API keys -->
     <script src="config.js"></script>
     <script src="utils.js"></script>
+    <script src="shared-components.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
