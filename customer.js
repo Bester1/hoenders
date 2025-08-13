@@ -1910,9 +1910,16 @@ function estimateProductWeight(productName, quantity) {
     // Products sold per unit (not by weight)
     const perUnitProducts = ['SUIWER HEUNING', 'INGELEGDE GROEN VYE'];
     
-    // Return 0 weight for per-unit products (they don't use weight-based pricing)
+    // Return nominal weight for per-unit products (database requires weight > 0)
     if (perUnitProducts.includes(productName)) {
-        return 0; // These are sold per unit, not by weight
+        // Use actual jar weight for database constraint compliance
+        if (productName === 'SUIWER HEUNING') {
+            return 0.5 * quantity; // 500g potjie
+        }
+        if (productName === 'INGELEGDE GROEN VYE') {
+            return 0.375 * quantity; // 375ml potjie (approximately 375g)
+        }
+        return 0.001 * quantity; // Fallback minimal weight
     }
     
     // Actual average weights per item based on your data (in kg)
