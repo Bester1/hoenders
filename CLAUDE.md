@@ -35,6 +35,36 @@ Per `.bmad-core/core-config.yaml`:
 ## Project Overview
 A comprehensive admin dashboard for managing Plaas Hoenders chicken orders, invoicing, and email communications. The application has been simplified to use Google Apps Script for email functionality, removing the complex Gmail API integration.
 
+## 🏁 **CRITICAL CHECKPOINT: FULLY WORKING SYSTEM** (August 13, 2025)
+
+**⚠️ FALLBACK POINT**: Commit `9d07300` - Complete end-to-end functionality verified
+**🎯 STATUS**: ALL SYSTEMS OPERATIONAL - Admin Dashboard + Customer Portal + Email System
+
+### VERIFIED WORKING FEATURES (August 13, 2025)
+✅ **Admin Dashboard**: Configuration resolved, Supabase connected, all features operational
+✅ **Customer Portal**: Order placement working, 20-product test successful  
+✅ **Database**: RLS policies fixed, order_items saving AND retrieving correctly
+✅ **Email System**: Invoice emails working with complete itemized lists (not R0.00)
+✅ **PDF Processing**: Multi-customer OCR extraction fully operational
+✅ **Business Analytics**: Complete BI dashboard with customer insights
+✅ **Invoice Generation**: Proper items, quantities, weights, and totals
+✅ **Email Templates**: Professional Afrikaans wording with banking details
+
+### CRITICAL FIXES APPLIED (August 13, 2025)
+1. **RLS Database Policy**: Fixed order_items table permissions - customers can insert/read
+2. **Performance**: Reduced debug logging from 400+ to essential messages only  
+3. **Email Template**: Improved Afrikaans wording and {invoiceDetails} placeholder
+4. **UI Cleanup**: Removed mock "Laaste bestelling" data for clean testing
+5. **Configuration**: Embedded config directly in JavaScript files for GitHub Pages
+6. **Favicon**: Fixed 404 errors with proper /hoenders/ paths
+
+### END-TO-END WORKFLOW VERIFIED
+1. **Customer Portal** → Places order with 20 products → Success ✅
+2. **Database** → Saves order + order_items → Success ✅  
+3. **Admin Dashboard** → Loads orders → Success ✅
+4. **Invoice Generation** → Creates detailed invoice → Success ✅
+5. **Email System** → Sends complete itemized invoice → Success ✅
+
 ## Recent Major Changes (July 2025)
 
 ### Email Service Simplification
