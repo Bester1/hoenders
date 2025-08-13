@@ -1760,11 +1760,14 @@ async function saveOrderToDatabase(orderData) {
             totalWeight += estimatedWeight;
             
             // Create order item referencing the main order
+            // Ensure weight is never 0 or negative (database constraint)
+            const safeWeight = Math.max(0.001, estimatedWeight);
+            
             orderItems.push({
                 order_id: orderId,
                 product_name: productName,
                 quantity: quantity,
-                weight_kg: estimatedWeight,
+                weight_kg: safeWeight,  // Always > 0 for database constraint
                 unit_price_per_kg: productPricing.selling,
                 line_total: itemTotal,
                 source: 'customer_selection',
@@ -1945,8 +1948,10 @@ function estimateProductWeight(productName, quantity) {
     };
     
     const baseWeight = typicalWeights[productName] || 1.0; // Default 1kg if unknown
+    const totalWeight = baseWeight * quantity;
     
-    return baseWeight * quantity;
+    // Ensure weight is never 0 (database constraint requires weight > 0)
+    return Math.max(0.001, totalWeight);
 }
 
 /**
