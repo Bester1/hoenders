@@ -82,7 +82,7 @@ function getCustomerPricing() {
         'BOUDE EN DYE': { cost: 71.00, selling: 81.00, packaging: '2 boude en 2 dye in pak' },
         'GUNS Boud en dy aanmekaar': { cost: 71.00, selling: 81.00, packaging: '3 IN PAK' },
         'LEWER': { cost: 27.00, selling: 31.00, packaging: 'In 500g bakkies verpak' },
-        'NEKKIES': { cost: 25.00, selling: 30.00, packaging: 'In 500g sakkies verpak NIE ALTYD BESKIKBAAR' },
+        'NEKKIES': { cost: 25.00, selling: 30.00, packaging: 'In 1kg sakkies verpak NIE ALTYD BESKIKBAAR' },
         'FILETTE (sonder vel)': { cost: 86.50, selling: 100.00, packaging: '4 fillets per pak' },
         'STRIPS': { cost: 86.50, selling: 100.00, packaging: '± 500g per pak' },
         'ONTBEENDE HOENDER': { cost: 110.00, selling: 125.00, packaging: 'VACUUM VERPAK' },
@@ -226,7 +226,7 @@ function getEstimatedWeight(productName) {
         'STRIPS': '0.50kg',                          // Strips
         'ONTBEENDE HOENDER': '1.53kg',               // Ontbeen
         'LEWER': '0.50kg',                           // lewer (500g packs)
-        'NEKKIES': '0.50kg',                         // 500g sakkies
+        'NEKKIES': '1.0kg',                          // 1kg bags
         'HOENDER PATTIES': '0.58kg',                 // Patties
         'HOENDER KAASWORS': '0.57kg',                // Kaaswors (500g packs)
         'GEVULDE HOENDER ROLLE VAKUUM VERPAK': '1.75kg',  // Vye rol

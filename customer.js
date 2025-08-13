@@ -2029,7 +2029,7 @@ function estimateProductWeight(productName, quantity) {
         'FILETTE (sonder vel)': 1.04,            // Fillets
         'GUNS Boud en dy aanmekaar': 1.23,       // guns
         'LEWER': 0.50,                           // lewer
-        'NEKKIES': 0.50,                         // Assuming 500g packs
+        'NEKKIES': 1.00,                         // 1kg bags
         'ONTBEENDE HOENDER': 1.53,               // Ontbeen
         'HOENDER PATTIES': 0.58,                 // Patties
         'HOENDER KAASWORS': 0.57,                // Kaaswors
