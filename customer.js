@@ -1925,7 +1925,7 @@ function getProductNameFromKey(productKey) {
     // First try exact key match
     for (const productName of Object.keys(allProducts)) {
         const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
-        console.log(`🔄 Testing "${productName}" → "${generatedKey}" vs "${productKey}"`);
+        // Only log when we find a match to reduce console spam
         if (generatedKey === productKey) {
             console.log(`✅ Found exact match: "${productKey}" → "${productName}"`);
             return productName;

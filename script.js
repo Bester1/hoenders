@@ -929,6 +929,10 @@ CREATE POLICY "Allow all operations on settings" ON settings FOR ALL USING (true
 CREATE POLICY "Allow all operations on customers" ON customers FOR ALL USING (true);
 CREATE POLICY "Allow all operations on orders" ON orders FOR ALL USING (true);
 CREATE POLICY "Allow all operations on order_items" ON order_items FOR ALL USING (true);
+
+-- Additional explicit policies for customer portal (in case above policies don't work)
+CREATE POLICY "Customers can insert order items" ON order_items FOR INSERT WITH CHECK (true);
+CREATE POLICY "Customers can view order items" ON order_items FOR SELECT USING (true);
                     </textarea>
                     <p><strong>Instructions:</strong></p>
                     <ol>
