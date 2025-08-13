@@ -1805,12 +1805,34 @@ async function saveOrderToDatabase(orderData) {
         // Try the database insert with better error handling
         console.log('💾 About to insert order record:', JSON.stringify(orderRecord, null, 2));
         
-        const response = await supabaseClient
-            .from('orders')
-            .insert([orderRecord])
-            .select();  // Force return of inserted data
+        // Add timeout wrapper for database operation
+        const insertWithTimeout = new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('Database insert timeout after 10 seconds'));
+            }, 10000);
+            
+            supabaseClient
+                .from('orders')
+                .insert([orderRecord])
+                .then(result => {
+                    clearTimeout(timeout);
+                    resolve(result);
+                })
+                .catch(error => {
+                    clearTimeout(timeout);
+                    reject(error);
+                });
+        });
         
-        console.log('📡 Database response:', response);
+        let response;
+        try {
+            response = await insertWithTimeout;
+            console.log('📡 Database response:', response);
+        } catch (timeoutError) {
+            console.error('❌ Database operation failed:', timeoutError);
+            alert('Order submission failed - database timeout. Please try again.');
+            throw timeoutError;
+        }
         
         if (response.error) {
             console.error('❌ Error saving order:', response.error);
@@ -1825,11 +1847,34 @@ async function saveOrderToDatabase(orderData) {
             console.log('🔍 Order items count:', orderItems.length);
             console.log('🔍 First order item sample:', JSON.stringify(orderItems[0], null, 2));
             
-            // Insert with .select() to force data return even with RLS
-            const itemsResponse = await supabaseClient
-                .from('order_items')
-                .insert(orderItems)
-                .select();  // Force return of inserted data
+            // Insert with .select() and timeout to force data return even with RLS
+            const itemsInsertWithTimeout = new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Order items insert timeout after 10 seconds'));
+                }, 10000);
+                
+                supabaseClient
+                    .from('order_items')
+                    .insert(orderItems)
+                    .then(result => {
+                        clearTimeout(timeout);
+                        resolve(result);
+                    })
+                    .catch(error => {
+                        clearTimeout(timeout);
+                        reject(error);
+                    });
+            });
+            
+            let itemsResponse;
+            try {
+                itemsResponse = await itemsInsertWithTimeout;
+            } catch (timeoutError) {
+                console.error('❌ Order items database operation failed:', timeoutError);
+                alert('Order items submission failed - database timeout.');
+                // Don't throw, continue anyway
+                itemsResponse = { error: timeoutError, data: null };
+            }
             
             console.log('📡 Order items response:', itemsResponse);
             
