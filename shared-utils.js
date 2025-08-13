@@ -187,7 +187,7 @@ function getProductDisplayInfo(productName) {
         },
         'GEVULDE HOENDER ROLLE OPSIE 2': {
             displayName: 'Gevulde Hoender Rolle Opsie 2',
-            description: 'Spesiaal gevulde hoender rolle'
+            description: 'Peppadew, mozzarella, cheddar, pynappel'
         },
         'SUIWER HEUNING': {
             displayName: 'Suiwer Heuning',
