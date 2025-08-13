@@ -630,7 +630,7 @@ async function exportToExcelForButchery() {
     
     // Add summary section
     csvContent += '\n\nPRODUCT SUMMARY FOR BUTCHERY\n';
-    csvContent += 'Product,Total Quantity,Total Weight (kg),Number of Customers\n';
+    csvContent += 'Product,Total Quantity,Number of Customers\n';
     
     const productSummary = {};
     monthOrders.forEach(order => {
@@ -639,24 +639,20 @@ async function exportToExcelForButchery() {
                 if (!productSummary[item.product]) {
                     productSummary[item.product] = {
                         quantity: 0,
-                        weight: 0,
                         customers: new Set()
                     };
                 }
                 productSummary[item.product].quantity += item.quantity || 0;
-                productSummary[item.product].weight += item.weight || 0;
                 productSummary[item.product].customers.add(order.email);
             });
         } else if (order.product) {
             if (!productSummary[order.product]) {
                 productSummary[order.product] = {
                     quantity: 0,
-                    weight: 0,
                     customers: new Set()
                 };
             }
             productSummary[order.product].quantity += order.quantity || 0;
-            productSummary[order.product].weight += order.weight || 0;
             productSummary[order.product].customers.add(order.email);
         }
     });
@@ -664,7 +660,7 @@ async function exportToExcelForButchery() {
     Object.entries(productSummary)
         .sort((a, b) => b[1].quantity - a[1].quantity)
         .forEach(([product, data]) => {
-            csvContent += `"${product}",${data.quantity},${data.weight.toFixed(2)},${data.customers.size}\n`;
+            csvContent += `"${product}",${data.quantity},${data.customers.size}\n`;
         });
     
     // Download the CSV file
@@ -752,7 +748,7 @@ async function loadCustomerPortalOrders() {
     try {
         console.log('🔄 Loading customer portal orders...');
         
-        // First try with the customers join
+        // First try with the customers and order_items join
         let { data: ordersData, error: ordersError } = await supabaseClient
             .from('orders')
             .select(`
@@ -762,6 +758,13 @@ async function loadCustomerPortalOrders() {
                     email,
                     phone,
                     address
+                ),
+                order_items (
+                    product_name,
+                    quantity,
+                    weight_kg,
+                    unit_price_per_kg,
+                    line_total
                 )
             `)
             .eq('source', 'customer_portal');
@@ -802,7 +805,22 @@ async function loadCustomerPortalOrders() {
                 weight: order.weight_kg,
                 total: order.total_amount,
                 status: order.status || 'pending',
-                source: 'Customer Portal'
+                source: 'Customer Portal',
+                // Add products array from order_items
+                products: order.order_items ? order.order_items.map(item => {
+                    // Fix product names that should be "Opsie 1"
+                    let productName = item.product_name;
+                    if (productName === 'GEVULDE HOENDER ROLLE VAKUUM VERPAK') {
+                        productName = 'GEVULDE HOENDER ROLLE OPSIE 1';
+                    }
+                    return {
+                        product: productName,
+                        quantity: item.quantity,
+                        weight: item.weight_kg,
+                        price: item.unit_price_per_kg,
+                        total: item.line_total
+                    };
+                }) : []
             }));
             
             console.log('✅ Successfully loaded customer portal orders:', window.customerPortalOrders.length);

@@ -2034,7 +2034,7 @@ function estimateProductWeight(productName, quantity) {
         'HOENDER PATTIES': 0.58,                 // Patties
         'HOENDER KAASWORS': 0.57,                // Kaaswors
         'STRIPS': 0.50,                          // Strips
-        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': 1.75,  // Vye rol
+        'GEVULDE HOENDER ROLLE OPSIE 1': 1.75,  // Vye rol
         'GEVULDE HOENDER ROLLE OPSIE 2': 1.83    // Pep rol
     };
     
