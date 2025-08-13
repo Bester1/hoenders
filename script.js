@@ -9,6 +9,35 @@ let analysisHistory = [];
 let lastPDFAnalysis = null; // Store the last PDF analysis for import
 let isInitializing = true; // Prevent saves during initialization
 
+// Safe DOM manipulation helpers
+function safeSetTableContent(tableBody, content, colspan = 1) {
+    // Clear existing content
+    while (tableBody.firstChild) {
+        tableBody.removeChild(tableBody.firstChild);
+    }
+    
+    if (typeof content === 'string') {
+        // Create a single row with message
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = colspan;
+        cell.className = 'no-data';
+        cell.textContent = content;
+        row.appendChild(cell);
+        tableBody.appendChild(row);
+    } else if (content instanceof Node) {
+        // Append DOM node directly
+        tableBody.appendChild(content);
+    }
+}
+
+function safeCreateElement(tag, text = '', className = '') {
+    const element = document.createElement(tag);
+    if (text) element.textContent = text;
+    if (className) element.className = className;
+    return element;
+}
+
 // Helper functions for import management
 function getCurrentOrders() {
     const importOrders = currentImportId && imports[currentImportId] ? imports[currentImportId].orders : [];
@@ -44,7 +73,8 @@ function estimateProductWeight(product, quantity) {
     };
     
     const baseWeight = weightEstimates[product] || 1.0; // Default 1kg if not found
-    return parseFloat((baseWeight * quantity).toFixed(2));
+    const sanitizedQuantity = SecurityUtils.sanitizeNumber(quantity, 1);
+    return parseFloat((baseWeight * sanitizedQuantity).toFixed(2));
 }
 
 // Product mapping for CSV columns to standardized names
@@ -113,14 +143,21 @@ let pricing = {
     'SUIWER HEUNING': { cost: 60, selling: 70, packaging: '500g potjie', unit: 'per potjie' }
 };
 
+// Load configuration from config.js
+if (typeof AppConfig === 'undefined') {
+    console.error('AppConfig not found. Please ensure config.js is loaded.');
+    alert('Configuration file missing. Please check config.js');
+}
+
 // Supabase Configuration
-const SUPABASE_URL = 'https://ukdmlzuxgnjucwidsygj.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w';
+const SUPABASE_URL = AppConfig?.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = AppConfig?.SUPABASE_ANON_KEY || '';
 const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = SUPABASE_URL && SUPABASE_ANON_KEY ? 
+    createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // Email Service Configuration - Google Apps Script
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBN3lIbR-ZW9ybqb5E6e0XNa7wdrfKmO8d6pQeSVXAd0WM7tT-n9M4jFO42mC1vcS1/exec'; // Paste your Web App URL here after deploying GoogleAppsScript.gs
+const GOOGLE_SCRIPT_URL = AppConfig?.GOOGLE_SCRIPT_URL || '';
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -166,6 +203,13 @@ async function initializeDatabase() {
     try {
         console.log('Initializing Supabase connection...');
         
+        // Check if Supabase client is available
+        if (!supabaseClient) {
+            console.log('Supabase client not available - config missing. Using local storage only.');
+            addActivity('Using local storage only - database config not found');
+            return;
+        }
+        
         // Test the connection
         const { error } = await supabaseClient
             .from('imports')
@@ -196,6 +240,16 @@ async function saveToDatabase() {
     if (isInitializing) {
         return true;
     }
+    
+    // Check if Supabase client is available
+    if (!supabaseClient) {
+        console.log('Supabase client not available, saving to localStorage only');
+        localStorage.setItem('plaasHoendersImports', JSON.stringify(imports));
+        localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
+        localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
+        localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
+        return true;
+    }
 
     try {
         // Save imports
@@ -212,6 +266,7 @@ async function saveToDatabase() {
             
             if (importError) {
                 console.error('Error saving import:', importError);
+                ErrorHandler.showNotification('Failed to save import data to database', 'error');
                 return false;
             }
         }
@@ -229,6 +284,7 @@ async function saveToDatabase() {
         
         if (settingsError) {
             console.error('Error saving settings:', settingsError);
+            ErrorHandler.showNotification('Failed to save settings to database', 'error');
             return false;
         }
         
@@ -236,6 +292,12 @@ async function saveToDatabase() {
         return true;
     } catch (error) {
         console.error('Database save error:', error);
+        ErrorHandler.showNotification('Database connection error. Data saved locally only.', 'error');
+        // Fallback to localStorage
+        localStorage.setItem('plaasHoendersImports', JSON.stringify(imports));
+        localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
+        localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
+        localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
         return false;
     }
 }
@@ -1726,8 +1788,16 @@ function addNewProduct() {
     const product = prompt('Enter product name:');
     if (!product) return;
     
-    const cost = parseFloat(prompt('Enter cost price:'));
-    const selling = parseFloat(prompt('Enter selling price:'));
+    const costInput = prompt('Enter cost price:');
+    const sellingInput = prompt('Enter selling price:');
+    
+    const cost = SecurityUtils.sanitizeNumber(costInput);
+    const selling = SecurityUtils.sanitizeNumber(sellingInput);
+    
+    if (cost <= 0 || selling <= 0) {
+        ErrorHandler.showNotification('Invalid price entered. Please enter positive numbers.', 'error');
+        return;
+    }
     const packaging = prompt('Enter packaging details:') || 'Standard packaging';
     
     if (isNaN(cost) || isNaN(selling)) {

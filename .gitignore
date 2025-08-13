@@ -12,6 +12,7 @@
 .env.production.local
 
 # Local configuration files
+config.js
 config.local.js
 config.local.json
 
