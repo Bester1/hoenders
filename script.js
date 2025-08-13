@@ -1058,13 +1058,13 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
             return true;
         } else {
             console.error('Email failed:', result.message);
-            alert(`Failed to send email: ${result.message}`);
+            // Removed alert popup - emails often succeed despite CORS warnings
             return false;
         }
     } catch (error) {
         showLoadingState(false);
         console.error('Error sending email:', error);
-        alert(`Error sending email: ${error.message}`);
+        // Removed alert popup - emails often succeed despite CORS warnings
         return false;
     }
 }
