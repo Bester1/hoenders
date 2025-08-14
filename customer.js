@@ -1817,13 +1817,16 @@ async function saveOrderToDatabase(orderData) {
         // Try the database insert with better error handling
         console.log('💾 About to insert order record:', JSON.stringify(orderRecord, null, 2));
         
+        // Create fresh client instance to prevent connection accumulation
+        const freshClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
         // Add timeout wrapper for database operation with increased timeout
-        const insertWithTimeout = new Promise((resolve, reject) => {
+        let insertWithTimeout = new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 reject(new Error('Database insert timeout after 30 seconds'));
             }, 30000); // Increased from 10s to 30s
             
-            supabaseClient
+            freshClient
                 .from('orders')
                 .insert([orderRecord])
                 .select() // Force return data even with RLS
@@ -1859,13 +1862,16 @@ async function saveOrderToDatabase(orderData) {
                 console.log(`⏳ Retrying in ${delay/1000} seconds...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 
+                // Create fresh client instance for retry to prevent connection accumulation
+                const retryClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
                 // Recreate the timeout promise for the retry
-                const insertWithTimeout = new Promise((resolve, reject) => {
+                insertWithTimeout = new Promise((resolve, reject) => {
                     const timeout = setTimeout(() => {
                         reject(new Error('Database insert timeout after 30 seconds'));
                     }, 30000);
                     
-                    supabaseClient
+                    retryClient
                         .from('orders')
                         .insert([orderRecord])
                         .select() // Force return data even with RLS
@@ -1896,13 +1902,16 @@ async function saveOrderToDatabase(orderData) {
             console.log('🔍 Order items count:', orderItems.length);
             console.log('🔍 First order item sample:', JSON.stringify(orderItems[0], null, 2));
             
+            // Create fresh client instance for order items to prevent connection accumulation
+            const itemsClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            
             // Insert with .select() and timeout to force data return even with RLS
             const itemsInsertWithTimeout = new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => {
                     reject(new Error('Order items insert timeout after 30 seconds'));
                 }, 30000); // Increased from 10s to 30s
                 
-                supabaseClient
+                itemsClient
                     .from('order_items')
                     .insert(orderItems)
                     .select() // Force return data even with RLS
