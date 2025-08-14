@@ -35,10 +35,10 @@ Per `.bmad-core/core-config.yaml`:
 ## Project Overview
 A comprehensive admin dashboard for managing Plaas Hoenders chicken orders, invoicing, and email communications. The application has been simplified to use Google Apps Script for email functionality, removing the complex Gmail API integration.
 
-## 🏁 **CRITICAL CHECKPOINT: FULLY WORKING SYSTEM** (August 13, 2025)
+## 🏁 **CRITICAL CHECKPOINT: FULLY WORKING SYSTEM** (August 14, 2025)
 
-**⚠️ FALLBACK POINT**: Commit `9d07300` - Complete end-to-end functionality verified
-**🎯 STATUS**: ALL SYSTEMS OPERATIONAL - Admin Dashboard + Customer Portal + Email System
+**⚠️ LATEST UPDATE**: Commit `7464d3e` - Database connection hanging issue resolved
+**🎯 STATUS**: ALL SYSTEMS OPERATIONAL - Admin Dashboard + Customer Portal + Email System + Connection Fixes
 
 ### VERIFIED WORKING FEATURES (August 13, 2025)
 ✅ **Admin Dashboard**: Configuration resolved, Supabase connected, all features operational
@@ -50,13 +50,18 @@ A comprehensive admin dashboard for managing Plaas Hoenders chicken orders, invo
 ✅ **Invoice Generation**: Proper items, quantities, weights, and totals
 ✅ **Email Templates**: Professional Afrikaans wording with banking details
 
-### CRITICAL FIXES APPLIED (August 13, 2025)
+### CRITICAL FIXES APPLIED (August 13-14, 2025)
 1. **RLS Database Policy**: Fixed order_items table permissions - customers can insert/read
 2. **Performance**: Reduced debug logging from 400+ to essential messages only  
 3. **Email Template**: Improved Afrikaans wording and {invoiceDetails} placeholder
 4. **UI Cleanup**: Removed mock "Laaste bestelling" data for clean testing
 5. **Configuration**: Embedded config directly in JavaScript files for GitHub Pages
 6. **Favicon**: Fixed 404 errors with proper /hoenders/ paths
+7. **DATABASE CONNECTION FIX (August 14, 2025)**: CRITICAL - Resolved hanging after 9 orders
+   - **Problem**: Database operations timing out after 9 successful orders
+   - **Root Cause**: Supabase connection accumulation exhausting browser connection pool
+   - **Solution**: Fresh client instances for each database operation (commit `7464d3e`)
+   - **Impact**: System now handles unlimited orders without timeout issues
 
 ### END-TO-END WORKFLOW VERIFIED
 1. **Customer Portal** → Places order with 20 products → Success ✅
@@ -960,3 +965,62 @@ exportAnalyticsData()        // Comprehensive data export
 5. **Refresh Data**: Click "Refresh" button to recalculate analytics
 
 **CRITICAL FOR BUSINESS GROWTH**: This analytics system provides the data insights needed to make informed decisions about customer focus, product strategy, and pricing optimization.
+
+## DATABASE CUSTOMER DUPLICATE ANALYSIS (2025-08-14)
+
+### 🔍 **CUSTOMER DUPLICATE ISSUE IDENTIFIED**
+
+**ANALYSIS DATE**: August 14, 2025  
+**DATA SOURCE**: `/Users/user/Downloads/customers_rows.csv` - Supabase customer export
+
+### **Test Account Status (Expected/Acceptable)**
+✅ **abester7@gmail.com** - 1 record - Owner test account  
+✅ **roofpainterscapetown@gmail.com** - 1 record - Test account  
+✅ **plumberfinderza@gmail.com** - 1 record - Test account  
+✅ **thegogonaledi@gmail.com** - 1 record - Test account
+
+### **Real Customer Duplicates (PROBLEM IDENTIFIED)**
+
+**🔴 NATASJA BRAND-MASON** - **7 DUPLICATE RECORDS**
+- Email: natasja@pmg.co.za
+- Same auth_user_id: 095748b2-7ff4-483e-9315-4093eafa99fa
+- Database rows: 7 separate customer records for same person
+
+**🔴 MIKE LARGE** - **4 DUPLICATE RECORDS**  
+- Email: michael.e.large@gmail.com
+- Same auth_user_id: 7c6a4c2b-28ed-4619-ab82-407fae9916d0
+- Database rows: 4 separate customer records for same person
+
+**🔴 MARTI GERBER** - **2 DUPLICATE RECORDS**
+- Email: onthefarmw@gmail.com  
+- Same auth_user_id: da5a1320-0ad4-4749-8a5a-cc2bd52b8f95
+- Database rows: 2 separate customer records for same person
+
+### **Root Cause Analysis**
+
+**SYSTEM BEHAVIOR**: Customer registration creates new records instead of recognizing existing accounts
+**USER SCENARIOS**: Customers likely registered multiple times due to:
+- Forgot password scenarios
+- Browser/session issues  
+- Multiple device registrations
+- Unclear login vs register flows
+
+### **Impact Assessment**
+- **Data Fragmentation**: Order history split across multiple customer profiles
+- **Admin Confusion**: Multiple entries for same customer in dashboard
+- **Email Issues**: Potential duplicate communications
+- **Analytics Skew**: Customer counts inflated by duplicates
+
+### **Technical Solutions Needed (Future)**
+1. **Email Uniqueness Constraint**: Prevent duplicate email registrations
+2. **Account Recovery Flow**: "Forgot password" instead of new registration
+3. **Customer Record Merging**: Consolidate duplicate customer data
+4. **Improved UX**: Clearer login/register distinction
+
+### **Current Status**
+- **Functionality**: System works despite duplicates
+- **Data Integrity**: Compromised by duplicate customer records  
+- **User Experience**: Some customers have fragmented order history
+- **Priority**: Medium - affects data quality but not core functionality
+
+**RECOMMENDATION**: Address during next maintenance window when customer activity is low.
