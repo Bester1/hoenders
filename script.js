@@ -1239,7 +1239,7 @@ function generateEmailBody(orderData) {
         
         invoice.items.forEach(item => {
             invoiceDetails += '<tr>';
-            invoiceDetails += `<td>${item.originalDescription || item.product}</td>`;
+            invoiceDetails += `<td>${item.product || item.originalDescription}</td>`;
             invoiceDetails += `<td>${item.quantity}</td>`;
             if (hasWeightData) {
                 invoiceDetails += `<td>${item.weight ? item.weight.toFixed(2) : '0.00'}</td>`;
@@ -1301,7 +1301,7 @@ function generateEmailBodyMultiProduct(orderData) {
         
         invoice.items.forEach(item => {
             invoiceDetails += '<tr>';
-            invoiceDetails += `<td>${item.originalDescription || item.product}</td>`;
+            invoiceDetails += `<td>${item.product || item.originalDescription}</td>`;
             invoiceDetails += `<td>${item.quantity}</td>`;
             if (hasWeightData) {
                 invoiceDetails += `<td>${item.weight ? item.weight.toFixed(2) : '0.00'}</td>`;
@@ -1323,7 +1323,7 @@ function generateEmailBodyMultiProduct(orderData) {
         // Fallback for orders without detailed invoice
         invoiceDetails = `<strong>Order Details:</strong><br>`;
         orderData.products.forEach(product => {
-            invoiceDetails += `${product.originalDescription || product.product}: ${product.quantity} qty`;
+            invoiceDetails += `${product.product || product.originalDescription}: ${product.quantity} qty`;
             if (product.weight) invoiceDetails += `, ${product.weight}kg`;
             invoiceDetails += ` @ R${product.unitPrice}/kg = R${product.total.toFixed(2)}<br>`;
         });
@@ -2671,7 +2671,7 @@ function previewInvoice(invoiceId) {
                                 <tbody>
                                     ${invoice.items.map(item => `
                                         <tr>
-                                            <td>${item.originalDescription || item.product}</td>
+                                            <td>${item.product || item.originalDescription}</td>
                                             <td>${item.quantity}</td>
                                             ${invoice.source === 'PDF' && item.weight ? `<td>${item.weight.toFixed(2)}</td>` : ''}
                                             <td>R${(item.unitPrice || 0).toFixed(2)}</td>
@@ -5186,7 +5186,7 @@ function updateProductAnalytics() {
     allInvoices.forEach(invoice => {
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
-                const originalProductName = item.originalDescription || item.product || 'Unknown Product';
+                const originalProductName = item.product || item.originalDescription || 'Unknown Product';
                 const mappedProductName = getAnalyticsProductName(originalProductName);
                 
                 if (!productStats[originalProductName]) {
@@ -5288,7 +5288,7 @@ function updateProfitAnalytics() {
     allInvoices.forEach(invoice => {
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
-                const originalProductName = item.originalDescription || item.product || 'Unknown Product';
+                const originalProductName = item.product || item.originalDescription || 'Unknown Product';
                 const mappedProductName = getAnalyticsProductName(originalProductName);
                 const itemRevenue = item.total || 0;
                 
@@ -5468,7 +5468,7 @@ function generateProductAnalyticsData() {
     allInvoices.forEach(invoice => {
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
-                const originalProductName = item.originalDescription || item.product || 'Unknown Product';
+                const originalProductName = item.product || item.originalDescription || 'Unknown Product';
                 const mappedProductName = getAnalyticsProductName(originalProductName);
                 
                 if (!productData[originalProductName]) {
@@ -5540,7 +5540,7 @@ function generateProfitAnalyticsData() {
         
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
-                const originalProductName = item.originalDescription || item.product || 'Unknown Product';
+                const originalProductName = item.product || item.originalDescription || 'Unknown Product';
                 const mappedProductName = getAnalyticsProductName(originalProductName);
                 const pricingInfo = pricing[mappedProductName];
                 
