@@ -4239,7 +4239,56 @@ function flagStockIssues(filename) {
 function findExistingCustomer(customerName) {
     console.log(`🔍 Looking for existing customer: "${customerName}"`);
     
-    // Search through all imports for a customer with matching name
+    // FIRST: Search through customer portal orders (most likely source)
+    const portalOrders = window.customerPortalOrders || [];
+    console.log(`📱 Checking ${portalOrders.length} customer portal orders`);
+    
+    for (const order of portalOrders) {
+        if (!order.name) continue;
+        
+        const orderName = order.name.toLowerCase().trim();
+        const searchName = customerName.toLowerCase().trim();
+        
+        // Try exact match first
+        if (orderName === searchName) {
+            console.log(`✅ PORTAL - Exact match found: "${order.name}" === "${customerName}"`);
+            return {
+                name: order.name,
+                email: order.email,
+                phone: order.phone,
+                address: order.address
+            };
+        }
+        
+        // Try contains match
+        if (orderName.includes(searchName) || searchName.includes(orderName)) {
+            console.log(`✅ PORTAL - Partial match found: "${order.name}" ~= "${customerName}"`);
+            return {
+                name: order.name,
+                email: order.email,
+                phone: order.phone,
+                address: order.address
+            };
+        }
+        
+        // Try matching individual words (first name, last name)
+        const orderWords = orderName.split(/\s+/);
+        const searchWords = searchName.split(/\s+/);
+        
+        for (const searchWord of searchWords) {
+            if (searchWord.length > 2 && orderWords.some(orderWord => orderWord.includes(searchWord))) {
+                console.log(`✅ PORTAL - Word match found: "${order.name}" contains "${searchWord}" from "${customerName}"`);
+                return {
+                    name: order.name,
+                    email: order.email,
+                    phone: order.phone,
+                    address: order.address
+                };
+            }
+        }
+    }
+    
+    // SECOND: Search through imported orders (fallback)
     for (const importData of Object.values(imports)) {
         console.log(`📂 Checking import: ${importData.name} (${importData.orders.length} orders)`);
         
@@ -4251,13 +4300,13 @@ function findExistingCustomer(customerName) {
             
             // Try exact match first
             if (orderName === searchName) {
-                console.log(`✅ Exact match found: "${order.name}" === "${customerName}"`);
+                console.log(`✅ IMPORT - Exact match found: "${order.name}" === "${customerName}"`);
                 return true;
             }
             
             // Try contains match
             if (orderName.includes(searchName) || searchName.includes(orderName)) {
-                console.log(`✅ Partial match found: "${order.name}" ~= "${customerName}"`);
+                console.log(`✅ IMPORT - Partial match found: "${order.name}" ~= "${customerName}"`);
                 return true;
             }
             
@@ -4267,7 +4316,7 @@ function findExistingCustomer(customerName) {
             
             for (const searchWord of searchWords) {
                 if (searchWord.length > 2 && orderWords.some(orderWord => orderWord.includes(searchWord))) {
-                    console.log(`✅ Word match found: "${order.name}" contains "${searchWord}" from "${customerName}"`);
+                    console.log(`✅ IMPORT - Word match found: "${order.name}" contains "${searchWord}" from "${customerName}"`);
                     return true;
                 }
             }
@@ -4276,7 +4325,7 @@ function findExistingCustomer(customerName) {
         });
         
         if (matchingOrder) {
-            console.log(`✅ Customer match found: "${matchingOrder.name}" (${matchingOrder.email})`);
+            console.log(`✅ Customer match found in imports: "${matchingOrder.name}" (${matchingOrder.email})`);
             return {
                 name: matchingOrder.name,
                 email: matchingOrder.email,
@@ -4289,7 +4338,14 @@ function findExistingCustomer(customerName) {
     console.log(`❌ No existing customer found for: "${customerName}"`);
     
     // Debug: List all existing customer names for comparison
-    console.log('📋 Available customer names:');
+    console.log('📋 Available customer names from portal:');
+    portalOrders.forEach(order => {
+        if (order.name) {
+            console.log(`  - "${order.name}" (${order.email || 'no email'})`);
+        }
+    });
+    
+    console.log('📋 Available customer names from imports:');
     for (const importData of Object.values(imports)) {
         importData.orders.forEach(order => {
             if (order.name) {
