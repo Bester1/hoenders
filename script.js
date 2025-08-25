@@ -102,8 +102,16 @@ const productMapping = {
     'heuning': 'SUIWER HEUNING',
     'fillets': 'FILETTE (sonder vel)',
     'vlerke': 'VLERKIES',
-    '4bors': 'BORSSTUKKE MET BEEN EN VEL',
-    '2bors': 'BORSSTUKKE MET BEEN EN VEL', 
+    '4bors': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
+    '2bors': 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)',
+    '4 in pak': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
+    '2 in pak': 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)',
+    '4bors in pak': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
+    '2bors in pak': 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)',
+    'bors 4': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
+    'bors 2': 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)',
+    'borsstukke 4': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
+    'borsstukke 2': 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)',
     'boud/dy': 'BOUDE EN DYE',
     'heel': 'HEEL HOENDER',
     'halwe hoender': 'HEEL HALWE HOENDERS',
@@ -4359,17 +4367,27 @@ function findExistingCustomer(customerName) {
 
 // Helper function to find mapped product name
 function findMappedProduct(description) {
+    const desc = description.toLowerCase().trim();
+    
+    // Special handling for pak variations
+    if (desc.includes('4') && (desc.includes('bors') || desc.includes('pak'))) {
+        return 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)';
+    }
+    if (desc.includes('2') && (desc.includes('bors') || desc.includes('pak'))) {
+        return 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)';
+    }
+    
     // Try to find matching product from description
     for (const [key, value] of Object.entries(productMapping)) {
-        if (description.toLowerCase().includes(key.toLowerCase()) || 
-            description.toLowerCase().includes(value.toLowerCase())) {
+        if (desc.includes(key.toLowerCase()) || 
+            desc.includes(value.toLowerCase())) {
             return value;
         }
     }
     
     // Try to match against pricing keys
     for (const product of Object.keys(pricing)) {
-        if (description.toLowerCase().includes(product.toLowerCase())) {
+        if (desc.includes(product.toLowerCase())) {
             return product;
         }
     }
