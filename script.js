@@ -4279,13 +4279,13 @@ function findExistingCustomer(customerName) {
             };
         }
         
-        // Try matching individual words (first name, last name)
+        // Try matching individual words (first name, last name) - EXACT word matches only
         const orderWords = orderName.split(/\s+/);
         const searchWords = searchName.split(/\s+/);
         
         for (const searchWord of searchWords) {
-            if (searchWord.length > 2 && orderWords.some(orderWord => orderWord.includes(searchWord))) {
-                console.log(`✅ PORTAL - Word match found: "${order.name}" contains "${searchWord}" from "${customerName}"`);
+            if (searchWord.length > 2 && orderWords.some(orderWord => orderWord === searchWord)) {
+                console.log(`✅ PORTAL - Exact word match found: "${order.name}" contains exact word "${searchWord}" from "${customerName}"`);
                 return {
                     name: order.name,
                     email: order.email,
@@ -4318,13 +4318,13 @@ function findExistingCustomer(customerName) {
                 return true;
             }
             
-            // Try matching individual words (first name, last name)
+            // Try matching individual words (first name, last name) - EXACT word matches only
             const orderWords = orderName.split(/\s+/);
             const searchWords = searchName.split(/\s+/);
             
             for (const searchWord of searchWords) {
-                if (searchWord.length > 2 && orderWords.some(orderWord => orderWord.includes(searchWord))) {
-                    console.log(`✅ IMPORT - Word match found: "${order.name}" contains "${searchWord}" from "${customerName}"`);
+                if (searchWord.length > 2 && orderWords.some(orderWord => orderWord === searchWord)) {
+                    console.log(`✅ IMPORT - Exact word match found: "${order.name}" contains exact word "${searchWord}" from "${customerName}"`);
                     return true;
                 }
             }
