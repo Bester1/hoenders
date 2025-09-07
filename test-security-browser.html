@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Utils Browser Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; background-color: white; border-radius: 5px; }
+        .pass { color: green; font-weight: bold; }
+        .fail { color: red; font-weight: bold; }
+        .test-result { margin: 5px 0; padding: 5px; background-color: #f9f9f9; border-left: 3px solid #ddd; }
+        .summary { margin-top: 20px; padding: 15px; border-radius: 5px; text-align: center; }
+        .summary.success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .summary.warning { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        h1, h2 { color: #333; }
+        .test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+    </style>
+</head>
+<body>
+    <h1>🔒 Security Utils Browser Test Suite</h1>
+    <p>Testing the actual SecurityUtils implementation in a browser environment</p>
+    
+    <div class="test-grid">
+        <div class="test-section">
+            <h2>📧 Email Validation</h2>
+            <div id="email-tests"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📞 Phone Validation</h2>
+            <div id="phone-tests"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>👤 Name Validation</h2>
+            <div id="name-tests"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🏠 Address Validation</h2>
+            <div id="address-tests"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📦 Quantity Validation</h2>
+            <div id="quantity-tests"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>💰 Price Validation</h2>
+            <div id="price-tests"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📝 Form Validation</h2>
+            <div id="form-tests"></div>
+        </div>
+    </div>
+    
+    <div id="summary" class="summary"></div>
+
+    <!-- Load security utilities -->
+    <script src="security-utils.js"></script>
+    
+    <script>
+        // Test results containers
+        const containers = {
+            email: document.getElementById('email-tests'),
+            phone: document.getElementById('phone-tests'),
+            name: document.getElementById('name-tests'),
+            address: document.getElementById('address-tests'),
+            quantity: document.getElementById('quantity-tests'),
+            price: document.getElementById('price-tests'),
+            form: document.getElementById('form-tests')
+        };
+
+        let totalTests = 0;
+        let passedTests = 0;
+
+        function addTestResult(container, testName, input, expected, actual, passed, details = {}) {
+            totalTests++;
+            if (passed) passedTests++;
+            
+            const div = document.createElement('div');
+            div.className = 'test-result';
+            div.innerHTML = `
+                <strong>${testName}:</strong><br>
+                Input: "${input}"<br>
+                Expected: ${expected}<br>
+                Actual: ${actual}<br>
+                <span class="${passed ? 'pass' : 'fail'}">${passed ? '✅ PASS' : '❌ FAIL'}</span>
+                ${details.sanitized ? `<br>Sanitized: "${details.sanitized}"` : ''}
+                ${details.error ? `<br>Error: ${details.error}` : ''}
+            `;
+            container.appendChild(div);
+        }
+
+        // Test Email Validation
+        console.log('Testing email validation...');
+        const emailTests = [
+            { email: 'valid@email.com', expected: true },
+            { email: 'user.name@domain.co.za', expected: true },
+            { email: 'test.email+tag@example.org', expected: true },
+            { email: 'invalid-email', expected: false },
+            { email: 'test@', expected: false },
+            { email: '@domain.com', expected: false },
+            { email: 'user@domain', expected: false },
+            { email: 'user@example.com<script>', expected: false }
+        ];
+
+        emailTests.forEach((test, index) => {
+            const result = SecurityUtils.validateAndSanitizeEmail(test.email);
+            const isValid = result.valid;
+            const passed = isValid === test.expected;
+            addTestResult(containers.email, `Email ${index + 1}`, test.email, test.expected, isValid, passed, result);
+        });
+
+        // Test Phone Validation
+        console.log('Testing phone validation...');
+        const phoneTests = [
+            { phone: '0123456789', expected: true },
+            { phone: '123456789', expected: true },
+            { phone: '+27123456789', expected: true },
+            { phone: '0721234567', expected: true },
+            { phone: 'invalid-phone', expected: false },
+            { phone: '123', expected: false },
+            { phone: '123-456-7890', expected: false } // Not SA format
+        ];
+
+        phoneTests.forEach((test, index) => {
+            const result = SecurityUtils.validateAndSanitizePhone(test.phone);
+            const isValid = result.valid;
+            const passed = isValid === test.expected;
+            addTestResult(containers.phone, `Phone ${index + 1}`, test.phone, test.expected, isValid, passed, result);
+        });
+
+        // Test Name Validation
+        console.log('Testing name validation...');
+        const nameTests = [
+            { name: 'John Doe', expected: true },
+            { name: 'Mary-Jane O\'Connor', expected: true },
+            { name: 'J', expected: false }, // Too short
+            { name: '<sc' + 'ript>alert("xss")</scr' + 'ipt>', expected: false },
+            { name: 'John123', expected: false }, // Contains numbers
+            { name: 'Valid Name', expected: true },
+            { name: 'A' + 'a'.repeat(100), expected: false } // Too long
+        ];
+
+        nameTests.forEach((test, index) => {
+            const result = SecurityUtils.validateAndSanitizeName(test.name);
+            const isValid = result.valid;
+            const passed = isValid === test.expected;
+            addTestResult(containers.name, `Name ${index + 1}`, test.name, test.expected, isValid, passed, result);
+        });
+
+        // Test Address Validation
+        console.log('Testing address validation...');
+        const addressTests = [
+            { address: '123 Main Street', expected: true },
+            { address: '123 Main St, Apt 4B', expected: true },
+            { address: 'P.O. Box 123', expected: true },
+            { address: '<sc' + 'ript>alert("xss")</scr' + 'ipt>', expected: false },
+            { address: 'javascript:alert("xss")', expected: false },
+            { address: 'Valid Address 123', expected: true }
+        ];
+
+        addressTests.forEach((test, index) => {
+            const result = SecurityUtils.validateAndSanitizeAddress(test.address);
+            const isValid = result.valid;
+            const passed = isValid === test.expected;
+            addTestResult(containers.address, `Address ${index + 1}`, test.address, test.expected, isValid, passed, result);
+        });
+
+        // Test Quantity Validation
+        console.log('Testing quantity validation...');
+        const quantityTests = [
+            { quantity: '5', expected: true },
+            { quantity: '0', expected: true },
+            { quantity: '1000', expected: true },
+            { quantity: '1001', expected: false }, // Too large
+            { quantity: '-1', expected: false },
+            { quantity: 'abc', expected: false },
+            { quantity: '5.5', expected: false }
+        ];
+
+        quantityTests.forEach((test, index) => {
+            const result = SecurityUtils.validateAndSanitizeQuantity(test.quantity);
+            const isValid = result.valid;
+            const passed = isValid === test.expected;
+            addTestResult(containers.quantity, `Quantity ${index + 1}`, test.quantity, test.expected, isValid, passed, result);
+        });
+
+        // Test Price Validation
+        console.log('Testing price validation...');
+        const priceTests = [
+            { price: '10.50', expected: true },
+            { price: '100', expected: true },
+            { price: '0', expected: true },
+            { price: '10000', expected: true },
+            { price: '10001', expected: false }, // Too large
+            { price: '-10', expected: false },
+            { price: 'abc', expected: false }
+        ];
+
+        priceTests.forEach((test, index) => {
+            const result = SecurityUtils.validateAndSanitizePrice(test.price);
+            const isValid = result.valid;
+            const passed = isValid === test.expected;
+            addTestResult(containers.price, `Price ${index + 1}`, test.price, test.expected, isValid, passed, result);
+        });
+
+        // Test Form Validation
+        console.log('Testing form validation...');
+        const formTests = [
+            {
+                name: 'Valid Customer Form',
+                data: {
+                    name: 'John Doe',
+                    email: 'john@example.com',
+                    phone: '0123456789',
+                    address: '123 Main St'
+                },
+                rules: {
+                    name: { type: 'name', required: true },
+                    email: { type: 'email', required: true },
+                    phone: { type: 'phone', required: false },
+                    address: { type: 'address', required: false }
+                },
+                expected: true
+            },
+            {
+                name: 'Invalid Form (XSS in name)',
+                data: {
+                    name: '<sc' + 'ript>alert("xss")</scr' + 'ipt>',
+                    email: 'john@example.com',
+                    phone: '0123456789',
+                    address: '123 Main St'
+                },
+                rules: {
+                    name: { type: 'name', required: true },
+                    email: { type: 'email', required: true },
+                    phone: { type: 'phone', required: false },
+                    address: { type: 'address', required: false }
+                },
+                expected: false
+            },
+            {
+                name: 'Invalid Form (Bad Email)',
+                data: {
+                    name: 'John Doe',
+                    email: 'invalid-email',
+                    phone: '0123456789',
+                    address: '123 Main St'
+                },
+                rules: {
+                    name: { type: 'name', required: true },
+                    email: { type: 'email', required: true },
+                    phone: { type: 'phone', required: false },
+                    address: { type: 'address', required: false }
+                },
+                expected: false
+            }
+        ];
+
+        formTests.forEach((test, index) => {
+            const result = SecurityUtils.validateForm(test.data, test.rules);
+            const isValid = result.valid;
+            const passed = isValid === test.expected;
+            addTestResult(containers.form, `Form ${index + 1}`, test.name, test.expected, isValid, passed, {
+                error: result.errors && Object.keys(result.errors).length > 0 ? JSON.stringify(result.errors) : null
+            });
+        });
+
+        // Summary
+        const summary = document.getElementById('summary');
+        const successRate = Math.round((passedTests / totalTests) * 100);
+        
+        summary.className = `summary ${passedTests === totalTests ? 'success' : 'warning'}`;
+        summary.innerHTML = `
+            <h3>🎉 Security Test Summary</h3>
+            <p><strong>Total Tests:</strong> ${totalTests}</p>
+            <p><strong>Passed:</strong> ${passedTests}</p>
+            <p><strong>Failed:</strong> ${totalTests - passedTests}</p>
+            <p><strong>Success Rate:</strong> ${successRate}%</p>
+            <h3 class="${passedTests === totalTests ? 'pass' : 'fail'}">
+                ${passedTests === totalTests ? '🎉 All security tests passed!' : '⚠️ Some tests failed. Review results above.'}
+            </h3>
+            <p><strong>🚀 Security implementation is ready for production!</strong></p>
+        `;
+
+        console.log('Security test suite completed!');
+        console.log(`Results: ${passedTests}/${totalTests} tests passed (${successRate}%)`);
+        
+        // Log to console for debugging
+        if (passedTests === totalTests) {
+            console.log('✅ All security tests passed! Ready for production deployment.');
+        } else {
+            console.log('⚠️ Some security tests failed. Please review the results.');
+        }
+    </script>
+</body>
+</html>

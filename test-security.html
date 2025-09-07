@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Utils Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .pass { color: green; }
+        .fail { color: red; }
+        .test-result { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔒 Security Utils Test Suite</h1>
+    
+    <div class="test-section">
+        <h2>Input Sanitization Tests</h2>
+        <div id="sanitization-tests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Email Validation Tests</h2>
+        <div id="email-tests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>XSS Protection Tests</h2>
+        <div id="xss-tests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>SQL Injection Protection Tests</h2>
+        <div id="sql-tests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Phone Number Validation Tests</h2>
+        <div id="phone-tests"></div>
+    </div>
+
+    <!-- Load security utilities -->
+    <script src="security-utils.js"></script>
+    
+    <script>
+        // Test results container
+        const results = {
+            sanitization: document.getElementById('sanitization-tests'),
+            email: document.getElementById('email-tests'),
+            xss: document.getElementById('xss-tests'),
+            sql: document.getElementById('sql-tests'),
+            phone: document.getElementById('phone-tests')
+        };
+
+        function addTestResult(container, testName, input, expected, actual, passed) {
+            const div = document.createElement('div');
+            div.className = 'test-result';
+            div.innerHTML = `
+                <strong>${testName}:</strong> 
+                Input: "${input}" | 
+                Expected: "${expected}" | 
+                Actual: "${actual}" | 
+                <span class="${passed ? 'pass' : 'fail'}">${passed ? '✅ PASS' : '❌ FAIL'}</span>
+            `;
+            container.appendChild(div);
+        }
+
+        // Test input sanitization
+        console.log('Testing input sanitization...');
+        const sanitizationTests = [
+            { input: '<script>alert("xss")</script>', expected: 'alert("xss")' },
+            { input: '<img src=x onerror=alert(1)>', expected: 'img src=x onerror=alert(1)' },
+            { input: 'normal text', expected: 'normal text' },
+            { input: 'user@example.com', expected: 'user@example.com' },
+            { input: '<div>content</div>', expected: 'divcontent/div' }
+        ];
+
+        sanitizationTests.forEach(test => {
+            const sanitized = SecurityUtils.sanitizeInput(test.input);
+            const passed = sanitized === test.expected;
+            addTestResult(results.sanitization, 'Sanitization', test.input, test.expected, sanitized, passed);
+        });
+
+        // Test email validation
+        console.log('Testing email validation...');
+        const emailTests = [
+            { email: 'valid@email.com', expected: true },
+            { email: 'user.name@domain.co.za', expected: true },
+            { email: 'invalid-email', expected: false },
+            { email: 'test@', expected: false },
+            { email: '@domain.com', expected: false },
+            { email: 'user@domain', expected: false }
+        ];
+
+        emailTests.forEach(test => {
+            const isValid = SecurityUtils.isValidEmail(test.email);
+            addTestResult(results.email, 'Email Validation', test.email, test.expected, isValid, isValid === test.expected);
+        });
+
+        // Test XSS protection
+        console.log('Testing XSS protection...');
+        const xssTests = [
+            { input: '<script>alert("xss")</script>', expected: true },
+            { input: '<img src=x onerror=alert(1)>', expected: true },
+            { input: 'javascript:alert("xss")', expected: true },
+            { input: 'normal text', expected: false },
+            { input: 'user@example.com', expected: false }
+        ];
+
+        xssTests.forEach(test => {
+            const hasXSS = SecurityUtils.hasXSS(test.input);
+            addTestResult(results.xss, 'XSS Detection', test.input, test.expected, hasXSS, hasXSS === test.expected);
+        });
+
+        // Test SQL injection protection
+        console.log('Testing SQL injection protection...');
+        const sqlTests = [
+            { input: 'DROP TABLE users;--', expected: true },
+            { input: "' OR '1'='1", expected: true },
+            { input: '1; DELETE FROM users', expected: true },
+            { input: 'normal text', expected: false },
+            { input: 'user@example.com', expected: false }
+        ];
+
+        sqlTests.forEach(test => {
+            const hasSQL = SecurityUtils.hasSQLInjection(test.input);
+            addTestResult(results.sql, 'SQL Injection Detection', test.input, test.expected, hasSQL, hasSQL === test.expected);
+        });
+
+        // Test phone number validation
+        console.log('Testing phone number validation...');
+        const phoneTests = [
+            { phone: '123-456-7890', expected: true },
+            { phone: '(123) 456-7890', expected: true },
+            { phone: '123.456.7890', expected: true },
+            { phone: '1234567890', expected: true },
+            { phone: '+1 123-456-7890', expected: true },
+            { phone: 'invalid-phone', expected: false },
+            { phone: '123', expected: false }
+        ];
+
+        phoneTests.forEach(test => {
+            const isValid = SecurityUtils.isValidPhone(test.phone);
+            addTestResult(results.phone, 'Phone Validation', test.phone, test.expected, isValid, isValid === test.expected);
+        });
+
+        // Summary
+        const allTests = document.querySelectorAll('.test-result');
+        const passedTests = document.querySelectorAll('.pass').length;
+        const totalTests = allTests.length;
+        
+        const summary = document.createElement('div');
+        summary.style.marginTop = '20px';
+        summary.style.padding = '15px';
+        summary.style.backgroundColor = passedTests === totalTests ? '#d4edda' : '#f8d7da';
+        summary.style.border = `1px solid ${passedTests === totalTests ? '#c3e6cb' : '#f5c6cb'}`;
+        summary.style.borderRadius = '4px';
+        summary.innerHTML = `
+            <h3>Test Summary</h3>
+            <p><strong>Total Tests:</strong> ${totalTests}</p>
+            <p><strong>Passed:</strong> ${passedTests}</p>
+            <p><strong>Failed:</strong> ${totalTests - passedTests}</p>
+            <p><strong>Success Rate:</strong> ${Math.round((passedTests / totalTests) * 100)}%</p>
+            <p class="${passedTests === totalTests ? 'pass' : 'fail'}">
+                ${passedTests === totalTests ? '🎉 All security tests passed!' : '⚠️ Some tests failed. Review the results above.'}
+            </p>
+        `;
+        
+        document.body.appendChild(summary);
+        
+        console.log('Security test suite completed!');
+        console.log(`Results: ${passedTests}/${totalTests} tests passed`);
+    </script>
+</body>
+</html>
