@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Confirmation Functionality</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>Test Confirmation Functionality</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Checkbox Validation</h3>
+        <label>
+            <input type="checkbox" id="testAddress"> Address Confirmed
+        </label><br>
+        <label>
+            <input type="checkbox" id="testPhone"> Phone Confirmed
+        </label><br>
+        <button id="testValidate">Test Validation</button>
+        <div id="testResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 2: Button State Management</h3>
+        <label>
+            <input type="checkbox" id="addressConfirmed"> Address Confirmed
+        </label><br>
+        <label>
+            <input type="checkbox" id="phoneConfirmed"> Phone Confirmed
+        </label><br>
+        <button id="placeOrder" disabled>Place Order</button>
+        <div id="buttonState">Button is currently: DISABLED</div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 3: Confirmation Text Update</h3>
+        <button id="updateText">Update Confirmation Text</button>
+        <div id="confirmAddressText">No address provided</div>
+        <div id="confirmPhoneText">No phone number provided</div>
+    </div>
+
+    <script>
+        // Test 1: Basic validation logic
+        document.getElementById('testValidate').addEventListener('click', function() {
+            const addressChecked = document.getElementById('testAddress').checked;
+            const phoneChecked = document.getElementById('testPhone').checked;
+            const result = document.getElementById('testResult');
+            
+            if (!addressChecked || !phoneChecked) {
+                result.innerHTML = '<span class="error">❌ Validation failed - Both checkboxes must be checked</span>';
+            } else {
+                result.innerHTML = '<span class="success">✅ Validation passed - Both checkboxes are checked</span>';
+            }
+        });
+        
+        // Test 2: Button state management
+        function updateButtonState() {
+            const addressCheckbox = document.getElementById('addressConfirmed');
+            const phoneCheckbox = document.getElementById('phoneConfirmed');
+            const placeOrderBtn = document.getElementById('placeOrder');
+            const buttonState = document.getElementById('buttonState');
+            
+            if (addressCheckbox.checked && phoneCheckbox.checked) {
+                placeOrderBtn.disabled = false;
+                buttonState.textContent = 'Button is currently: ENABLED';
+                buttonState.className = 'success';
+            } else {
+                placeOrderBtn.disabled = true;
+                buttonState.textContent = 'Button is currently: DISABLED';
+                buttonState.className = 'error';
+            }
+        }
+        
+        document.getElementById('addressConfirmed').addEventListener('change', updateButtonState);
+        document.getElementById('phoneConfirmed').addEventListener('change', updateButtonState);
+        
+        // Test 3: Text update functionality
+        document.getElementById('updateText').addEventListener('click', function() {
+            // Simulate customer data
+            const customerData = {
+                address: '123 Main Street, Pretoria, 0001',
+                phone: '079 616 7761'
+            };
+            
+            document.getElementById('confirmAddressText').textContent = customerData.address;
+            document.getElementById('confirmPhoneText').textContent = customerData.phone;
+        });
+        
+        // Initialize button state
+        updateButtonState();
+        
+        console.log('✅ Test page loaded successfully');
+        console.log('🧪 Run tests by interacting with the elements above');
+    </script>
+</body>
+</html>

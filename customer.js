@@ -1514,37 +1514,115 @@ function updateCustomerDisplayElements() {
  * @function populateOrderReview
  */
 function populateOrderReview() {
-    // Populate customer summary
+    // Populate customer summary in display mode
+    populateCustomerSummaryDisplay();
+    
+    // Populate edit form with current data
+    populateOrderReviewEditForm();
+    
+    // Populate order items summary
+    populateOrderItemsSummary();
+    
+    // Initialize confirmation checkboxes state
+    updateConfirmationButtonState();
+    
+    // Update confirmation checkboxes text
+    updateConfirmationText();
+    
+    // Add event listeners for confirmation checkboxes to enable/disable proceed button
+    const addressCheckbox = document.getElementById('addressConfirmed');
+    const phoneCheckbox = document.getElementById('phoneConfirmed');
+    const placeOrderBtn = document.getElementById('placeOrder');
+    
+    if (addressCheckbox && phoneCheckbox && placeOrderBtn) {
+        const checkProceedButton = () => {
+            if (addressCheckbox.checked && phoneCheckbox.checked) {
+                placeOrderBtn.disabled = false;
+            } else {
+                placeOrderBtn.disabled = true;
+            }
+        };
+        
+        addressCheckbox.addEventListener('change', checkProceedButton);
+        phoneCheckbox.addEventListener('change', checkProceedButton);
+        
+        // Initial check
+        checkProceedButton();
+    }
+}
+
+/**
+ * Populate customer summary display section
+ * @function populateCustomerSummaryDisplay
+ */
+function populateCustomerSummaryDisplay() {
     const customerSummary = document.getElementById('customerSummary');
     if (customerSummary && currentCustomer) {
         customerSummary.innerHTML = `
-            <div class="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                    <p class="text-zinc-400">Naam:</p>
-                    <p class="text-white font-medium">${currentCustomer.full_name || currentCustomer.name || ''}</p>
+            <div class="space-y-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p class="text-zinc-400 font-medium">Naam:</p>
+                        <p class="text-white font-medium">${currentCustomer.full_name || currentCustomer.name || ''}</p>
+                    </div>
+                    <div>
+                        <p class="text-zinc-400 font-medium">Telefoon:</p>
+                        <p class="text-white font-medium">${currentCustomer.phone || 'Geen telefoon'}</p>
+                    </div>
+                    <div class="md:col-span-2">
+                        <p class="text-zinc-400 font-medium">Aflewerings Adres:</p>
+                        <p class="text-white font-medium">${currentCustomer.address || 'Geen adres'}</p>
+                    </div>
+                    <div class="md:col-span-2">
+                        <p class="text-zinc-400 font-medium">Email:</p>
+                        <p class="text-white font-medium">${currentCustomer.email || ''}</p>
+                    </div>
+                    ${currentCustomer.delivery_instructions ? `
+                    <div class="md:col-span-2">
+                        <p class="text-zinc-400 font-medium">Spesiale Instruksies:</p>
+                        <p class="text-white font-medium">${currentCustomer.delivery_instructions}</p>
+                    </div>
+                    ` : ''}
                 </div>
-                <div>
-                    <p class="text-zinc-400">Telefoon:</p>
-                    <p class="text-white font-medium">${currentCustomer.phone || 'Geen telefoon'}</p>
-                </div>
-                <div class="col-span-2">
-                    <p class="text-zinc-400">Aflewerings Adres:</p>
-                    <p class="text-white font-medium">${currentCustomer.address || 'Geen adres'}</p>
-                </div>
-                <div class="col-span-2">
-                    <p class="text-zinc-400">Email:</p>
-                    <p class="text-white font-medium">${currentCustomer.email || ''}</p>
-                </div>
-                ${currentCustomer.delivery_instructions ? `
-                <div class="col-span-2">
-                    <p class="text-zinc-400">Spesiale Instruksies:</p>
-                    <p class="text-white font-medium">${currentCustomer.delivery_instructions}</p>
-                </div>
-                ` : ''}
             </div>
         `;
     }
+}
+
+/**
+ * Populate order review edit form with current customer data
+ * @function populateOrderReviewEditForm
+ */
+function populateOrderReviewEditForm() {
+    if (!currentCustomer) return;
     
+    // Populate form fields
+    const editName = document.getElementById('editCustomerName');
+    const editPhone = document.getElementById('editCustomerPhone');
+    const editAddress = document.getElementById('editCustomerAddress');
+    const editEmail = document.getElementById('editCustomerEmail');
+    const editInstructions = document.getElementById('editDeliveryInstructions');
+    
+    if (editName) editName.value = currentCustomer.full_name || currentCustomer.name || '';
+    if (editPhone) editPhone.value = currentCustomer.phone || '';
+    if (editAddress) editAddress.value = currentCustomer.address || '';
+    if (editEmail) editEmail.value = currentCustomer.email || '';
+    if (editInstructions) editInstructions.value = currentCustomer.delivery_instructions || '';
+}
+
+/**
+ * Populate order items summary section
+ * @function populateOrderItemsSummary
+ */
+function populateOrderItemsSummary() {
+    
+}
+
+/**
+ * Populate order items summary section
+ * @function populateOrderItemsSummary
+ */
+function populateOrderItemsSummary() {
     // Populate order items summary using new pricing system
     const orderItemsSummary = document.getElementById('orderItemsSummary');
     if (orderItemsSummary) {
@@ -1620,6 +1698,247 @@ function populateOrderReview() {
         }
     }
 }
+
+/**
+ * Toggle between display and edit modes in order review
+ * @function toggleEditMode
+ * @param {boolean} showEdit - Whether to show edit mode
+ */
+function toggleEditMode(showEdit) {
+    const detailsDisplay = document.getElementById('detailsDisplay');
+    const detailsEdit = document.getElementById('detailsEdit');
+    const editBtn = document.getElementById('editDetailsBtn');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const saveBtn = document.getElementById('saveEditBtn');
+    
+    if (showEdit) {
+        // Show edit mode
+        if (detailsDisplay) detailsDisplay.style.display = 'none';
+        if (detailsEdit) detailsEdit.style.display = 'block';
+        if (editBtn) editBtn.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+        if (saveBtn) saveBtn.style.display = 'inline-flex';
+    } else {
+        // Show display mode
+        if (detailsDisplay) detailsDisplay.style.display = 'block';
+        if (detailsEdit) detailsEdit.style.display = 'none';
+        if (editBtn) editBtn.style.display = 'inline-flex';
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (saveBtn) saveBtn.style.display = 'none';
+    }
+}
+
+/**
+ * Save customer changes from order review edit form
+ * @function saveOrderReviewChanges
+ */
+async function saveOrderReviewChanges() {
+    try {
+        // Get form values
+        const name = document.getElementById('editCustomerName')?.value?.trim();
+        const phone = document.getElementById('editCustomerPhone')?.value?.trim();
+        const address = document.getElementById('editCustomerAddress')?.value?.trim();
+        const email = document.getElementById('editCustomerEmail')?.value?.trim();
+        const instructions = document.getElementById('editDeliveryInstructions')?.value?.trim();
+        
+        // Validate required fields
+        if (!name || !email) {
+            alert('Naam en Email is verpligtende velde');
+            return;
+        }
+        
+        if (!validateEmail(email)) {
+            alert('Voer asseblief \'n geldige e-pos adres in');
+            return;
+        }
+        
+        if (phone && !validatePhoneNumber(phone)) {
+            alert('Voer asseblief \'n geldige Suid-Afrikaanse telefoon nommer in (bv. 079 123 4567)');
+            return;
+        }
+        
+        // Update current customer object
+        if (currentCustomer) {
+            currentCustomer.name = name;
+            currentCustomer.full_name = name;
+            currentCustomer.phone = phone;
+            currentCustomer.address = address;
+            currentCustomer.email = email;
+            currentCustomer.delivery_instructions = instructions;
+            
+            // Update display
+            populateCustomerSummaryDisplay();
+            updateCustomerDisplayElements();
+            
+            // Try to save to database
+            try {
+                if (currentCustomer.id) {
+                    const { data, error } = await supabaseClient
+                        .from('customers')
+                        .update({
+                            name: currentCustomer.name,
+                            full_name: currentCustomer.full_name,
+                            phone: currentCustomer.phone,
+                            address: currentCustomer.address,
+                            email: currentCustomer.email,
+                            delivery_instructions: currentCustomer.delivery_instructions,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', currentCustomer.id);
+                        
+                    if (error) throw error;
+                    console.log('✅ Customer profile updated in database');
+                }
+            } catch (dbError) {
+                console.warn('🚫 Could not save to database (table may not exist), changes saved locally:', dbError);
+            }
+            
+            // Show success message
+            showToast('Besonderhede suksesvol opgestamp!', 'success');
+            
+            // Return to display mode
+            toggleEditMode(false);
+            
+            // Clear confirmation checkboxes since details were updated
+            clearConfirmationCheckboxes();
+        }
+        
+    } catch (error) {
+        console.error('Error saving order review changes:', error);
+        alert('Fout met stoor van besonderhede. Probeer weer.');
+    }
+}
+
+/**
+ * Cancel order review editing and restore original values
+ * @function cancelOrderReviewEdit
+ */
+function cancelOrderReviewEdit() {
+    // Restore original form values
+    populateOrderReviewEditForm();
+    
+    // Return to display mode
+    toggleEditMode(false);
+    
+    // Clear any validation errors
+    clearOrderReviewErrors();
+}
+
+/**
+ * Clear confirmation checkboxes when details are updated
+ * @function clearConfirmationCheckboxes
+ */
+function clearConfirmationCheckboxes() {
+    const addressConfirmed = document.getElementById('addressConfirmed');
+    const phoneConfirmed = document.getElementById('phoneConfirmed');
+    
+    if (addressConfirmed) addressConfirmed.checked = false;
+    if (phoneConfirmed) phoneConfirmed.checked = false;
+    
+    // Update button state
+    updateConfirmationButtonState();
+}
+
+/**
+ * Update the state of the confirmation button based on checkbox validation
+ * @function updateConfirmationButtonState
+ */
+function updateConfirmationButtonState() {
+    const addressConfirmed = document.getElementById('addressConfirmed');
+    const phoneConfirmed = document.getElementById('phoneConfirmed');
+    const confirmDetailsBtn = document.getElementById('confirmDetailsBtn');
+    const confirmationError = document.getElementById('confirmationError');
+    
+    if (!addressConfirmed || !phoneConfirmed || !confirmDetailsBtn) return;
+    
+    const isAddressConfirmed = addressConfirmed.checked;
+    const isPhoneConfirmed = phoneConfirmed.checked;
+    
+    if (isAddressConfirmed && isPhoneConfirmed) {
+        // Enable button and hide error
+        confirmDetailsBtn.disabled = false;
+        confirmDetailsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        if (confirmationError) confirmationError.style.display = 'none';
+    } else {
+        // Disable button and show error if needed
+        confirmDetailsBtn.disabled = true;
+        confirmDetailsBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        
+        // Show error message if at least one checkbox is checked but not both
+        if (isAddressConfirmed || isPhoneConfirmed) {
+            if (confirmationError) {
+                confirmationError.textContent = 'Beide bevestigings is verpligtend om voort te gaan';
+                confirmationError.style.display = 'block';
+            }
+        } else {
+            if (confirmationError) confirmationError.style.display = 'none';
+        }
+    }
+}
+
+/**
+ * Clear validation errors in order review form
+ * @function clearOrderReviewErrors
+ */
+function clearOrderReviewErrors() {
+    const errorElements = document.querySelectorAll('#orderReviewForm .field-error');
+    errorElements.forEach(element => {
+        element.textContent = '';
+    });
+}
+
+/**
+ * Validate email format
+ * @function validateEmail
+ * @param {string} email - Email to validate
+ * @returns {boolean} True if valid email format
+ */
+function validateEmail(email) {
+    const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+    return emailRegex.test(email.toLowerCase());
+}
+
+/**
+ * Validate South African phone number
+ * @function validatePhoneNumber
+ * @param {string} phone - Phone number to validate
+ * @returns {boolean} True if valid phone format
+ */
+function validatePhoneNumber(phone) {
+    const phoneRegex = /^(\+27|0)[0-9]{9}$/;
+    return phoneRegex.test(phone.replace(/\s/g, ''));
+}
+
+// Add event listeners for confirmation checkboxes
+document.addEventListener('DOMContentLoaded', function() {
+    const addressConfirmed = document.getElementById('addressConfirmed');
+    const phoneConfirmed = document.getElementById('phoneConfirmed');
+    
+    if (addressConfirmed) {
+        addressConfirmed.addEventListener('change', updateConfirmationButtonState);
+    }
+    
+    if (phoneConfirmed) {
+        phoneConfirmed.addEventListener('change', updateConfirmationButtonState);
+    }
+    
+    // Add event listeners for edit buttons
+    const editDetailsBtn = document.getElementById('editDetailsBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const saveEditBtn = document.getElementById('saveEditBtn');
+    
+    if (editDetailsBtn) {
+        editDetailsBtn.addEventListener('click', () => toggleEditMode(true));
+    }
+    
+    if (cancelEditBtn) {
+        cancelEditBtn.addEventListener('click', cancelOrderReviewEdit);
+    }
+    
+    if (saveEditBtn) {
+        saveEditBtn.addEventListener('click', saveOrderReviewChanges);
+    }
+});
 
 /**
  * Handle order placement from beautiful portal
@@ -4706,3 +5025,88 @@ async function clearAllAuthData() {
 
 // Make function available globally
 window.clearAllAuthData = clearAllAuthData;
+
+/**
+ * Validate order review step before proceeding
+ * @function validateOrderReview
+ * @returns {boolean} - True if validation passes
+ */
+function validateOrderReview() {
+    const addressConfirmed = document.getElementById('addressConfirmed')?.checked;
+    const phoneConfirmed = document.getElementById('phoneConfirmed')?.checked;
+    
+    if (!addressConfirmed || !phoneConfirmed) {
+        alert('⚠️ Please confirm that your address and phone number are correct before proceeding.');
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Handle proceed to step 4 with validation
+ * @function handleProceedToStep4
+ */
+function handleProceedToStep4() {
+    // Validate order review before allowing to proceed
+    if (!validateOrderReview()) {
+        return;
+    }
+    
+    // If validation passes, proceed to step 4
+    showStep(4);
+}
+
+/**
+ * Validate order review step before proceeding
+ * @function validateOrderReview
+ * @returns {boolean} - True if validation passes
+ */
+function validateOrderReview() {
+    const addressConfirmed = document.getElementById('addressConfirmed');
+    const phoneConfirmed = document.getElementById('phoneConfirmed');
+    
+    if (!addressConfirmed || !phoneConfirmed) {
+        console.warn('Confirmation checkboxes not found');
+        return false;
+    }
+    
+    if (!addressConfirmed.checked || !phoneConfirmed.checked) {
+        alert('⚠️ Please confirm that your address and phone number are correct before proceeding.');
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Handle proceed to step 4 with validation
+ * @function handleProceedToStep4
+ */
+function handleProceedToStep4() {
+    // Validate order review before allowing to proceed
+    if (!validateOrderReview()) {
+        return;
+    }
+    
+    // If validation passes, proceed to step 4
+    showStep(4);
+}
+
+/**
+ * Update confirmation checkbox text with current customer details
+ * @function updateConfirmationText
+ */
+function updateConfirmationText() {
+    const addressText = document.getElementById('confirmAddressText');
+    const phoneText = document.getElementById('confirmPhoneText');
+    
+    if (currentCustomer) {
+        if (addressText) {
+            addressText.textContent = currentCustomer.address || 'Geen adres verskaf nie';
+        }
+        if (phoneText) {
+            phoneText.textContent = currentCustomer.phone || 'Geen telefoon nommer verskaf nie';
+        }
+    }
+}
