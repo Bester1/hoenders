@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Functions Diagnostic</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .console-output { background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; font-family: monospace; font-size: 12px; max-height: 600px; overflow-y: auto; white-space: pre-wrap; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { padding: 10px 20px; margin: 10px 5px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Customer Functions Diagnostic Tool</h1>
+        
+        <div class="status info">
+            <strong>ℹ️ Purpose:</strong> This tool diagnoses the customer.js functions to see why customer information isn't displaying on step 3 of the order review.
+        </div>
+
+        <div>
+            <button class="btn-primary" onclick="runDiagnostic()">Run Diagnostic</button>
+            <button class="btn-secondary" onclick="clearOutput()">Clear Output</button>
+            <button class="btn-primary" onclick="createMockElements()">Create Mock Elements</button>
+        </div>
+
+        <div id="status" class="status info">
+            Click "Run Diagnostic" to start the analysis.
+        </div>
+
+        <h2>📊 Diagnostic Output:</h2>
+        <div id="consoleOutput" class="console-output"></div>
+    </div>
+
+    <!-- Load customer.js and dependencies -->
+    <script src="env-config.js"></script>
+    <script src="config.js"></script>
+    <script src="error-handler.js"></script>
+    <script src="security-utils.js"></script>
+    <script src="customer.js"></script>
+
+    <script>
+        let diagnosticOutput = '';
+        
+        // Override console.log to capture output
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        function captureLog(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            diagnosticOutput += message + '\n';
+            document.getElementById('consoleOutput').textContent = diagnosticOutput;
+            document.getElementById('consoleOutput').scrollTop = document.getElementById('consoleOutput').scrollHeight;
+        }
+        
+        function captureError(...args) {
+            originalError.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            diagnosticOutput += 'ERROR: ' + message + '\n';
+            document.getElementById('consoleOutput').textContent = diagnosticOutput;
+            document.getElementById('consoleOutput').scrollTop = document.getElementById('consoleOutput').scrollHeight;
+        }
+
+        function clearOutput() {
+            diagnosticOutput = '';
+            document.getElementById('consoleOutput').textContent = '';
+            updateStatus('Output cleared. Click "Run Diagnostic" to start again.', 'info');
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = message;
+        }
+
+        function createMockElements() {
+            captureLog('🛠️ Creating mock review elements...');
+            
+            const elements = [
+                'reviewCustomerName', 'reviewCustomerPhone', 'reviewCustomerAddress',
+                'reviewCustomerEmail', 'reviewCustomerInstructions', 'confirmAddressText', 'confirmPhoneText'
+            ];
+            
+            elements.forEach(id => {
+                if (!document.getElementById(id)) {
+                    const element = document.createElement('div');
+                    element.id = id;
+                    element.textContent = `[${id}]`;
+                    element.style.border = '1px solid #ccc';
+                    element.style.padding = '5px';
+                    element.style.margin = '5px 0';
+                    element.style.background = '#f0f0f0';
+                    document.body.appendChild(element);
+                    captureLog(`✅ Created mock element: ${id}`);
+                } else {
+                    captureLog(`ℹ️ Element ${id} already exists`);
+                }
+            });
+            
+            updateStatus('Mock elements created. You can now test the functions.', 'success');
+        }
+
+        function runDiagnostic() {
+            // Reset console
+            diagnosticOutput = '';
+            document.getElementById('consoleOutput').textContent = '';
+            
+            // Override console methods
+            console.log = captureLog;
+            console.error = captureError;
+            
+            updateStatus('Running diagnostic...', 'info');
+            captureLog('🔍 Starting customer.js function diagnostics...');
+            captureLog('⏰ Timestamp: ' + new Date().toISOString());
+            captureLog('');
+
+            // Check if customer.js loaded properly
+            captureLog('📋 Checking if customer.js loaded...');
+            const windowKeys = Object.keys(window).filter(key => 
+                key.toLowerCase().includes('customer') || 
+                key.toLowerCase().includes('review') ||
+                key.toLowerCase().includes('populate')
+            );
+            captureLog('Relevant window keys: ' + windowKeys.join(', '));
+            
+            // Check function types
+            captureLog('');
+            captureLog('🔍 Checking function types...');
+            captureLog('typeof populateReviewCustomerInfo: ' + typeof window.populateReviewCustomerInfo);
+            captureLog('typeof updateConfirmationText: ' + typeof window.updateConfirmationText);
+            
+            // Try to find the actual function definitions
+            captureLog('');
+            captureLog('🔍 Searching for function definitions...');
+            
+            if (typeof populateReviewCustomerInfo === 'function') {
+                captureLog('✅ populateReviewCustomerInfo found!');
+                const funcStr = populateReviewCustomerInfo.toString();
+                captureLog('Function signature: ' + funcStr.substring(0, funcStr.indexOf('{') + 1));
+                captureLog('First 200 chars: ' + funcStr.substring(0, 200));
+            } else {
+                captureLog('❌ populateReviewCustomerInfo NOT found');
+            }
+            
+            if (typeof updateConfirmationText === 'function') {
+                captureLog('✅ updateConfirmationText found!');
+                const funcStr = updateConfirmationText.toString();
+                captureLog('Function signature: ' + funcStr.substring(0, funcStr.indexOf('{') + 1));
+                captureLog('First 200 chars: ' + funcStr.substring(0, 200));
+            } else {
+                captureLog('❌ updateConfirmationText NOT found');
+            }
+            
+            // Check for any customer-related variables
+            captureLog('');
+            captureLog('🔍 Checking for customer-related variables...');
+            const customerVars = Object.keys(window).filter(key => 
+                key.toLowerCase().includes('customer') || 
+                key.toLowerCase().includes('user') ||
+                key.toLowerCase().includes('review') ||
+                key.toLowerCase().includes('confirm')
+            );
+            captureLog('Customer-related variables: ' + customerVars.join(', '));
+            
+            // Test with mock customer data
+            const mockCustomer = {
+                name: "Test Customer",
+                full_name: "Test Customer",
+                phone: "+27-79-123-4567",
+                address: "123 Test Street, Testville, 1234",
+                email: "test@example.com",
+                delivery_instructions: "Please leave at front door"
+            };
+            
+            captureLog('');
+            captureLog('🧪 Testing with mock customer data:');
+            captureLog(JSON.stringify(mockCustomer, null, 2));
+            
+            // Set global currentCustomer for testing
+            window.currentCustomer = mockCustomer;
+            
+            // Test populateReviewCustomerInfo if it exists
+            captureLog('');
+            if (typeof populateReviewCustomerInfo === 'function') {
+                captureLog('🧪 Calling populateReviewCustomerInfo...');
+                try {
+                    populateReviewCustomerInfo(mockCustomer);
+                    captureLog('✅ populateReviewCustomerInfo executed successfully');
+                } catch (error) {
+                    captureLog('❌ Error in populateReviewCustomerInfo: ' + error.message);
+                    captureError(error);
+                }
+            } else {
+                captureLog('❌ Cannot test populateReviewCustomerInfo - function not found');
+            }
+            
+            // Test updateConfirmationText if it exists
+            captureLog('');
+            if (typeof updateConfirmationText === 'function') {
+                captureLog('🧪 Calling updateConfirmationText...');
+                try {
+                    updateConfirmationText();
+                    captureLog('✅ updateConfirmationText executed successfully');
+                } catch (error) {
+                    captureLog('❌ Error in updateConfirmationText: ' + error.message);
+                    captureError(error);
+                }
+            } else {
+                captureLog('❌ Cannot test updateConfirmationText - function not found');
+            }
+            
+            // Check for review elements in DOM
+            captureLog('');
+            captureLog('🔍 Checking for review elements in DOM...');
+            const reviewElements = [
+                'reviewCustomerName', 'reviewCustomerPhone', 'reviewCustomerAddress',
+                'reviewCustomerEmail', 'reviewCustomerInstructions', 'confirmAddressText', 'confirmPhoneText'
+            ];
+            
+            reviewElements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    captureLog(`✅ Found element ${id}: "${element.textContent}"`);
+                } else {
+                    captureLog(`❌ Element ${id} NOT found in DOM`);
+                }
+            });
+            
+            captureLog('');
+            captureLog('🔍 Diagnostics completed!');
+            
+            updateStatus('Diagnostic completed! Check the output below for results.', 'success');
+        }
+
+        // Restore console methods on page unload
+        window.addEventListener('beforeunload', () => {
+            console.log = originalLog;
+            console.error = originalError;
+        });
+    </script>
+</body>
+</html>

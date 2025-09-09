@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step 3 Final Verification Test</title>
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 20px; 
+            background: #1a1a1a;
+            color: #e5e5e5;
+        }
+        .test-section { 
+            margin: 20px 0; 
+            padding: 20px; 
+            border: 1px solid #3f3f46;
+            border-radius: 12px;
+            background: #18181b;
+        }
+        .success { 
+            color: #22c55e; 
+            font-weight: 600;
+            background: rgba(34, 197, 94, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 4px 0;
+        }
+        .error { 
+            color: #ef4444; 
+            font-weight: 600;
+            background: rgba(239, 68, 68, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 4px 0;
+        }
+        .info { 
+            color: #3b82f6; 
+            font-weight: 600;
+            background: rgba(59, 130, 246, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 4px 0;
+        }
+        button { 
+            padding: 12px 20px; 
+            margin: 8px 4px; 
+            cursor: pointer; 
+            background: #f97316;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #ea580c;
+            transform: translateY(-1px);
+        }
+        .portal-frame {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #3f3f46;
+            border-radius: 12px;
+            background: #0a0a0a;
+        }
+        h1, h2, h3 {
+            color: #f97316;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #3f3f46;
+            border-radius: 50%;
+            border-top-color: #f97316;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Step 3 Final Verification Test</h1>
+    
+    <div class="test-section">
+        <h3>📋 Test Overview</h3>
+        <p>This test verifies that Step 3 in the customer portal has been successfully reverted to its normal, simple state.</p>
+        <ul>
+            <li>✅ No confirmation checkboxes</li>
+            <li>✅ No edit functionality</li>
+            <li>✅ No validation requirements</li>
+            <li>✅ Simple customer details display</li>
+            <li>✅ Normal place order button behavior</li>
+        </ul>
+    </div>
+
+    <!-- Load the actual customer portal -->
+    <div class="test-section">
+        <h3>🔍 Customer Portal Test</h3>
+        <p>Click the button below to load the actual customer portal and verify Step 3:</p>
+        <button onclick="loadPortal()">Load Customer Portal</button>
+        <button onclick="runVerification()">Run Step 3 Verification</button>
+        <div id="portal-container" style="margin-top: 20px;"></div>
+    </div>
+
+    <!-- Test Results -->
+    <div class="test-section">
+        <h3>📊 Verification Results</h3>
+        <div id="verification-results">
+            <p class="info">Click "Run Step 3 Verification" to test the portal</p>
+        </div>
+    </div>
+
+    <!-- Manual Test Instructions -->
+    <div class="test-section">
+        <h3>🎯 Manual Testing Instructions</h3>
+        <ol>
+            <li>Load the customer portal using the button above</li>
+            <li>Navigate through Steps 1 and 2 to reach Step 3</li>
+            <li>Verify Step 3 shows simple customer details without checkboxes</li>
+            <li>Click "Plaas Bestelling" button to test navigation</li>
+            <li>Confirm you reach Step 4 without validation errors</li>
+        </ol>
+    </div>
+
+    <script>
+        // Load the verification script
+        const verificationScript = document.createElement('script');
+        verificationScript.src = 'verify-step3-normal.js';
+        document.head.appendChild(verificationScript);
+
+        function loadPortal() {
+            const container = document.getElementById('portal-container');
+            container.innerHTML = '<iframe src="customer-portal.html" class="portal-frame"></iframe>';
+        }
+
+        function runVerification() {
+            const resultsDiv = document.getElementById('verification-results');
+            resultsDiv.innerHTML = '<div class="loading"></div> Running verification...';
+            
+            // Wait a bit for the portal to load
+            setTimeout(() => {
+                try {
+                    // Check if the verification function is available
+                    if (typeof verifyStep3Normal === 'function') {
+                        const result = verifyStep3Normal();
+                        
+                        resultsDiv.innerHTML = '';
+                        
+                        if (result.success) {
+                            resultsDiv.innerHTML += '<h4 class="success">🎉 SUCCESS: Step 3 is working normally!</h4>';
+                        } else {
+                            resultsDiv.innerHTML += '<h4 class="error">⚠️ ISSUES FOUND: Step 3 needs attention</h4>';
+                        }
+                        
+                        result.results.forEach(testResult => {
+                            resultsDiv.innerHTML += `<div>${testResult}</div>`;
+                        });
+                        
+                        resultsDiv.innerHTML += `<p class="info"><strong>Summary:</strong> ${result.summary}</p>`;
+                    } else {
+                        resultsDiv.innerHTML = '<div class="error">❌ Verification script not loaded. Please ensure verify-step3-normal.js is available.</div>';
+                    }
+                } catch (error) {
+                    resultsDiv.innerHTML = `<div class="error">❌ Error during verification: ${error.message}</div>`;
+                    console.error('Verification error:', error);
+                }
+            }, 2000);
+        }
+
+        // Auto-run basic checks
+        window.addEventListener('load', () => {
+            console.log('🧪 Step 3 Final Verification Test loaded');
+            console.log('📋 Test instructions:');
+            console.log('   1. Load the customer portal');
+            console.log('   2. Navigate to Step 3');
+            console.log('   3. Run verification');
+            console.log('   4. Check results below');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step 3 Confirmation Validation Test Suite</title>
+    <link rel="stylesheet" href="customer-validation.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .test-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .test-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .test-header h1 {
+            color: #2d3748;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .test-header p {
+            color: #718096;
+            font-size: 1.1rem;
+            margin: 0;
+        }
+        
+        .test-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 5px solid #007bff;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.pending {
+            background: #ffc107;
+            animation: pulse-pending 1.5s infinite;
+        }
+        
+        .status-dot.failed {
+            background: #dc3545;
+            animation: none;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        @keyframes pulse-pending {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .test-section h3 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .test-controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .test-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .test-btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .test-btn-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+            color: white;
+        }
+        
+        .test-btn-danger {
+            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+            color: white;
+        }
+        
+        .test-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .test-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .test-results {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .test-results h4 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+        
+        .test-log {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .test-log .success {
+            color: #68d391;
+        }
+        
+        .test-log .error {
+            color: #fc8181;
+        }
+        
+        .test-log .warning {
+            color: #f6ad55;
+        }
+        
+        .test-log .info {
+            color: #63b3ed;
+        }
+        
+        .customer-simulator {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .customer-simulator h4 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+            background: #f8f9fa;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .validation-overlay-test {
+            position: relative;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            background: #f8f9fa;
+        }
+        
+        .validation-overlay-test.validation-required {
+            border-color: #dc3545;
+            background: #fff5f5;
+        }
+        
+        .validation-overlay-test .validation-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 245, 245, 0.95);
+            border: 2px dashed #dc3545;
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        
+        .validation-overlay-test.validation-required .validation-overlay {
+            display: flex;
+        }
+        
+        .validation-overlay-content {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-width: 80%;
+        }
+        
+        .validation-overlay-content h5 {
+            color: #dc3545;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .validation-overlay-content p {
+            color: #6c757d;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+        
+        .btn-understand {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-understand:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+        }
+        
+        .test-summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 30px;
+        }
+        
+        .test-summary h3 {
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+        
+        .test-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .summary-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .summary-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .summary-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #56ab2f 0%, #a8e6cf 100%);
+            transition: width 0.3s ease;
+        }
+        
+        @media (max-width: 768px) {
+            .test-container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .test-header h1 {
+                font-size: 2rem;
+            }
+            
+            .test-controls {
+                flex-direction: column;
+            }
+            
+            .test-btn {
+                justify-content: center;
+            }
+            
+            .test-summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="test-header">
+            <h1><i class="fas fa-shield-alt"></i> Step 3 Confirmation Validation Test Suite</h1>
+            <p>Comprehensive testing system for customer portal Step 3 confirmation validation</p>
+        </div>
+
+        <div class="test-status">
+            <div class="status-indicator">
+                <div class="status-dot pending" id="testStatusDot"></div>
+                <span id="testStatusText">Ready to start testing</span>
+            </div>
+            <div id="testProgress">
+                <span id="testProgressText">0/0 tests completed</span>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3><i class="fas fa-user-cog"></i> Customer Data Simulator</h3>
+            <p>Configure customer data to test different validation scenarios:</p>
+            
+            <div class="customer-simulator">
+                <div class="form-group">
+                    <label for="testCustomerName">Customer Name:</label>
+                    <input type="text" id="testCustomerName" value="Jean Dreyer" placeholder="Enter customer name">
+                </div>
+                <div class="form-group">
+                    <label for="testCustomerPhone">Phone Number:</label>
+                    <input type="tel" id="testCustomerPhone" value="079 616 7761" placeholder="e.g., 079 616 7761">
+                </div>
+                <div class="form-group">
+                    <label for="testCustomerAddress">Delivery Address:</label>
+                    <textarea id="testCustomerAddress" placeholder="Enter delivery address">123 Main Street, Pretoria, 0001</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="testCustomerEmail">Email Address:</label>
+                    <input type="email" id="testCustomerEmail" value="jean.dreyer@email.com" placeholder="Enter email address">
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3><i class="fas fa-play-circle"></i> Validation Tests</h3>
+            <p>Run comprehensive validation tests for Step 3 confirmation:</p>
+            
+            <div class="test-controls">
+                <button class="test-btn test-btn-success" onclick="runValidationTest('valid')">
+                    <i class="fas fa-check-circle"></i> Test Valid Customer
+                </button>
+                <button class="test-btn test-btn-danger" onclick="runValidationTest('emptyPhone')">
+                    <i class="fas fa-phone-slash"></i> Test Empty Phone
+                </button>
+                <button class="test-btn test-btn-danger" onclick="runValidationTest('emptyAddress')">
+                    <i class="fas fa-map-marker-slash"></i> Test Empty Address
+                </button>
+                <button class="test-btn test-btn-danger" onclick="runValidationTest('invalidPhone')">
+                    <i class="fas fa-exclamation-triangle"></i> Test Invalid Phone
+                </button>
+                <button class="test-btn test-btn-danger" onclick="runValidationTest('shortAddress')">
+                    <i class="fas fa-home"></i> Test Short Address
+                </button>
+                <button class="test-btn test-btn-primary" onclick="runValidationTest('emptyBoth')">
+                    <i class="fas fa-ban"></i> Test Empty Both Fields
+                </button>
+            </div>
+            
+            <div class="validation-overlay-test" id="validationOverlayTest">
+                <h5>Customer Details Preview</h5>
+                <div id="customerPreview">
+                    <p><strong>Name:</strong> <span id="previewName">Jean Dreyer</span></p>
+                    <p><strong>Phone:</strong> <span id="previewPhone">079 616 7761</span></p>
+                    <p><strong>Address:</strong> <span id="previewAddress">123 Main Street, Pretoria, 0001</span></p>
+                    <p><strong>Email:</strong> <span id="previewEmail">jean.dreyer@email.com</span></p>
+                </div>
+                
+                <div class="validation-overlay">
+                    <div class="validation-overlay-content">
+                        <h5>⚠️ Ontbrekende Inligting</h5>
+                        <p>Maak asseblief seker dat al jou kontakbesonderhede ingevul is voordat jy voortgaan.</p>
+                        <button class="btn-understand" onclick="clearValidationOverlay()">
+                            Verstaan
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="test-results">
+                <h4><i class="fas fa-chart-line"></i> Test Results</h4>
+                <div class="test-log" id="testLog">
+                    <span class="info">🧪 Test suite initialized. Ready to run validation tests.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3><i class="fas fa-bolt"></i> Integration Tests</h3>
+            <p>Test integration with the customer portal:</p>
+            
+            <div class="test-controls">
+                <button class="test-btn test-btn-primary" onclick="simulateConfirmClick()">
+                    <i class="fas fa-mouse-pointer"></i> Simulate Confirm Button Click
+                </button>
+                <button class="test-btn test-btn-primary" onclick="testValidationOverlay()">
+                    <i class="fas fa-layer-group"></i> Test Validation Overlay
+                </button>
+                <button class="test-btn test-btn-primary" onclick="testErrorDisplay()">
+                    <i class="fas fa-exclamation-circle"></i> Test Error Display
+                </button>
+                <button class="test-btn test-btn-success" onclick="testValidationClear()">
+                    <i class="fas fa-eraser"></i> Test Clear Validation
+                </button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3><i class="fas fa-cogs"></i> Advanced Tests</h3>
+            <p>Run advanced validation scenarios:</p>
+            
+            <div class="test-controls">
+                <button class="test-btn test-btn-primary" onclick="runComprehensiveTest()">
+                    <i class="fas fa-list-check"></i> Run All Tests
+                </button>
+                <button class="test-btn test-btn-primary" onclick="testBoundaryConditions()">
+                    <i class="fas fa-ruler-combined"></i> Test Boundary Conditions
+                </button>
+                <button class="test-btn test-btn-primary" onclick="testPerformance()">
+                    <i class="fas fa-tachometer-alt"></i> Test Performance
+                </button>
+                <button class="test-btn test-btn-danger" onclick="resetTestEnvironment()">
+                    <i class="fas fa-refresh"></i> Reset Test Environment
+                </button>
+            </div>
+        </div>
+
+        <div class="test-summary">
+            <h3><i class="fas fa-chart-bar"></i> Test Summary</h3>
+            <div class="test-summary-grid">
+                <div class="summary-item">
+                    <div class="summary-value" id="totalTests">0</div>
+                    <div class="summary-label">Total Tests</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="passedTests">0</div>
+                    <div class="summary-label">Passed</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="failedTests">0</div>
+                    <div class="summary-label">Failed</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="successRate">0%</div>
+                    <div class="summary-label">Success Rate</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="customer-validation.js"></script>
+    <script>
+        // Test Suite Configuration
+        const testConfig = {
+            phoneRegex: /^[\d\s\-\+\(\)]+$/,
+            minPhoneLength: 10,
+            minAddressLength: 10,
+            maxTestDuration: 5000,
+            testScenarios: {
+                valid: { phone: '079 616 7761', address: '123 Main Street, Pretoria, 0001' },
+                emptyPhone: { phone: '', address: '123 Main Street, Pretoria, 0001' },
+                emptyAddress: { phone: '079 616 7761', address: '' },
+                invalidPhone: { phone: '123', address: '123 Main Street, Pretoria, 0001' },
+                shortAddress: { phone: '079 616 7761', address: '123 Main' },
+                emptyBoth: { phone: '', address: '' }
+            }
+        };
+
+        // Test State Management
+        let testState = {
+            totalTests: 0,
+            passedTests: 0,
+            failedTests: 0,
+            currentTest: null,
+            testResults: []
+        };
+
+        // Test Extension Functions for CustomerValidator
+        // These functions extend the existing CustomerValidator from customer-validation.js
+        
+        // Add overlay functionality to CustomerValidator
+        CustomerValidator.prototype.showValidationOverlay = function(errors) {
+            const overlayTest = document.getElementById('validationOverlayTest');
+            const overlay = overlayTest.querySelector('.validation-overlay');
+            
+            if (errors.length > 0) {
+                overlayTest.classList.add('validation-required');
+                
+                // Update error message
+                const errorMessage = overlay.querySelector('p');
+                if (errorMessage) {
+                    errorMessage.textContent = this.formatErrorMessage(errors);
+                }
+                
+                logTest('Validation overlay shown with errors: ' + errors.map(e => e.message).join(', '), 'error');
+            } else {
+                this.clearValidationOverlay();
+            }
+        };
+
+        CustomerValidator.prototype.clearValidationOverlay = function() {
+            const overlayTest = document.getElementById('validationOverlayTest');
+            overlayTest.classList.remove('validation-required');
+            logTest('Validation overlay cleared', 'success');
+        };
+
+        CustomerValidator.prototype.formatErrorMessage = function(errors) {
+            if (errors.length === 1) {
+                return errors[0].message;
+            } else if (errors.length === 2) {
+                return errors.map(e => e.message).join(' en ');
+            } else {
+                const lastError = errors.pop();
+                return errors.map(e => e.message).join(', ') + ' en ' + lastError.message;
+            }
+        };
+
+        CustomerValidator.prototype.displayFieldErrors = function(errors) {
+            // Clear previous errors
+            this.clearFieldErrors();
+            
+            errors.forEach(error => {
+                const errorElement = document.getElementById(`${error.field}Error`);
+                if (errorElement) {
+                    errorElement.textContent = error.message;
+                    errorElement.style.display = 'block';
+                    errorElement.classList.add('field-validation-error');
+                }
+                
+                // Add validation error class to input
+                const inputElement = document.getElementById(`testCustomer${error.field.charAt(0).toUpperCase() + error.field.slice(1)}`);
+                if (inputElement) {
+                    inputElement.classList.add('validation-error');
+                }
+            });
+        };
+
+        CustomerValidator.prototype.clearFieldErrors = function() {
+            const errorElements = document.querySelectorAll('.field-validation-error');
+            errorElements.forEach(element => {
+                element.textContent = '';
+                element.style.display = 'none';
+            });
+
+            const inputElements = document.querySelectorAll('.validation-error');
+            inputElements.forEach(element => {
+                element.classList.remove('validation-error');
+            });
+        };
+
+        // Test Logging System
+        function logTest(message, type = 'info') {
+            const logElement = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const iconMap = {
+                info: '🧪',
+                success: '✅',
+                error: '❌',
+                warning: '⚠️'
+            };
+            
+            const logEntry = `<span class="${type}">${iconMap[type]} [${timestamp}] ${message}</span>\n`;
+            logElement.innerHTML += logEntry;
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // Customer Data Preview Update
+        function updateCustomerPreview() {
+            const name = document.getElementById('testCustomerName').value;
+            const phone = document.getElementById('testCustomerPhone').value;
+            const address = document.getElementById('testCustomerAddress').value;
+            const email = document.getElementById('testCustomerEmail').value;
+            
+            document.getElementById('previewName').textContent = name || 'N/A';
+            document.getElementById('previewPhone').textContent = phone || 'N/A';
+            document.getElementById('previewAddress').textContent = address || 'N/A';
+            document.getElementById('previewEmail').textContent = email || 'N/A';
+        }
+
+        // Validation Test Runner
+        function runValidationTest(testType) {
+            testState.currentTest = testType;
+            updateTestStatus('running', `Running ${testType} test...`);
+            
+            logTest(`Starting validation test: ${testType}`, 'info');
+            
+            try {
+                // Prepare test data based on scenario
+                let testData;
+                const baseData = {
+                    name: document.getElementById('testCustomerName').value,
+                    email: document.getElementById('testCustomerEmail').value
+                };
+                
+                switch (testType) {
+                    case 'valid':
+                        testData = {
+                            ...baseData,
+                            phone: testConfig.testScenarios.valid.phone,
+                            address: testConfig.testScenarios.valid.address
+                        };
+                        break;
+                    case 'emptyPhone':
+                        testData = {
+                            ...baseData,
+                            phone: testConfig.testScenarios.emptyPhone.phone,
+                            address: testConfig.testScenarios.emptyPhone.address
+                        };
+                        break;
+                    case 'emptyAddress':
+                        testData = {
+                            ...baseData,
+                            phone: testConfig.testScenarios.emptyAddress.phone,
+                            address: testConfig.testScenarios.emptyAddress.address
+                        };
+                        break;
+                    case 'invalidPhone':
+                        testData = {
+                            ...baseData,
+                            phone: testConfig.testScenarios.invalidPhone.phone,
+                            address: testConfig.testScenarios.invalidPhone.address
+                        };
+                        break;
+                    case 'shortAddress':
+                        testData = {
+                            ...baseData,
+                            phone: testConfig.testScenarios.shortAddress.phone,
+                            address: testConfig.testScenarios.shortAddress.address
+                        };
+                        break;
+                    case 'emptyBoth':
+                        testData = {
+                            ...baseData,
+                            phone: testConfig.testScenarios.emptyBoth.phone,
+                            address: testConfig.testScenarios.emptyBoth.address
+                        };
+                        break;
+                    default:
+                        throw new Error(`Unknown test type: ${testType}`);
+                }
+                
+                // Update form inputs with test data
+                document.getElementById('testCustomerPhone').value = testData.phone;
+                document.getElementById('testCustomerAddress').value = testData.address;
+                updateCustomerPreview();
+                
+                // Run validation
+                const startTime = performance.now();
+                const validation = window.CustomerValidator.validate({
+                    phone: testData.phone,
+                    address: testData.address
+                });
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                
+                // Display validation results
+                if (validation.isValid) {
+                    handleTestPassed(testType, validation, duration);
+                } else {
+                    handleTestFailed(testType, validation, duration);
+                }
+                
+                // Show field errors
+                window.CustomerValidator.displayFieldErrors(validation.errors);
+                
+                // Show validation overlay if needed
+                if (!validation.isValid) {
+                    window.CustomerValidator.showValidationOverlay(validation.errors);
+                } else {
+                    window.CustomerValidator.clearValidationOverlay();
+                }
+                
+            } catch (error) {
+                handleTestError(testType, error);
+            }
+        }
+
+        function handleTestPassed(testType, validation, duration) {
+            testState.passedTests++;
+            testState.totalTests++;
+            
+            logTest(`✅ ${testType} test PASSED (${duration}ms): ${validation.message}`, 'success');
+            
+            updateTestStatus('passed', `${testType} test completed successfully`);
+            updateTestSummary();
+            
+            // Store test result
+            testState.testResults.push({
+                test: testType,
+                result: 'passed',
+                duration: duration,
+                message: validation.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function handleTestFailed(testType, validation, duration) {
+            testState.failedTests++;
+            testState.totalTests++;
+            
+            logTest(`❌ ${testType} test FAILED (${duration}ms): ${validation.message}`, 'error');
+            validation.errors.forEach(error => {
+                logTest(`   - ${error.field}: ${error.message}`, 'error');
+            });
+            
+            updateTestStatus('failed', `${testType} test failed with ${validation.errors.length} error(s)`);
+            updateTestSummary();
+            
+            // Store test result
+            testState.testResults.push({
+                test: testType,
+                result: 'failed',
+                duration: duration,
+                message: validation.message,
+                errors: validation.errors,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function handleTestError(testType, error) {
+            testState.failedTests++;
+            testState.totalTests++;
+            
+            logTest(`💥 ${testType} test ERROR: ${error.message}`, 'error');
+            console.error('Test error:', error);
+            
+            updateTestStatus('failed', `${testType} test encountered an error`);
+            updateTestSummary();
+            
+            // Store test result
+            testState.testResults.push({
+                test: testType,
+                result: 'error',
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function updateTestStatus(status, message) {
+            const dot = document.getElementById('testStatusDot');
+            const text = document.getElementById('testStatusText');
+            
+            dot.className = `status-dot ${status}`;
+            text.textContent = message;
+        }
+
+        function updateTestSummary() {
+            document.getElementById('totalTests').textContent = testState.totalTests;
+            document.getElementById('passedTests').textContent = testState.passedTests;
+            document.getElementById('failedTests').textContent = testState.failedTests;
+            
+            const successRate = testState.totalTests > 0 
+                ? Math.round((testState.passedTests / testState.totalTests) * 100) 
+                : 0;
+            
+            document.getElementById('successRate').textContent = `${successRate}%`;
+            document.getElementById('progressFill').style.width = `${successRate}%`;
+            
+            document.getElementById('testProgressText').textContent = 
+                `${testState.passedTests + testState.failedTests}/${testState.totalTests} tests completed`;
+        }
+
+        // Integration Test Functions
+        function simulateConfirmClick() {
+            logTest('Simulating confirm button click with validation', 'info');
+            
+            try {
+                // Check if CustomerValidator is available
+                if (typeof CustomerValidator === 'undefined') {
+                    throw new Error('CustomerValidator not found');
+                }
+                
+                // Check if validate method exists
+                if (typeof CustomerValidator.validate !== 'function') {
+                    throw new Error('CustomerValidator.validate is not a function');
+                }
+                
+                // Get current customer data
+                const customerData = {
+                    phone: document.getElementById('testCustomerPhone').value,
+                    address: document.getElementById('testCustomerAddress').value
+                };
+                
+                // Run validation
+                const validation = CustomerValidator.validate(customerData);
+                
+                if (validation.isValid) {
+                    logTest('✅ Validation passed - confirm button would proceed', 'success');
+                    alert('✅ Validation passed! Customer can proceed to Step 2.');
+                } else {
+                    logTest('❌ Validation failed - confirm button would show overlay', 'error');
+                    CustomerValidator.showValidationOverlay(validation.errors);
+                }
+                
+                logTest('✅ Integration test completed successfully', 'success');
+                
+            } catch (error) {
+                logTest(`❌ Integration test failed: ${error.message}`, 'error');
+                console.error('Integration test error:', error);
+            }
+        }
+
+        function testValidationOverlay() {
+            logTest('Testing validation overlay functionality', 'info');
+            
+            try {
+                // Create test errors
+                const testErrors = [
+                    { field: 'phone', message: 'Telefoonnommer is verpligtend', type: 'error' },
+                    { field: 'address', message: 'Afleweringsadres is verpligtend', type: 'error' }
+                ];
+                
+                // Show overlay
+                CustomerValidator.showValidationOverlay(testErrors);
+                
+                logTest('✅ Validation overlay displayed successfully', 'success');
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    CustomerValidator.clearValidationOverlay();
+                    logTest('✅ Validation overlay auto-hidden after 5 seconds', 'info');
+                }, 5000);
+                
+            } catch (error) {
+                logTest(`❌ Validation overlay test failed: ${error.message}`, 'error');
+                console.error('Overlay test error:', error);
+            }
+        }
+
+        function testErrorDisplay() {
+            logTest('Testing error display functionality', 'info');
+            
+            try {
+                // Create test errors
+                const testErrors = [
+                    { field: 'phone', message: 'Test phone error message', type: 'error' },
+                    { field: 'address', message: 'Test address error message', type: 'error' }
+                ];
+                
+                // Display errors
+                CustomerValidator.displayFieldErrors(testErrors);
+                
+                logTest('✅ Field errors displayed successfully', 'success');
+                
+                // Auto-clear after 5 seconds
+                setTimeout(() => {
+                    CustomerValidator.clearFieldErrors();
+                    logTest('✅ Field errors cleared after 5 seconds', 'info');
+                }, 5000);
+                
+            } catch (error) {
+                logTest(`❌ Error display test failed: ${error.message}`, 'error');
+                console.error('Error display test error:', error);
+            }
+        }
+
+        function testValidationClear() {
+            logTest('Testing validation clear functionality', 'info');
+            
+            try {
+                // First create some errors
+                const testErrors = [
+                    { field: 'phone', message: 'Test phone error', type: 'error' }
+                ];
+                
+                CustomerValidator.displayFieldErrors(testErrors);
+                CustomerValidator.showValidationOverlay(testErrors);
+                
+                logTest('✅ Test errors created and displayed', 'info');
+                
+                // Now clear everything
+                setTimeout(() => {
+                    CustomerValidator.clearFieldErrors();
+                    CustomerValidator.clearValidationOverlay();
+                    logTest('✅ All validation errors and overlays cleared', 'success');
+                }, 1000);
+                
+            } catch (error) {
+                logTest(`❌ Validation clear test failed: ${error.message}`, 'error');
+                console.error('Clear test error:', error);
+            }
+        }
+
+        function clearValidationOverlay() {
+            CustomerValidator.clearValidationOverlay();
+            logTest('✅ Validation overlay manually cleared', 'info');
+        }
+
+        // Advanced Test Functions
+        function runComprehensiveTest() {
+            logTest('🚀 Starting comprehensive test suite', 'info');
+            
+            const tests = ['valid', 'emptyPhone', 'emptyAddress', 'invalidPhone', 'shortAddress', 'emptyBoth'];
+            let currentTestIndex = 0;
+            
+            function runNextTest() {
+                if (currentTestIndex < tests.length) {
+                    const test = tests[currentTestIndex];
+                    logTest(`Running comprehensive test ${currentTestIndex + 1}/${tests.length}: ${test}`, 'info');
+                    
+                    runValidationTest(test);
+                    
+                    currentTestIndex++;
+                    setTimeout(runNextTest, 2000); // Wait 2 seconds between tests
+                } else {
+                    logTest('✅ Comprehensive test suite completed', 'success');
+                    
+                    // Show final summary
+                    setTimeout(() => {
+                        const summary = generateTestSummary();
+                        logTest(`📊 Test Summary: ${summary}`, 'info');
+                        
+                        if (testState.failedTests === 0) {
+                            logTest('🎉 All tests passed! Validation system is working correctly.', 'success');
+                        } else {
+                            logTest(`⚠️ ${testState.failedTests} test(s) failed. Please review the results above.`, 'warning');
+                        }
+                    }, 1000);
+                }
+            }
+            
+            // Add delay before starting
+            setTimeout(runNextTest, 1000);
+        }
+
+        function testBoundaryConditions() {
+            logTest('Testing boundary conditions and edge cases', 'info');
+            
+            try {
+                // Test 1: Phone exactly at minimum length
+                const minLengthData = {
+                    phone: '0791234567', // Exactly 10 characters
+                    address: '12345678901234567890' // Exactly 20 characters
+                };
+                
+                const minLengthValidation = CustomerValidator.validate(minLengthData);
+                if (minLengthValidation.isValid) {
+                    logTest('✅ Minimum length boundary test passed', 'success');
+                } else {
+                    logTest('❌ Minimum length boundary test failed', 'error');
+                }
+                
+                // Test 2: Phone just below minimum length
+                const belowMinData = {
+                    phone: '079123456', // 9 characters (1 short)
+                    address: '12345678901234567890' // 20 characters
+                };
+                
+                const belowMinValidation = CustomerValidator.validate(belowMinData);
+                if (!belowMinValidation.isValid) {
+                    logTest('✅ Below minimum length test correctly failed', 'success');
+                } else {
+                    logTest('❌ Below minimum length test incorrectly passed', 'error');
+                }
+                
+                // Test 3: Address exactly at minimum length
+                const minAddressData = {
+                    phone: '0791234567',
+                    address: '1234567890' // Exactly 10 characters
+                };
+                
+                const minAddressValidation = CustomerValidator.validate(minAddressData);
+                if (minAddressValidation.isValid) {
+                    logTest('✅ Minimum address length test passed', 'success');
+                } else {
+                    logTest('❌ Minimum address length test failed', 'error');
+                }
+                
+                logTest('✅ Boundary conditions test completed', 'success');
+                
+            } catch (error) {
+                logTest(`❌ Boundary conditions test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testPerformance() {
+            logTest('Testing validation performance', 'info');
+            
+            try {
+                const iterations = 1000;
+                const testData = {
+                    phone: '079 616 7761',
+                    address: '123 Main Street, Pretoria, 0001'
+                };
+                
+                const startTime = performance.now();
+                
+                for (let i = 0; i < iterations; i++) {
+                    CustomerValidator.validate(testData);
+                }
+                
+                const endTime = performance.now();
+                const totalTime = endTime - startTime;
+                const avgTime = (totalTime / iterations).toFixed(4);
+                
+                logTest(`✅ Performance test completed: ${iterations} iterations in ${totalTime.toFixed(2)}ms (avg: ${avgTime}ms per validation)`, 'success');
+                
+                if (avgTime < 1) {
+                    logTest('🚀 Excellent performance - validation is very fast!', 'success');
+                } else if (avgTime < 5) {
+                    logTest('✅ Good performance - validation is reasonably fast', 'success');
+                } else {
+                    logTest('⚠️ Performance could be improved - validation is taking some time', 'warning');
+                }
+                
+            } catch (error) {
+                logTest(`❌ Performance test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function resetTestEnvironment() {
+            logTest('Resetting test environment', 'info');
+            
+            try {
+                // Reset test state
+                testState = {
+                    totalTests: 0,
+                    passedTests: 0,
+                    failedTests: 0,
+                    currentTest: null,
+                    testResults: []
+                };
+                
+                // Clear log
+                document.getElementById('testLog').innerHTML = '<span class="info">🧪 Test environment reset. Ready for new tests.</span>\n';
+                
+                // Reset form inputs to default
+                document.getElementById('testCustomerName').value = 'Jean Dreyer';
+                document.getElementById('testCustomerPhone').value = '079 616 7761';
+                document.getElementById('testCustomerAddress').value = '123 Main Street, Pretoria, 0001';
+                document.getElementById('testCustomerEmail').value = 'jean.dreyer@email.com';
+                
+                // Clear validation states
+                CustomerValidator.clearFieldErrors();
+                CustomerValidator.clearValidationOverlay();
+                
+                // Update preview
+                updateCustomerPreview();
+                
+                // Update UI
+                updateTestSummary();
+                updateTestStatus('ready', 'Test environment reset');
+                
+                logTest('✅ Test environment reset successfully', 'success');
+                
+            } catch (error) {
+                logTest(`❌ Failed to reset test environment: ${error.message}`, 'error');
+            }
+        }
+
+        function generateTestSummary() {
+            const total = testState.totalTests;
+            const passed = testState.passedTests;
+            const failed = testState.failedTests;
+            const successRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+            
+            return `Total: ${total}, Passed: ${passed}, Failed: ${failed}, Success Rate: ${successRate}%`;
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            logTest('🧪 Step 3 Confirmation Validation Test Suite initialized', 'info');
+            
+            // Add input listeners for real-time preview updates
+            ['testCustomerName', 'testCustomerPhone', 'testCustomerAddress', 'testCustomerEmail'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('input', updateCustomerPreview);
+                }
+            });
+            
+            // Initialize preview
+            updateCustomerPreview();
+            
+            // Check if CustomerValidator is available
+            setTimeout(() => {
+                if (typeof CustomerValidator !== 'undefined') {
+                    logTest('✅ CustomerValidator found and ready', 'success');
+                } else {
+                    logTest('❌ CustomerValidator not found - validation tests may not work', 'error');
+                }
+            }, 500);
+        });
+
+        // Export test functions for external access
+        window.TestSuite = {
+            runValidationTest,
+            simulateConfirmClick,
+            testValidationOverlay,
+            testErrorDisplay,
+            testValidationClear,
+            runComprehensiveTest,
+            testBoundaryConditions,
+            testPerformance,
+            resetTestEnvironment,
+            getTestResults: () => testState.testResults,
+            getTestSummary: generateTestSummary
+        };
+    </script>
+</body>
+</html>

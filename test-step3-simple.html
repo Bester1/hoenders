@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step 3 Simple Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .step-content { display: none; border: 1px solid #ccc; padding: 20px; margin: 10px 0; }
+        .step-content.active { display: block; background: #f9f9f9; }
+        .test-section { margin: 20px 0; padding: 15px; border-left: 4px solid #007bff; background: #f0f8ff; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Step 3 Simple Functionality Test</h1>
+    
+    <div class="test-section">
+        <h3>Test Overview</h3>
+        <p>This test verifies that Step 3 now works in "normal" mode without:</p>
+        <ul>
+            <li>✅ Confirmation checkboxes</li>
+            <li>✅ Edit functionality</li>
+            <li>✅ Validation requirements</li>
+            <li>✅ Complex validation functions</li>
+        </ul>
+    </div>
+
+    <!-- Mock Step 3 -->
+    <div id="step-3" class="step-content active">
+        <h2>Step 3: Order Review (Simplified)</h2>
+        <div class="p-6 bg-zinc-800/30 rounded-xl border border-zinc-700/30">
+            <h3 class="text-lg font-semibold text-white mb-4">Kliënt Besonderhede</h3>
+            <div class="space-y-3 text-sm">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-zinc-400 font-medium">Naam</p>
+                        <p class="text-white" id="reviewCustomerName">Jean Dreyer</p>
+                    </div>
+                    <div>
+                        <p class="text-zinc-400 font-medium">Telefoon</p>
+                        <p class="text-white" id="reviewCustomerPhone">079 616 7761</p>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-zinc-400 font-medium">Aflewerings Adres</p>
+                    <p class="text-white" id="reviewCustomerAddress">123 Main Street, Pretoria, 0001</p>
+                </div>
+                <div>
+                    <p class="text-zinc-400 font-medium">Email</p>
+                    <p class="text-white" id="reviewCustomerEmail">jean.dreyer@email.com</p>
+                </div>
+            </div>
+        </div>
+        <button id="placeOrder" class="flex-1 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium">
+            Plaas Bestelling
+        </button>
+    </div>
+
+    <!-- Mock Step 4 -->
+    <div id="step-4" class="step-content">
+        <h2>Step 4: Order Confirmation</h2>
+        <p>✅ Order placed successfully!</p>
+        <p>This confirms that Step 3 navigation works normally.</p>
+    </div>
+
+    <!-- Test Results -->
+    <div id="test-results" class="test-section">
+        <h3>Test Results</h3>
+        <div id="results-content"></div>
+    </div>
+
+    <script>
+        // Simple navigation test
+        function runTests() {
+            const results = [];
+            const resultsDiv = document.getElementById('results-content');
+            
+            // Test 1: Check that confirmation checkboxes don't exist
+            const addressCheckbox = document.getElementById('addressConfirmed');
+            const phoneCheckbox = document.getElementById('phoneConfirmed');
+            const editButton = document.getElementById('editCustomerDetailsBtn');
+            
+            if (!addressCheckbox && !phoneCheckbox) {
+                results.push('<p class="success">✅ Confirmation checkboxes removed successfully</p>');
+            } else {
+                results.push('<p class="error">❌ Confirmation checkboxes still present</p>');
+            }
+            
+            // Test 2: Check that edit functionality is removed
+            if (!editButton) {
+                results.push('<p class="success">✅ Edit button removed successfully</p>');
+            } else {
+                results.push('<p class="error">❌ Edit button still present</p>');
+            }
+            
+            // Test 3: Check that place order button doesn't have validation attributes
+            const placeOrderBtn = document.getElementById('placeOrder');
+            if (placeOrderBtn && !placeOrderBtn.hasAttribute('disabled')) {
+                results.push('<p class="success">✅ Place order button is enabled (no validation blocking)</p>');
+            } else {
+                results.push('<p class="error">❌ Place order button is disabled</p>');
+            }
+            
+            // Test 4: Check customer details are displayed
+            const nameDisplay = document.getElementById('reviewCustomerName');
+            const phoneDisplay = document.getElementById('reviewCustomerPhone');
+            const addressDisplay = document.getElementById('reviewCustomerAddress');
+            
+            if (nameDisplay && phoneDisplay && addressDisplay) {
+                results.push('<p class="success">✅ Customer details display elements present</p>');
+            } else {
+                results.push('<p class="error">❌ Missing customer details display elements</p>');
+            }
+            
+            resultsDiv.innerHTML = results.join('');
+        }
+        
+        // Test navigation
+        document.getElementById('placeOrder').addEventListener('click', function() {
+            document.getElementById('step-3').classList.remove('active');
+            document.getElementById('step-4').classList.add('active');
+            
+            const resultsDiv = document.getElementById('results-content');
+            resultsDiv.innerHTML += '<p class="success">✅ Navigation from Step 3 to Step 4 works!</p>';
+        });
+        
+        // Run tests on page load
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html>

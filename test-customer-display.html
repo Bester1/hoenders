@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Customer Display</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Customer Display Test</h1>
+    
+    <div class="test-section">
+        <h2>Step 3: Order Review Elements</h2>
+        <div id="reviewCustomerName">[Name will appear here]</div>
+        <div id="reviewCustomerPhone">[Phone will appear here]</div>
+        <div id="reviewCustomerAddress">[Address will appear here]</div>
+        <div id="reviewCustomerEmail">[Email will appear here]</div>
+        <div id="reviewCustomerInstructions">[Instructions will appear here]</div>
+        <div id="confirmAddressText">[Address confirmation text]</div>
+        <div id="confirmPhoneText">[Phone confirmation text]</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button onclick="testCustomerDisplay()">Test Customer Display</button>
+        <button onclick="clearDisplay()">Clear Display</button>
+        <button onclick="checkElements()">Check Elements Exist</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="testResults"></div>
+    </div>
+
+    <script src="env-config.js"></script>
+    <script src="config.js"></script>
+    <script src="error-handler.js"></script>
+    <script src="security-utils.js"></script>
+    <script src="customer.js"></script>
+    
+    <script>
+        // Mock customer data
+        const testCustomer = {
+            name: "John Doe",
+            phone: "+1-555-123-4567",
+            address: "123 Main St, Anytown, USA 12345",
+            email: "john.doe@example.com",
+            deliveryInstructions: "Please leave at front door"
+        };
+
+        function testCustomerDisplay() {
+            console.log("=== Testing Customer Display ===");
+            const results = document.getElementById('testResults');
+            results.innerHTML = '';
+            
+            try {
+                // Test the populateReviewCustomerInfo function
+                if (typeof populateReviewCustomerInfo === 'function') {
+                    console.log("Calling populateReviewCustomerInfo with test data...");
+                    populateReviewCustomerInfo(testCustomer);
+                    results.innerHTML += '<div class="success">✓ populateReviewCustomerInfo function called successfully</div>';
+                } else {
+                    results.innerHTML += '<div class="error">✗ populateReviewCustomerInfo function not found</div>';
+                    console.error("populateReviewCustomerInfo function not found");
+                }
+
+                // Test the updateConfirmationText function
+                if (typeof updateConfirmationText === 'function') {
+                    console.log("Calling updateConfirmationText with test data...");
+                    updateConfirmationText(testCustomer);
+                    results.innerHTML += '<div class="success">✓ updateConfirmationText function called successfully</div>';
+                } else {
+                    results.innerHTML += '<div class="error">✗ updateConfirmationText function not found</div>';
+                    console.error("updateConfirmationText function not found");
+                }
+
+                // Check if elements were populated
+                setTimeout(() => {
+                    checkElementValues();
+                }, 100);
+
+            } catch (error) {
+                results.innerHTML += `<div class="error">✗ Error: ${error.message}</div>`;
+                console.error("Error testing customer display:", error);
+            }
+        }
+
+        function checkElementValues() {
+            const elements = [
+                { id: 'reviewCustomerName', expected: 'John Doe' },
+                { id: 'reviewCustomerPhone', expected: '+1-555-123-4567' },
+                { id: 'reviewCustomerAddress', expected: '123 Main St, Anytown, USA 12345' },
+                { id: 'reviewCustomerEmail', expected: 'john.doe@example.com' },
+                { id: 'reviewCustomerInstructions', expected: 'Please leave at front door' }
+            ];
+
+            let allPassed = true;
+            elements.forEach(({ id, expected }) => {
+                const element = document.getElementById(id);
+                const actual = element ? element.textContent.trim() : 'ELEMENT NOT FOUND';
+                const passed = actual === expected;
+                allPassed = allPassed && passed;
+                
+                const status = passed ? 'success' : 'error';
+                const result = passed ? '✓' : '✗';
+                document.getElementById('testResults').innerHTML += 
+                    `<div class="${status}">${result} ${id}: "${actual}" (expected: "${expected}")</div>`;
+            });
+
+            if (allPassed) {
+                document.getElementById('testResults').innerHTML += 
+                    '<div class="success"><strong>✓ All customer display tests passed!</strong></div>';
+            }
+        }
+
+        function clearDisplay() {
+            const elements = [
+                'reviewCustomerName', 'reviewCustomerPhone', 'reviewCustomerAddress',
+                'reviewCustomerEmail', 'reviewCustomerInstructions'
+            ];
+            
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = `[${id.replace('reviewCustomer', '').toLowerCase()} will appear here]`;
+                }
+            });
+            
+            document.getElementById('testResults').innerHTML = '<div class="info">Display cleared</div>';
+        }
+
+        function checkElements() {
+            const elements = [
+                'reviewCustomerName', 'reviewCustomerPhone', 'reviewCustomerAddress',
+                'reviewCustomerEmail', 'reviewCustomerInstructions', 'confirmAddressText', 'confirmPhoneText'
+            ];
+            
+            let allFound = true;
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                const found = !!element;
+                allFound = allFound && found;
+                const status = found ? 'success' : 'error';
+                const result = found ? '✓' : '✗';
+                document.getElementById('testResults').innerHTML += 
+                    `<div class="${status}">${result} Element ${id}: ${found ? 'FOUND' : 'NOT FOUND'}</div>`;
+            });
+
+            if (allFound) {
+                document.getElementById('testResults').innerHTML += 
+                    '<div class="success"><strong>✓ All required elements found!</strong></div>';
+            }
+        }
+
+        // Auto-run element check on page load
+        window.addEventListener('load', () => {
+            console.log("Test page loaded - checking elements...");
+            checkElements();
+        });
+    </script>
+</body>
+</html>

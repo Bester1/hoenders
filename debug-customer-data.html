@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Customer Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .debug-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .debug-section h3 { margin-top: 0; color: #333; }
+        .log-entry { margin: 5px 0; padding: 8px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+        .log-info { background: #e3f2fd; color: #1976d2; }
+        .log-warn { background: #fff3e0; color: #f57c00; }
+        .log-error { background: #ffebee; color: #d32f2f; }
+        .log-success { background: #e8f5e8; color: #388e3c; }
+        .data-display { background: #f8f9fa; padding: 10px; border-radius: 3px; margin: 10px 0; }
+        .data-item { margin: 5px 0; }
+        .data-label { font-weight: bold; color: #555; }
+        .data-value { color: #333; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        button:hover { opacity: 0.9; }
+        #console-output { max-height: 400px; overflow-y: auto; background: #f8f9fa; border: 1px solid #ddd; padding: 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>🔍 Customer Data Debug Tool</h1>
+        <p>This tool helps diagnose why customer data is not displaying correctly in the confirmation section.</p>
+        
+        <div class="debug-section">
+            <h3>🚀 Quick Actions</h3>
+            <button class="btn-primary" onclick="testCustomerDataFlow()">Test Complete Flow</button>
+            <button class="btn-secondary" onclick="checkLocalStorage()">Check LocalStorage</button>
+            <button class="btn-success" onclick="clearConsoleOutput()">Clear Console</button>
+            <button class="btn-secondary" onclick="simulateCustomerLogin()">Simulate Login</button>
+        </div>
+        
+        <div class="debug-section">
+            <h3>📊 Current Customer Data</h3>
+            <div id="current-customer-data" class="data-display">
+                <div class="data-item">
+                    <span class="data-label">Status:</span>
+                    <span class="data-value" id="customer-status">Loading...</span>
+                </div>
+                <div id="customer-details"></div>
+            </div>
+        </div>
+        
+        <div class="debug-section">
+            <h3>📝 Console Output</h3>
+            <div id="console-output"></div>
+        </div>
+        
+        <div class="debug-section">
+            <h3>🔧 Test Functions</h3>
+            <button class="btn-primary" onclick="testPopulateOrderReview()">Test populateOrderReview()</button>
+            <button class="btn-secondary" onclick="testPopulateCustomerSummary()">Test populateCustomerSummaryDisplay()</button>
+            <button class="btn-success" onclick="testUpdateConfirmationText()">Test updateConfirmationText()</button>
+        </div>
+    </div>
+
+    <script>
+        // Override console.log to capture output
+        const originalConsoleLog = console.log;
+        const originalConsoleWarn = console.warn;
+        const originalConsoleError = console.error;
+        
+        function addLogEntry(message, type = 'info') {
+            const consoleOutput = document.getElementById('console-output');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleOutput.appendChild(entry);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            addLogEntry(args.join(' '), 'info');
+        };
+        
+        console.warn = function(...args) {
+            originalConsoleWarn.apply(console, args);
+            addLogEntry(args.join(' '), 'warn');
+        };
+        
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            addLogEntry(args.join(' '), 'error');
+        };
+        
+        function clearConsoleOutput() {
+            document.getElementById('console-output').innerHTML = '';
+            addLogEntry('Console cleared', 'success');
+        }
+        
+        function updateCustomerStatus() {
+            const statusElement = document.getElementById('customer-status');
+            const detailsElement = document.getElementById('customer-details');
+            
+            if (typeof currentCustomer === 'undefined' || currentCustomer === null) {
+                statusElement.textContent = 'No customer data available';
+                statusElement.style.color = '#d32f2f';
+                detailsElement.innerHTML = '<p>No customer data found in memory</p>';
+                return;
+            }
+            
+            statusElement.textContent = 'Customer data available';
+            statusElement.style.color = '#388e3c';
+            
+            let detailsHtml = '';
+            for (const [key, value] of Object.entries(currentCustomer)) {
+                detailsHtml += `
+                    <div class="data-item">
+                        <span class="data-label">${key}:</span>
+                        <span class="data-value">${value || 'null'}</span>
+                    </div>
+                `;
+            }
+            detailsElement.innerHTML = detailsHtml || '<p>No customer details to display</p>';
+        }
+        
+        function checkLocalStorage() {
+            addLogEntry('🔍 Checking localStorage for customer data...', 'info');
+            const storedCustomer = localStorage.getItem('currentCustomer');
+            
+            if (storedCustomer) {
+                try {
+                    const customerData = JSON.parse(storedCustomer);
+                    addLogEntry('✅ Found customer data in localStorage:', 'success');
+                    console.log('localStorage customer:', customerData);
+                } catch (e) {
+                    addLogEntry('❌ Error parsing localStorage customer data', 'error');
+                }
+            } else {
+                addLogEntry('⚠️ No customer data found in localStorage', 'warn');
+            }
+        }
+        
+        function simulateCustomerLogin() {
+            addLogEntry('🔄 Simulating customer login...', 'info');
+            
+            // Create mock customer data
+            const mockCustomer = {
+                id: 'test-customer-123',
+                full_name: 'Test Customer',
+                name: 'Test Customer',
+                email: 'test@example.com',
+                phone: '+1 (555) 123-4567',
+                address: '123 Test St, Test City, TC 12345, USA',
+                shipping_address: '123 Test St, Test City, TC 12345, USA',
+                auth_user_id: 'test-auth-123'
+            };
+            
+            // Store in localStorage
+            localStorage.setItem('currentCustomer', JSON.stringify(mockCustomer));
+            
+            // Set global currentCustomer if it exists
+            if (typeof window !== 'undefined') {
+                window.currentCustomer = mockCustomer;
+            }
+            
+            addLogEntry('✅ Mock customer data created and stored', 'success');
+            updateCustomerStatus();
+        }
+        
+        function testPopulateOrderReview() {
+            addLogEntry('🧪 Testing populateOrderReview() function...', 'info');
+            
+            if (typeof populateOrderReview === 'function') {
+                try {
+                    populateOrderReview();
+                    addLogEntry('✅ populateOrderReview() executed successfully', 'success');
+                } catch (error) {
+                    addLogEntry(`❌ Error in populateOrderReview(): ${error.message}`, 'error');
+                }
+            } else {
+                addLogEntry('⚠️ populateOrderReview() function not found', 'warn');
+            }
+        }
+        
+        function testPopulateCustomerSummary() {
+            addLogEntry('🧪 Testing populateCustomerSummaryDisplay() function...', 'info');
+            
+            if (typeof populateCustomerSummaryDisplay === 'function') {
+                try {
+                    populateCustomerSummaryDisplay();
+                    addLogEntry('✅ populateCustomerSummaryDisplay() executed successfully', 'success');
+                } catch (error) {
+                    addLogEntry(`❌ Error in populateCustomerSummaryDisplay(): ${error.message}`, 'error');
+                }
+            } else {
+                addLogEntry('⚠️ populateCustomerSummaryDisplay() function not found', 'warn');
+            }
+        }
+        
+        function testUpdateConfirmationText() {
+            addLogEntry('🧪 Testing updateConfirmationText() function...', 'info');
+            
+            if (typeof updateConfirmationText === 'function') {
+                try {
+                    updateConfirmationText();
+                    addLogEntry('✅ updateConfirmationText() executed successfully', 'success');
+                } catch (error) {
+                    addLogEntry(`❌ Error in updateConfirmationText(): ${error.message}`, 'error');
+                }
+            } else {
+                addLogEntry('⚠️ updateConfirmationText() function not found', 'warn');
+            }
+        }
+        
+        function testCustomerDataFlow() {
+            addLogEntry('🔄 Testing complete customer data flow...', 'info');
+            
+            // Step 1: Check if customer data exists
+            checkLocalStorage();
+            
+            // Step 2: Simulate login if no data
+            if (!currentCustomer) {
+                simulateCustomerLogin();
+            }
+            
+            // Step 3: Test the functions
+            setTimeout(() => {
+                testPopulateOrderReview();
+            }, 1000);
+            
+            setTimeout(() => {
+                testPopulateCustomerSummary();
+            }, 2000);
+            
+            setTimeout(() => {
+                testUpdateConfirmationText();
+            }, 3000);
+            
+            setTimeout(() => {
+                updateCustomerStatus();
+                addLogEntry('✅ Complete customer data flow test finished', 'success');
+            }, 4000);
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            addLogEntry('🔍 Debug tool loaded', 'info');
+            addLogEntry('📋 Current customer data:', 'info');
+            console.log('currentCustomer:', typeof currentCustomer !== 'undefined' ? currentCustomer : 'undefined');
+            updateCustomerStatus();
+        });
+    </script>
+</body>
+</html>

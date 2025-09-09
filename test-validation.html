@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Validation System</title>
+    <link rel="stylesheet" href="customer-validation.css">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #f0f0f0;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .test-pass { background: #d4edda; color: #155724; }
+        .test-fail { background: #f8d7da; color: #721c24; }
+        .test-info { background: #d1ecf1; color: #0c5460; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .validation-overlay { display: none; }
+        .validation-overlay.show { display: block; }
+    </style>
+</head>
+<body>
+    <h1>Customer Validation System Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Customer Data</h2>
+        <input type="tel" id="testPhone" placeholder="Phone Number" value="0796167761">
+        <textarea id="testAddress" placeholder="Address" rows="3">123 Main Street, Pretoria, 0001</textarea>
+        <button class="btn-primary" onclick="testValidation()">Test Validation</button>
+        <button class="btn-secondary" onclick="testValidationFail()">Test Fail Case</button>
+        <div id="testResults"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Validation Overlay Test</h2>
+        <button class="btn-primary" onclick="showValidationOverlay()">Show Validation Overlay</button>
+        <button class="btn-secondary" onclick="hideValidationOverlay()">Hide Validation Overlay</button>
+        
+        <!-- Validation Overlay -->
+        <div class="validation-overlay" id="validationOverlay">
+            <div class="validation-overlay-content">
+                <h5>⚠️ Ontbrekende Inligting</h5>
+                <p>Maak asseblief seker dat al jou kontakbesonderhede ingevul is voordat jy voortgaan.</p>
+                <button onclick="hideValidationOverlay()" class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium">
+                    Verstaan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="customer-validation.js"></script>
+    <script>
+        function testValidation() {
+            const phone = document.getElementById('testPhone').value;
+            const address = document.getElementById('testAddress').value;
+            const results = document.getElementById('testResults');
+            
+            results.innerHTML = '<div class="test-info">Testing validation...</div>';
+            
+            setTimeout(() => {
+                const validation = window.CustomerValidator.validate();
+                
+                if (validation.isValid) {
+                    results.innerHTML = '<div class="test-pass">✅ Validation PASSED</div>';
+                } else {
+                    results.innerHTML = '<div class="test-fail">❌ Validation FAILED</div>';
+                    results.innerHTML += '<div class="test-info">Errors: ' + validation.errors.join(', ') + '</div>';
+                }
+            }, 100);
+        }
+        
+        function testValidationFail() {
+            document.getElementById('testPhone').value = '';
+            document.getElementById('testAddress').value = '';
+            testValidation();
+        }
+        
+        function showValidationOverlay() {
+            document.getElementById('validationOverlay').classList.add('show');
+        }
+        
+        function hideValidationOverlay() {
+            document.getElementById('validationOverlay').classList.remove('show');
+        }
+        
+        // Initialize validation system
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Validation test page loaded');
+            console.log('CustomerValidator available:', typeof window.CustomerValidator);
+        });
+    </script>
+</body>
+</html>

@@ -43,6 +43,7 @@
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
+    <link rel="stylesheet" href="customer-validation.css">
     <style>
         body { font-family: 'Inter', sans-serif; }
         .animate-fade-in { animation: fadeIn 0.6s ease-out forwards; }
@@ -455,8 +456,11 @@
                         <!-- Customer Details Display/Edit -->
                         <div class="max-w-md mx-auto">
                             
+                            <!-- Validation Message -->
+                            <div id="validationMessage" class="validation-message hidden mb-4"></div>
+                            
                             <!-- Display Mode (Default) -->
-                            <div id="detailsDisplay" class="space-y-4 mb-6">
+                            <div id="detailsDisplay" class="space-y-4 mb-6 customer-details-section">
                                 <div class="bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6">
                                     <div class="space-y-4">
                                         <div class="flex justify-between items-center">
@@ -467,22 +471,35 @@
                                             <span class="text-sm font-medium text-zinc-400">Telefoon</span>
                                             <span class="text-white font-medium" id="displayPhone">079 616 7761</span>
                                         </div>
+                                        <div class="field-validation-error" id="phoneError"></div>
                                         <div class="flex justify-between items-start">
                                             <span class="text-sm font-medium text-zinc-400">Aflewering</span>
                                             <span class="text-white font-medium text-right max-w-[200px]" id="displayAddress">123 Main Street, Pretoria, 0001</span>
                                         </div>
+                                        <div class="field-validation-error" id="addressError"></div>
                                         <div class="flex justify-between items-center">
                                             <span class="text-sm font-medium text-zinc-400">Email</span>
                                             <span class="text-white font-medium" id="displayEmail">jean.dreyer@email.com</span>
                                         </div>
                                     </div>
                                     
-                                    <button id="editDetailsBtn" class="w-full mt-4 px-4 py-2 bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200 rounded-lg transition-all duration-200 text-sm font-medium">
+                                    <button id="editDetailsBtn" class="w-full mt-4 px-4 py-2 bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200 rounded-lg transition-all duration-200 text-sm font-medium edit-details-btn">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline w-4 h-4 mr-2">
                                             <path d="M14.5 4L20 9.5L8 22H3v-5L14.5 4z"></path>
                                         </svg>
                                         Wysig Besonderhede
                                     </button>
+                                </div>
+                                
+                                <!-- Validation Overlay -->
+                                <div class="validation-overlay">
+                                    <div class="validation-overlay-content">
+                                        <h5>⚠️ Ontbrekende Inligting</h5>
+                                        <p>Maak asseblief seker dat al jou kontakbesonderhede ingevul is voordat jy voortgaan.</p>
+                                        <button onclick="window.customerValidator.clearValidationErrors()" class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium">
+                                            Verstaan
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -530,7 +547,7 @@
                             <!-- Last Order section removed for testing - will be implemented later with real data -->
 
                             <!-- Continue Button -->
-                            <button id="confirmDetails" class="w-full inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium group">
+                            <button id="confirmDetails" class="w-full inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium group confirm-details-btn">
                                 Besonderhede is Korrek - Gaan Verder
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 group-hover:translate-x-1 transition-transform">
                                     <path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path>
@@ -597,20 +614,10 @@
                         </div>
 
                         <div class="space-y-6">
-                            <!-- Enhanced Customer Details Confirmation -->
+                            <!-- Simple Customer Details Display -->
                             <div class="p-6 bg-zinc-800/30 rounded-xl border border-zinc-700/30">
-                                <div class="flex justify-between items-center mb-4">
-                                    <h3 class="text-lg font-semibold text-white">Kliënt Besonderhede</h3>
-                                    <button id="editCustomerDetailsBtn" class="px-3 py-1 bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200 rounded-lg transition-all duration-200 text-sm font-medium flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
-                                            <path d="M14.5 4L20 9.5L8 22H3v-5L14.5 4z"></path>
-                                        </svg>
-                                        Wysig
-                                    </button>
-                                </div>
-                                
-                                <!-- Display Mode -->
-                                <div id="customerDetailsDisplay" class="space-y-3 text-sm">
+                                <h3 class="text-lg font-semibold text-white mb-4">Kliënt Besonderhede</h3>
+                                <div class="space-y-3 text-sm">
                                     <div class="grid grid-cols-2 gap-4">
                                         <div>
                                             <p class="text-zinc-400 font-medium">Naam</p>
@@ -628,63 +635,6 @@
                                     <div>
                                         <p class="text-zinc-400 font-medium">Email</p>
                                         <p class="text-white" id="reviewCustomerEmail">-</p>
-                                    </div>
-                                    <div id="reviewDeliveryInstructions" class="hidden">
-                                        <p class="text-zinc-400 font-medium">Spesiale Instruksies</p>
-                                        <p class="text-white" id="reviewCustomerInstructions">-</p>
-                                    </div>
-                                </div>
-
-                                <!-- Edit Mode (Hidden by default) -->
-                                <div id="customerDetailsEdit" class="hidden space-y-4">
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Volle Naam</label>
-                                            <input type="text" id="editCustomerName" class="w-full px-3 py-2 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-orange-500/50 transition-all">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Telefoon Nommer</label>
-                                            <input type="tel" id="editCustomerPhone" class="w-full px-3 py-2 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-orange-500/50 transition-all">
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-zinc-300 mb-2">Aflewerings Adres</label>
-                                        <textarea id="editCustomerAddress" rows="3" class="w-full px-3 py-2 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-orange-500/50 transition-all resize-none"></textarea>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-zinc-300 mb-2">Email Adres</label>
-                                        <input type="email" id="editCustomerEmail" class="w-full px-3 py-2 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-orange-500/50 transition-all" readonly>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-zinc-300 mb-2">Spesiale Instruksies (Opsioneel)</label>
-                                        <textarea id="editCustomerInstructions" rows="2" class="w-full px-3 py-2 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-orange-500/50 transition-all resize-none" placeholder="Enige spesiale versoeke of instruksies vir aflewering..."></textarea>
-                                    </div>
-                                    
-                                    <div class="flex gap-3 mt-4">
-                                        <button id="cancelCustomerEditBtn" class="flex-1 px-3 py-2 bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200 rounded-lg transition-all duration-200 text-sm font-medium">
-                                            Kanselleer
-                                        </button>
-                                        <button id="saveCustomerEditBtn" class="flex-1 px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-all duration-200 text-sm font-medium">
-                                            Stoor Veranderinge
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Mandatory Confirmation Checkboxes -->
-                                <div id="confirmationCheckboxes" class="mt-6 pt-4 border-t border-zinc-700/30 space-y-3">
-                                    <div class="flex items-start gap-3">
-                                        <input type="checkbox" id="addressConfirmed" class="mt-1 w-4 h-4 text-orange-500 bg-zinc-700 border-zinc-600 rounded focus:ring-orange-500 focus:ring-2">
-                                        <label for="addressConfirmed" class="text-sm text-zinc-300 cursor-pointer">
-                                            <span class="text-white font-medium">Ek bevestig dat my aflewerings adres korrek is:</span><br>
-                                            <span id="confirmAddressText" class="text-zinc-400">Geen adres verskaf nie</span>
-                                        </label>
-                                    </div>
-                                    <div class="flex items-start gap-3">
-                                        <input type="checkbox" id="phoneConfirmed" class="mt-1 w-4 h-4 text-orange-500 bg-zinc-700 border-zinc-600 rounded focus:ring-orange-500 focus:ring-2">
-                                        <label for="phoneConfirmed" class="text-sm text-zinc-300 cursor-pointer">
-                                            <span class="text-white font-medium">Ek bevestig dat my telefoon nommer korrek is:</span><br>
-                                            <span id="confirmPhoneText" class="text-zinc-400">Geen telefoon nommer verskaf nie</span>
-                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -712,7 +662,7 @@
                             <button id="backToProducts" class="flex-1 px-6 py-4 rounded-xl bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-100 transition-all duration-200 font-medium">
                                 Terug na Produkte
                             </button>
-                            <button id="placeOrder" onclick="handleProceedToStep4()" class="flex-1 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <button id="placeOrder" class="flex-1 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium">
                                 Plaas Bestelling
                             </button>
                         </div>
@@ -908,6 +858,7 @@
     <!-- Load shared styles and components -->
     <!-- Configuration now embedded directly in shared-utils.js for GitHub Pages -->
     <script src="shared-components.js"></script>
+    <script src="customer-validation.js"></script>
     <script src="customer.js"></script>
 </body>
 </html>

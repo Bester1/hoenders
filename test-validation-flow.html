@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Validation Flow</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .pass { color: green; font-weight: bold; }
+        .fail { color: red; font-weight: bold; }
+        .info { color: blue; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        #validationResults { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Customer Portal Validation Flow Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Current Validation Logic</h2>
+        <button onclick="testCurrentValidation()">Test Current Validation</button>
+        <button onclick="testValidationWithData()">Test Validation with Sample Data</button>
+        <button onclick="testValidationWithoutData()">Test Validation without Required Data</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Validation Results</h2>
+        <div id="validationResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Customer Data Simulation</h2>
+        <div id="customerData"></div>
+    </div>
+
+    <script>
+        // Simulate the validation logic from customer.js
+        function simulateCustomerValidation(customerData) {
+            const results = {
+                isValid: true,
+                errors: [],
+                details: {}
+            };
+
+            // Check if CustomerValidator is available (simulated)
+            if (typeof window.CustomerValidator !== 'undefined' && 
+                typeof window.CustomerValidator.validate === 'function') {
+                
+                const validation = window.CustomerValidator.validate({
+                    phone: customerData?.phone || '',
+                    address: customerData?.address || ''
+                });
+                
+                results.isValid = validation.isValid;
+                results.errors = validation.errors || [];
+                results.details.method = 'CustomerValidator';
+            } else {
+                // Fallback validation (same as in customer.js)
+                if (!customerData?.phone || !customerData?.address) {
+                    results.isValid = false;
+                    results.errors.push('⚠️ Please complete your phone number and address before proceeding.');
+                    results.details.method = 'fallback';
+                }
+            }
+
+            results.details.phone = customerData?.phone || 'missing';
+            results.details.address = customerData?.address || 'missing';
+            
+            return results;
+        }
+
+        function testCurrentValidation() {
+            const resultsDiv = document.getElementById('validationResults');
+            let html = '<h3>Current Validation Test Results:</h3>';
+            
+            // Test with no customer data
+            const emptyResult = simulateCustomerValidation(null);
+            html += `<div class="${emptyResult.isValid ? 'pass' : 'fail'}">
+                Empty customer data: ${emptyResult.isValid ? 'PASS' : 'FAIL'}<br>
+                Method: ${emptyResult.details.method}<br>
+                Errors: ${emptyResult.errors.join(', ')}
+            </div><br>`;
+
+            // Test with partial data (phone only)
+            const partialResult = simulateCustomerValidation({ phone: '0791234567' });
+            html += `<div class="${partialResult.isValid ? 'pass' : 'fail'}">
+                Partial data (phone only): ${partialResult.isValid ? 'PASS' : 'FAIL'}<br>
+                Method: ${partialResult.details.method}<br>
+                Errors: ${partialResult.errors.join(', ')}
+            </div><br>`;
+
+            // Test with complete data
+            const completeResult = simulateCustomerValidation({ 
+                phone: '0791234567', 
+                address: '123 Test Street, Testville' 
+            });
+            html += `<div class="${completeResult.isValid ? 'pass' : 'fail'}">
+                Complete data: ${completeResult.isValid ? 'PASS' : 'FAIL'}<br>
+                Method: ${completeResult.details.method}<br>
+                Errors: ${completeResult.errors.join(', ')}
+            </div>`;
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function testValidationWithData() {
+            const completeCustomer = {
+                phone: '0791234567',
+                address: '123 Test Street, Testville, 1234'
+            };
+
+            const result = simulateCustomerValidation(completeCustomer);
+            displayTestResult('Validation with Complete Data', result);
+        }
+
+        function testValidationWithoutData() {
+            const incompleteCustomer = {
+                phone: '',  // Missing phone
+                address: '' // Missing address
+            };
+
+            const result = simulateCustomerValidation(incompleteCustomer);
+            displayTestResult('Validation without Required Data', result);
+        }
+
+        function displayTestResult(testName, result) {
+            const resultsDiv = document.getElementById('validationResults');
+            const customerDataDiv = document.getElementById('customerData');
+            
+            resultsDiv.innerHTML = `
+                <h3>${testName} Results:</h3>
+                <div class="${result.isValid ? 'pass' : 'fail'}">
+                    Validation Status: ${result.isValid ? 'VALID' : 'INVALID'}<br>
+                    Method Used: ${result.details.method}<br>
+                    Phone: ${result.details.phone}<br>
+                    Address: ${result.details.address}
+                </div>
+                ${result.errors.length > 0 ? 
+                    `<div class="fail">Errors: ${result.errors.join(', ')}</div>` : 
+                    '<div class="pass">No validation errors</div>'
+                }
+            `;
+
+            customerDataDiv.innerHTML = `
+                <h4>Test Customer Data:</h4>
+                <pre>${JSON.stringify({
+                    phone: result.details.phone,
+                    address: result.details.address
+                }, null, 2)}</pre>
+            `;
+        }
+
+        // Initialize test on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Validation test page loaded');
+            document.getElementById('validationResults').innerHTML = 
+                '<div class="info">Click the test buttons above to validate the customer portal validation logic.</div>';
+        });
+    </script>
+
+    <!-- Load the actual customer validation scripts -->
+    <script src="shared-utils.js"></script>
+    <script src="customer-validation.js"></script>
+    <script src="customer.js"></script>
+</body>
+</html>

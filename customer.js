@@ -186,16 +186,21 @@ async function initializeCustomerPortal() {
  * @returns {Promise<void>}
  */
 async function loadCustomerProfile() {
+    console.log('📂 loadCustomerProfile() called');
     try {
         if (!customerSession?.user?.id) {
+            console.log('❌ No authenticated user session found');
             throw new Error('No authenticated user session');
         }
+        
+        console.log('🆔 Customer session user ID:', customerSession.user.id);
 
         // Try to get customer profile from database (gracefully handle missing table)
         let customer = null;
         let error = null;
         
         try {
+            console.log('🔍 Attempting to load customer from database...');
             const result = await supabaseClient
                 .from('customers')
                 .select('*')
@@ -203,25 +208,27 @@ async function loadCustomerProfile() {
                 .single();
             customer = result.data;
             error = result.error;
+            console.log('📊 Database result:', { customer, error });
         } catch (dbError) {
-            console.warn('Customer table not found, using auth data directly:', dbError);
+            console.warn('❌ Customer table not found, using auth data directly:', dbError);
             error = dbError;
         }
 
-        if (error && error.code !== 'PGRST116' && !error.message?.includes('404')) { 
+        if (error && error.code !== 'PGRST116' && !error.message?.includes('404')) {
             // Only throw on real errors, not missing table or no rows
-            console.warn('Customer profile error (non-critical):', error);
+            console.warn('⚠️ Customer profile error (non-critical):', error);
         }
 
         if (!customer) {
+            console.log('🆕 Creating new customer profile from auth data');
             // Create customer profile for new user (e.g., Google OAuth user)
             const newCustomer = {
                 auth_user_id: customerSession.user.id,
-                full_name: customerSession.user.user_metadata?.full_name || 
-                          customerSession.user.user_metadata?.name || 
+                full_name: customerSession.user.user_metadata?.full_name ||
+                          customerSession.user.user_metadata?.name ||
                           customerSession.user.email.split('@')[0],
-                name: customerSession.user.user_metadata?.full_name || 
-                      customerSession.user.user_metadata?.name || 
+                name: customerSession.user.user_metadata?.full_name ||
+                      customerSession.user.user_metadata?.name ||
                       customerSession.user.email.split('@')[0],
                 email: customerSession.user.email,
                 phone: customerSession.user.user_metadata?.phone || null,
@@ -229,9 +236,12 @@ async function loadCustomerProfile() {
                 communication_preferences: { email_notifications: true },
                 last_login: new Date().toISOString()
             };
+            
+            console.log('📝 New customer data from auth:', newCustomer);
 
             // Try to create customer in database (handle missing table gracefully)
             try {
+                console.log('🔄 Attempting to create customer in database...');
                 const { data: createdCustomer, error: createError } = await supabaseClient
                     .from('customers')
                     .insert([newCustomer])
@@ -239,18 +249,21 @@ async function loadCustomerProfile() {
                     .single();
 
                 if (createError) {
-                    console.warn('Could not create customer in database, using auth data:', createError);
+                    console.warn('⚠️ Could not create customer in database, using auth data:', createError);
                     currentCustomer = newCustomer; // Use the customer data we have
                 } else {
                     currentCustomer = createdCustomer;
+                    console.log('✅ Customer created in database:', currentCustomer);
                 }
             } catch (dbError) {
-                console.warn('Customer table not available, using auth data directly:', dbError);
+                console.warn('⚠️ Customer table not available, using auth data directly:', dbError);
                 currentCustomer = newCustomer; // Use the customer data we have
             }
         } else {
+            console.log('✅ Loaded existing customer from database:', customer);
             // Try to update last login time (handle missing table gracefully)
             try {
+                console.log('🔄 Updating last login time...');
                 const { error: updateError } = await supabaseClient
                     .from('customers')
                     .update({ last_login: new Date().toISOString() })
@@ -619,33 +632,6 @@ function showLoadingSpinner(show) {
     }
 }
 
-/**
- * Switch between auth forms (login/register)
- * @function showAuthForm
- * @param {string} formType - 'login' or 'register'
- */
-function showAuthForm(formType) {
-    // Clear any existing messages and errors
-    clearFormErrors();
-
-    // Update tab states
-    const loginTab = document.getElementById('login-tab');
-    const registerTab = document.getElementById('register-tab');
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-
-    if (formType === 'login') {
-        loginTab.classList.add('active');
-        registerTab.classList.remove('active');
-        loginForm.classList.add('active');
-        registerForm.classList.remove('active');
-    } else {
-        registerTab.classList.add('active');
-        loginTab.classList.remove('active');
-        registerForm.classList.add('active');
-        loginForm.classList.remove('active');
-    }
-}
 
 /**
  * Show authentication section (login/register forms)
@@ -810,6 +796,27 @@ function setupBeautifulPortalEventListeners() {
     const confirmDetails = document.getElementById('confirmDetails');
     if (confirmDetails) {
         confirmDetails.addEventListener('click', () => {
+            // Validate required customer fields before proceeding
+            if (window.CustomerValidator && typeof window.CustomerValidator.validate === 'function') {
+                const validation = window.CustomerValidator.validate({
+                    phone: currentCustomer?.phone || '',
+                    address: currentCustomer?.address || ''
+                });
+                
+                if (!validation.isValid) {
+                    // Show validation overlay with errors
+                    window.CustomerValidator.showValidationOverlay(validation.errors);
+                    return;
+                }
+            } else {
+                // Fallback validation if CustomerValidator is not available
+                if (!currentCustomer?.phone || !currentCustomer?.address) {
+                    alert('⚠️ Please complete your phone number and address before proceeding.');
+                    return;
+                }
+            }
+            
+            // Validation passed, proceed to step 2
             showBeautifulStep(2);
         });
     }
@@ -1514,6 +1521,18 @@ function updateCustomerDisplayElements() {
  * @function populateOrderReview
  */
 function populateOrderReview() {
+    console.log('🎯 populateOrderReview() called');
+    console.log('📋 currentCustomer at populateOrderReview:', currentCustomer);
+    console.log('📊 Customer data:', currentCustomer ? {
+        name: currentCustomer.full_name || currentCustomer.name,
+        phone: currentCustomer.phone,
+        address: currentCustomer.address,
+        email: currentCustomer.email
+    } : 'No customer data');
+    
+    // Populate the specific review elements (this was missing!)
+    populateReviewCustomerInfo();
+    
     // Populate customer summary in display mode
     populateCustomerSummaryDisplay();
     
@@ -1552,12 +1571,223 @@ function populateOrderReview() {
 }
 
 /**
+ * Populate the specific review customer info elements
+ * @function populateReviewCustomerInfo
+ */
+function populateReviewCustomerInfo() {
+    console.log('🎯 populateReviewCustomerInfo() called');
+    console.log('📋 currentCustomer:', currentCustomer);
+    
+    if (!currentCustomer) {
+        console.log('❌ No currentCustomer available in populateReviewCustomerInfo');
+        return;
+    }
+    
+    // Check if step-3 is active/visible
+    const step3 = document.getElementById('step-3');
+    console.log('🔍 Step 3 element:', step3);
+    console.log('🔍 Step 3 active class:', step3?.classList.contains('active'));
+    console.log('🔍 Step 3 display style:', step3?.style.display);
+    
+    // Add a small delay to ensure DOM is fully ready
+    setTimeout(() => {
+        console.log('🔍 Checking elements after delay...');
+        
+        // Get the specific review elements
+        const reviewCustomerName = document.getElementById('reviewCustomerName');
+        const reviewCustomerPhone = document.getElementById('reviewCustomerPhone');
+        const reviewCustomerAddress = document.getElementById('reviewCustomerAddress');
+        const reviewCustomerEmail = document.getElementById('reviewCustomerEmail');
+        const reviewCustomerInstructions = document.getElementById('reviewCustomerInstructions');
+        
+        console.log('🔍 Review elements found after delay:', {
+            name: { exists: !!reviewCustomerName, element: reviewCustomerName },
+            phone: { exists: !!reviewCustomerPhone, element: reviewCustomerPhone },
+            address: { exists: !!reviewCustomerAddress, element: reviewCustomerAddress },
+            email: { exists: !!reviewCustomerEmail, element: reviewCustomerEmail },
+            instructions: { exists: !!reviewCustomerInstructions, element: reviewCustomerInstructions }
+        });
+
+        // Let's also check what elements actually exist in the DOM
+        console.log('🔍 All elements in step-3:', document.querySelectorAll('#step-3 [id]'));
+        console.log('🔍 Element IDs found:', Array.from(document.querySelectorAll('#step-3 [id]')).map(el => el.id));
+        
+        // Now populate the elements
+        populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewCustomerAddress, reviewCustomerEmail, reviewCustomerInstructions);
+        
+        // Simple display - no confirmation needed
+    }, 100); // 100ms delay
+}
+
+// Removed: updateConfirmationText() - no longer needed for simple Step 3
+
+function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewCustomerAddress, reviewCustomerEmail, reviewCustomerInstructions) {
+    console.log('🎯 populateReviewElements() called with elements:', {
+        name: reviewCustomerName,
+        phone: reviewCustomerPhone,
+        address: reviewCustomerAddress,
+        email: reviewCustomerEmail,
+        instructions: reviewCustomerInstructions
+    });
+    
+    // Try alternative selectors as backup
+    const backupSelectors = {
+        name: ['#reviewCustomerName', '#customerDetailsDisplay p:nth-child(1) span:last-child', '#customerDetailsDisplay > div > div:first-child p:last-child'],
+        phone: ['#reviewCustomerPhone', '#customerDetailsDisplay p:nth-child(2) span:last-child', '#customerDetailsDisplay > div > div:nth-child(2) p:last-child'],
+        address: ['#reviewCustomerAddress', '#customerDetailsDisplay p:nth-child(3) span:last-child'],
+        email: ['#reviewCustomerEmail', '#customerDetailsDisplay p:nth-child(4) span:last-child'],
+        instructions: ['#reviewCustomerInstructions']
+    };
+    
+    // Find elements using backup selectors if primary ones are null
+    if (!reviewCustomerName) {
+        for (const selector of backupSelectors.name) {
+            reviewCustomerName = document.querySelector(selector);
+            if (reviewCustomerName) {
+                console.log('✅ Found name element using backup selector:', selector);
+                break;
+            }
+        }
+    }
+    
+    if (!reviewCustomerPhone) {
+        for (const selector of backupSelectors.phone) {
+            reviewCustomerPhone = document.querySelector(selector);
+            if (reviewCustomerPhone) {
+                console.log('✅ Found phone element using backup selector:', selector);
+                break;
+            }
+        }
+    }
+    
+    if (!reviewCustomerAddress) {
+        for (const selector of backupSelectors.address) {
+            reviewCustomerAddress = document.querySelector(selector);
+            if (reviewCustomerAddress) {
+                console.log('✅ Found address element using backup selector:', selector);
+                break;
+            }
+        }
+    }
+    
+    if (!reviewCustomerEmail) {
+        for (const selector of backupSelectors.email) {
+            reviewCustomerEmail = document.querySelector(selector);
+            if (reviewCustomerEmail) {
+                console.log('✅ Found email element using backup selector:', selector);
+                break;
+            }
+        }
+    }
+    
+    if (!reviewCustomerInstructions) {
+        for (const selector of backupSelectors.instructions) {
+            reviewCustomerInstructions = document.querySelector(selector);
+            if (reviewCustomerInstructions) {
+                console.log('✅ Found instructions element using backup selector:', selector);
+                break;
+            }
+        }
+    }
+    
+    console.log('🔍 Final elements after backup search:', {
+        name: reviewCustomerName,
+        phone: reviewCustomerPhone,
+        address: reviewCustomerAddress,
+        email: reviewCustomerEmail,
+        instructions: reviewCustomerInstructions
+    });
+    
+    // Populate the elements with customer data
+    if (reviewCustomerName) {
+        reviewCustomerName.textContent = currentCustomer.full_name || currentCustomer.name || 'N/A';
+        console.log('✅ Set reviewCustomerName:', reviewCustomerName.textContent);
+    } else {
+        console.log('❌ Could not find name element even with backup selectors');
+    }
+    
+    if (reviewCustomerPhone) {
+        reviewCustomerPhone.textContent = currentCustomer.phone || 'N/A';
+        console.log('✅ Set reviewCustomerPhone:', reviewCustomerPhone.textContent);
+    } else {
+        console.log('❌ Could not find phone element even with backup selectors');
+    }
+    
+    if (reviewCustomerAddress) {
+        reviewCustomerAddress.textContent = currentCustomer.address || 'N/A';
+        console.log('✅ Set reviewCustomerAddress:', reviewCustomerAddress.textContent);
+    } else {
+        console.log('❌ Could not find address element even with backup selectors');
+    }
+    
+    if (reviewCustomerEmail) {
+        reviewCustomerEmail.textContent = currentCustomer.email || 'N/A';
+        console.log('✅ Set reviewCustomerEmail:', reviewCustomerEmail.textContent);
+    } else {
+        console.log('❌ Could not find email element even with backup selectors');
+    }
+    
+    if (reviewCustomerInstructions) {
+        reviewCustomerInstructions.textContent = currentCustomer.delivery_instructions || 'Geen spesiale instruksies';
+        console.log('✅ Set reviewCustomerInstructions:', reviewCustomerInstructions.textContent);
+        
+        // Show/hide instructions section based on content
+        const instructionsSection = document.getElementById('reviewDeliveryInstructions');
+        if (instructionsSection) {
+            if (currentCustomer.delivery_instructions) {
+                instructionsSection.classList.remove('hidden');
+            } else {
+                instructionsSection.classList.add('hidden');
+            }
+        }
+    } else {
+        console.log('❌ Could not find instructions element even with backup selectors');
+    }
+    
+    console.log('✅ populateReviewElements() completed');
+}
+
+/**
  * Populate customer summary display section
  * @function populateCustomerSummaryDisplay
  */
 function populateCustomerSummaryDisplay() {
-    const customerSummary = document.getElementById('customerSummary');
-    if (customerSummary && currentCustomer) {
+    console.log('🎯 populateCustomerSummaryDisplay() called');
+    console.log('📋 currentCustomer:', currentCustomer);
+    
+    // Add delay to ensure DOM is ready
+    setTimeout(() => {
+        let customerSummary = document.getElementById('customerSummary');
+        
+        // Try alternative selectors if primary one not found
+        if (!customerSummary) {
+            const alternativeSelectors = [
+                '#customerSummary',
+                '#customerDetailsDisplay',
+                '#step-3 .customer-summary',
+                '#step-3 [id*="summary"]',
+                '#step-3 [class*="summary"]'
+            ];
+            
+            for (const selector of alternativeSelectors) {
+                customerSummary = document.querySelector(selector);
+                if (customerSummary) {
+                    console.log('✅ Found customerSummary using alternative selector:', selector);
+                    break;
+                }
+            }
+        }
+        
+        console.log('🔍 customerSummary element:', customerSummary);
+        
+        if (customerSummary && currentCustomer) {
+        console.log('✅ Both customerSummary and currentCustomer exist');
+        console.log('📊 Customer data being displayed:');
+        console.log('   - Name:', currentCustomer.full_name || currentCustomer.name || '');
+        console.log('   - Phone:', currentCustomer.phone || 'Geen telefoon');
+        console.log('   - Address:', currentCustomer.address || 'Geen adres');
+        console.log('   - Email:', currentCustomer.email || '');
+        
         customerSummary.innerHTML = `
             <div class="space-y-3">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -1586,7 +1816,37 @@ function populateCustomerSummaryDisplay() {
                 </div>
             </div>
         `;
-    }
+    } else {
+        console.log('❌ Missing elements:');
+        console.log('   - customerSummary exists:', !!customerSummary);
+        console.log('   - currentCustomer exists:', !!currentCustomer);
+        
+        if (customerSummary) {
+            customerSummary.innerHTML = `
+                <div class="space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <p class="text-zinc-400 font-medium">Naam:</p>
+                            <p class="text-white font-medium">Laai kliënt data...</p>
+                        </div>
+                        <div>
+                            <p class="text-zinc-400 font-medium">Telefoon:</p>
+                            <p class="text-white font-medium">Laai kliënt data...</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <p class="text-zinc-400 font-medium">Aflewerings Adres:</p>
+                            <p class="text-white font-medium">Laai kliënt data...</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <p class="text-zinc-400 font-medium">Email:</p>
+                            <p class="text-white font-medium">Laai kliënt data...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        }
+    }, 100); // 100ms delay
 }
 
 /**
@@ -1608,14 +1868,6 @@ function populateOrderReviewEditForm() {
     if (editAddress) editAddress.value = currentCustomer.address || '';
     if (editEmail) editEmail.value = currentCustomer.email || '';
     if (editInstructions) editInstructions.value = currentCustomer.delivery_instructions || '';
-}
-
-/**
- * Populate order items summary section
- * @function populateOrderItemsSummary
- */
-function populateOrderItemsSummary() {
-    
 }
 
 /**
@@ -2530,25 +2782,41 @@ async function loadSectionData(sectionName) {
  * @function updateCustomerNameInUI
  */
 function updateCustomerNameInUI() {
-    if (!currentCustomer) return;
-
+    console.log('🎨 updateCustomerNameInUI() called');
+    console.log('📊 currentCustomer:', currentCustomer);
+    
+    if (!currentCustomer) {
+        console.log('⚠️ No customer data available for UI update');
+        return;
+    }
+    
+    console.log('🔄 Updating UI with customer data');
+    
     // Update main dashboard welcome
     const customerNameElement = document.getElementById('customerName');
     if (customerNameElement) {
         customerNameElement.textContent = currentCustomer.name;
+        console.log('✅ Customer name element updated');
+    } else {
+        console.log('⚠️ Customer name element not found');
     }
 
     // Update navigation customer name
     const navCustomerName = document.getElementById('navCustomerName');
     if (navCustomerName) {
         navCustomerName.textContent = currentCustomer.name;
+        console.log('✅ Navigation customer name updated');
+    } else {
+        console.log('⚠️ Navigation customer name element not found');
     }
 
     // Update page title with customer name
     document.title = `Plaas Hoenders - ${currentCustomer.name}'s Portal`;
+    console.log('✅ Page title updated');
 
     // Update personalized content in dashboard
     updateDashboardPersonalization();
+    console.log('✅ Customer name UI update completed');
 }
 
 /**
@@ -4956,14 +5224,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 
-// Helper function to show form messages
-function showFormMessage(element, message, type) {
-    if (element) {
-        element.textContent = message;
-        element.className = `form-message ${type}`;
-        element.style.display = 'block';
-    }
-}
 
 // Development tool to clear all auth data
 async function clearAllAuthData() {
@@ -5054,43 +5314,27 @@ function handleProceedToStep4() {
     }
     
     // If validation passes, proceed to step 4
-    showStep(4);
-}
-
-/**
- * Validate order review step before proceeding
- * @function validateOrderReview
- * @returns {boolean} - True if validation passes
- */
-function validateOrderReview() {
-    const addressConfirmed = document.getElementById('addressConfirmed');
-    const phoneConfirmed = document.getElementById('phoneConfirmed');
-    
-    if (!addressConfirmed || !phoneConfirmed) {
-        console.warn('Confirmation checkboxes not found');
-        return false;
+// Simple place order functionality - go directly to step 4
+document.addEventListener('DOMContentLoaded', function() {
+    const placeOrderBtn = document.getElementById('placeOrder');
+    if (placeOrderBtn) {
+        placeOrderBtn.addEventListener('click', function() {
+            // Simple navigation to step 4
+            document.getElementById('step-3').classList.remove('active');
+            document.getElementById('step-4').classList.add('active');
+            
+            // Update step indicators
+            document.getElementById('step-indicator-3').classList.remove('bg-orange-500');
+            document.getElementById('step-indicator-3').classList.add('bg-gray-200');
+            document.getElementById('step-indicator-4').classList.remove('bg-gray-200');
+            document.getElementById('step-indicator-4').classList.add('bg-orange-500');
+            
+            // Update progress lines
+            document.getElementById('progress-3').classList.remove('bg-gray-300');
+            document.getElementById('progress-3').classList.add('bg-orange-500');
+        });
     }
-    
-    if (!addressConfirmed.checked || !phoneConfirmed.checked) {
-        alert('⚠️ Please confirm that your address and phone number are correct before proceeding.');
-        return false;
-    }
-    
-    return true;
-}
-
-/**
- * Handle proceed to step 4 with validation
- * @function handleProceedToStep4
- */
-function handleProceedToStep4() {
-    // Validate order review before allowing to proceed
-    if (!validateOrderReview()) {
-        return;
-    }
-    
-    // If validation passes, proceed to step 4
-    showStep(4);
+});
 }
 
 /**

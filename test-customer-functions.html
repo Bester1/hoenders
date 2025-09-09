@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Customer Functions</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .test-container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        .test-result { margin: 5px 0; padding: 5px; border-radius: 3px; }
+        .test-result.success { background: #d4edda; }
+        .test-result.error { background: #f8d7da; }
+        .test-result.info { background: #d1ecf1; }
+        button { padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        #consoleOutput { background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Customer Functions Test</h1>
+        <p>This page tests the enhanced customer display functions in customer.js</p>
+        
+        <div class="test-section">
+            <h2>📋 Test Controls</h2>
+            <button class="btn-primary" onclick="runAllTests()">Run All Tests</button>
+            <button class="btn-secondary" onclick="clearResults()">Clear Results</button>
+            <button class="btn-success" onclick="testPopulateReviewCustomerInfo()">Test populateReviewCustomerInfo()</button>
+            <button class="btn-success" onclick="testUpdateConfirmationText()">Test updateConfirmationText()</button>
+        </div>
+
+        <div class="test-section">
+            <h2>🎯 Test Results</h2>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 Console Output</h2>
+            <div id="consoleOutput"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 Customer Data</h2>
+            <div id="customerData"></div>
+        </div>
+    </div>
+
+    <!-- Include customer.js and dependencies -->
+    <script src="env-config.js"></script>
+    <script src="config.js"></script>
+    <script src="error-handler.js"></script>
+    <script src="security-utils.js"></script>
+    <script src="customer.js"></script>
+
+    <script>
+        // Override console.log to capture output
+        const originalLog = console.log;
+        const consoleOutput = document.getElementById('consoleOutput');
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            consoleOutput.innerHTML += message + '<br>';
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        };
+
+        // Mock customer data
+        const mockCustomer = {
+            name: "Test Customer",
+            full_name: "Test Customer",
+            phone: "+27-79-123-4567",
+            address: "123 Test Street, Testville, 1234",
+            email: "test@example.com",
+            delivery_instructions: "Please leave at front door"
+        };
+
+        // Set up global currentCustomer for testing
+        window.currentCustomer = mockCustomer;
+
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('consoleOutput').innerHTML = '';
+        }
+
+        function addTestResult(message, status = 'info') {
+            const resultsDiv = document.getElementById('testResults');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${status}`;
+            resultDiv.innerHTML = `<strong>${status.toUpperCase()}:</strong> ${message}`;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        function updateCustomerDataDisplay() {
+            const customerDiv = document.getElementById('customerData');
+            customerDiv.innerHTML = `
+                <pre>${JSON.stringify(window.currentCustomer, null, 2)}</pre>
+            `;
+        }
+
+        async function runAllTests() {
+            clearResults();
+            addTestResult('Starting comprehensive customer function tests...', 'info');
+            
+            updateCustomerDataDisplay();
+            
+            // Test 1: Check if functions exist
+            addTestResult('Testing function availability...', 'info');
+            
+            if (typeof populateReviewCustomerInfo === 'function') {
+                addTestResult('✅ populateReviewCustomerInfo() function found', 'success');
+            } else {
+                addTestResult('❌ populateReviewCustomerInfo() function not found', 'error');
+            }
+            
+            if (typeof updateConfirmationText === 'function') {
+                addTestResult('✅ updateConfirmationText() function found', 'success');
+            } else {
+                addTestResult('❌ updateConfirmationText() function not found', 'error');
+            }
+            
+            // Test 2: Test with mock elements
+            await testWithMockElements();
+            
+            addTestResult('All tests completed!', 'info');
+        }
+
+        async function testWithMockElements() {
+            addTestResult('Testing with mock DOM elements...', 'info');
+            
+            // Create mock elements
+            const mockElements = [
+                'reviewCustomerName', 'reviewCustomerPhone', 'reviewCustomerAddress',
+                'reviewCustomerEmail', 'reviewCustomerInstructions', 'confirmAddressText', 'confirmPhoneText'
+            ];
+            
+            // Create elements if they don't exist
+            mockElements.forEach(id => {
+                if (!document.getElementById(id)) {
+                    const element = document.createElement('div');
+                    element.id = id;
+                    element.textContent = `[${id}]`;
+                    document.body.appendChild(element);
+                    element.style.display = 'none'; // Hide them
+                }
+            });
+            
+            // Test populateReviewCustomerInfo
+            try {
+                console.log('🧪 Testing populateReviewCustomerInfo()...');
+                populateReviewCustomerInfo(window.currentCustomer);
+                addTestResult('populateReviewCustomerInfo() executed successfully', 'success');
+            } catch (error) {
+                addTestResult(`Error in populateReviewCustomerInfo(): ${error.message}`, 'error');
+                console.error('populateReviewCustomerInfo error:', error);
+            }
+            
+            // Test updateConfirmationText
+            try {
+                console.log('🧪 Testing updateConfirmationText()...');
+                updateConfirmationText();
+                addTestResult('updateConfirmationText() executed successfully', 'success');
+            } catch (error) {
+                addTestResult(`Error in updateConfirmationText(): ${error.message}`, 'error');
+                console.error('updateConfirmationText error:', error);
+            }
+            
+            // Check if elements were updated
+            setTimeout(() => {
+                mockElements.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        const content = element.textContent;
+                        if (content && !content.includes(`[${id}]`)) {
+                            addTestResult(`✅ ${id} was updated: "${content}"`, 'success');
+                        } else {
+                            addTestResult(`⚠️ ${id} was not updated: "${content}"`, 'info');
+                        }
+                    }
+                });
+            }, 200);
+        }
+
+        async function testPopulateReviewCustomerInfo() {
+            clearResults();
+            addTestResult('Testing populateReviewCustomerInfo() function...', 'info');
+            
+            try {
+                console.log('🧪 Testing populateReviewCustomerInfo() standalone...');
+                populateReviewCustomerInfo(window.currentCustomer);
+                addTestResult('Function executed without errors', 'success');
+            } catch (error) {
+                addTestResult(`Function failed: ${error.message}`, 'error');
+                console.error('Function error:', error);
+            }
+        }
+
+        async function testUpdateConfirmationText() {
+            clearResults();
+            addTestResult('Testing updateConfirmationText() function...', 'info');
+            
+            try {
+                console.log('🧪 Testing updateConfirmationText() standalone...');
+                updateConfirmationText();
+                addTestResult('Function executed without errors', 'success');
+            } catch (error) {
+                addTestResult(`Function failed: ${error.message}`, 'error');
+                console.error('Function error:', error);
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            console.log('🚀 Test page loaded');
+            console.log('📋 Mock customer data:', window.currentCustomer);
+            updateCustomerDataDisplay();
+            addTestResult('Test page initialized with mock customer data', 'info');
+        });
+    </script>
+</body>
+</html>
