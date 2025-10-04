@@ -112,6 +112,54 @@ async function initializeSecureConnection() {
         }
 
         console.info('✅ Customer portal fallback connection initialized');
+
+        // Check if Google OAuth is available and configure button
+        console.log('🔍 Checking Google OAuth availability...');
+        console.log('📋 Supabase URL:', FALLBACK_CONFIG.SUPABASE_URL);
+        console.log('📧 Redirect URL will be:', window.location.origin + '/hoenders/customer-portal.html');
+
+        // Test Google OAuth availability by trying to get OAuth configuration
+        try {
+            // This will help identify if Google OAuth is configured
+            console.log('🔧 Testing Google OAuth configuration...');
+            const { data: providers, error } = await supabaseClient.auth.signInWithOAuth({
+                provider: 'google',
+                options: { skipBrowserRedirect: true }
+            });
+
+            if (error && error.message?.includes('not configured')) {
+                console.warn('⚠️ Google OAuth is not configured in Supabase');
+                console.warn('📋 To enable Google login:');
+                console.warn('   1. Go to Supabase project > Authentication > Providers');
+                console.warn('   2. Enable Google provider');
+                console.warn('   3. Add Client ID and Client Secret from Google Cloud Console');
+                console.warn('   4. Add redirect URL: ' + (window.location.origin + '/hoenders/customer-portal.html'));
+
+                // Disable Google button and show warning
+                setTimeout(() => {
+                    const googleBtn = document.getElementById('googleSignInBtn');
+                    if (googleBtn) {
+                        googleBtn.disabled = true;
+                        googleBtn.style.opacity = '0.5';
+                        googleBtn.innerHTML = `
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                            </svg>
+                            <span>Google Login Not Available</span>
+                        `;
+                        googleBtn.title = "Google OAuth is not configured. Please use email/password login.";
+                    }
+                }, 1000);
+            } else {
+                console.log('✅ Google OAuth appears to be configured');
+            }
+        } catch (oauthTestError) {
+            console.warn('⚠️ Could not test Google OAuth configuration:', oauthTestError);
+        }
+
         return true;
 
     } catch (error) {
@@ -604,24 +652,46 @@ async function handleLogin(event) {
  */
 async function handleGoogleLogin() {
     try {
+        console.log('🔍 Google login initiated...');
         showLoadingSpinner(true);
-        
+
+        const redirectUrl = window.location.origin + '/hoenders/customer-portal.html';
+        console.log('🔗 Redirect URL:', redirectUrl);
+
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: window.location.origin + '/hoenders/customer-portal.html'
+                redirectTo: redirectUrl,
+                queryParams: {
+                    access_type: 'offline',
+                    prompt: 'consent',
+                }
             }
         });
 
         if (error) {
+            console.error('❌ Google OAuth error:', error);
             throw error;
         }
 
+        console.log('✅ Google OAuth initiated, waiting for redirect...');
         // OAuth redirect will handle the rest
-        
+
     } catch (error) {
-        console.error('Google login error:', error);
-        showFormMessage('Google login failed. Please try again or use email/password login.', 'error', 'loginMessage');
+        console.error('❌ Google login error:', error);
+
+        // Provide more specific error messages
+        let errorMessage = 'Google login failed. Please try again or use email/password login.';
+
+        if (error.message?.includes('not configured')) {
+            errorMessage = 'Google login is not configured. Please use email/password login or contact support.';
+        } else if (error.message?.includes('provider is not enabled')) {
+            errorMessage = 'Google login is not enabled. Please use email/password login.';
+        } else if (error.message?.includes('popup') || error.message?.includes('blocked')) {
+            errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
+        }
+
+        showFormMessage(errorMessage, 'error', 'loginMessage');
         showLoadingSpinner(false);
     }
 }
