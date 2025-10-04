@@ -3,13 +3,135 @@
  * Handles customer authentication, registration, and session management
  */
 
-// Supabase Configuration - Same as admin dashboard
-const SUPABASE_URL = 'https://ukdmlzuxgnjucwidsygj.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w';
+// Initialize Supabase client with secure configuration and fallback
+let supabaseClient = null;
 
-// Initialize Supabase client
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Fallback configuration for immediate deployment
+const FALLBACK_CONFIG = {
+    SUPABASE_URL: 'https://ukdmlzuxgnjucwidsygj.supabase.co',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w'
+};
+
+// Email configuration for order confirmations
+let GOOGLE_SCRIPT_URL = null;
+
+// Fallback configuration for immediate deployment
+const FALLBACK_CONFIG = {
+    SUPABASE_URL: 'https://ukdmlzuxgnjucwidsygj.supabase.co',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w',
+    GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzBN3lIbR-ZW9ybqb5E6e0XNa7wdrfKmO8d6pQeSVXAd0WM7tT-n9M4jFO42mC1vcS1/exec'
+};
+
+// Google Apps Script Email Function for customer portal
+async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
+    if (!GOOGLE_SCRIPT_URL) {
+        console.warn('⚠️ Google Apps Script URL not configured');
+        return false;
+    }
+
+    try {
+        console.log('📧 Sending email via Google Apps Script...');
+
+        // Use form data to avoid CORS preflight request
+        const formData = new FormData();
+        formData.append('to', to);
+        formData.append('subject', subject);
+        formData.append('body', body);
+        formData.append('fromName', 'Plaas Hoenders');
+        if (attachments && attachments.length > 0) {
+            formData.append('attachments', JSON.stringify(attachments));
+        }
+
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            console.log('✅ Email sent successfully via Google Apps Script');
+            return true;
+        } else {
+            console.error('❌ Email failed:', result.message);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Error sending email:', error);
+        return false;
+    }
+}
+
+// Initialize secure configuration and Supabase client with fallback
+async function initializeSecureConnection() {
+    try {
+        // Try secure configuration first
+        if (typeof SecureConfig !== 'undefined') {
+            console.info('🔒 Attempting secure customer portal configuration...');
+
+            const configInitialized = await SecureConfig.init();
+            if (configInitialized && SecureConfig.isProductionReady()) {
+                const SUPABASE_URL = SecureConfig.get('SUPABASE_URL');
+                const SUPABASE_ANON_KEY = SecureConfig.get('SUPABASE_ANON_KEY');
+
+                if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+                    const { createClient } = supabase;
+                    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+                    // Initialize email configuration
+                    GOOGLE_SCRIPT_URL = SecureConfig.get('GOOGLE_SCRIPT_URL');
+                    if (GOOGLE_SCRIPT_URL) {
+                        console.log('✅ Email configuration initialized');
+                    } else {
+                        console.warn('⚠️ Email configuration not found');
+                    }
+
+                    console.info('✅ Secure customer portal connection initialized');
+                    return true;
+                }
+            }
+        }
+
+        // Fallback to hardcoded configuration
+        console.warn('⚠️ Customer portal using fallback configuration');
+        console.warn('⚠️ Please set up environment variables for production');
+
+        const { createClient } = supabase;
+        supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+
+        // Initialize email configuration with fallback
+        GOOGLE_SCRIPT_URL = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
+        if (GOOGLE_SCRIPT_URL) {
+            console.log('✅ Email configuration initialized (fallback)');
+        } else {
+            console.warn('⚠️ Email configuration not found (fallback)');
+        }
+
+        console.info('✅ Customer portal fallback connection initialized');
+        return true;
+
+    } catch (error) {
+        console.error('❌ Failed to initialize customer portal connection:', error);
+
+        // Emergency fallback
+        try {
+            const { createClient } = supabase;
+            supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+            console.warn('⚠️ Customer portal using emergency fallback');
+            return true;
+        } catch (fallbackError) {
+            console.error('❌ Complete customer portal connection failure:', fallbackError);
+            if (typeof showSecurityError === 'function') {
+                showSecurityError('Failed to initialize customer portal. Please refresh the page.');
+            }
+            return false;
+        }
+    }
+}
 
 // Global customer session data
 let currentCustomer = null;
@@ -108,7 +230,22 @@ async function handleAuthCallback() {
 async function initializeCustomerPortal() {
     try {
         showLoadingSpinner(true);
-        
+
+        console.log('🚀 Initializing Customer Portal with secure connections...');
+
+        // Initialize secure connection first
+        const connectionReady = await initializeSecureConnection();
+        if (!connectionReady) {
+            console.error('❌ Customer portal cannot proceed without secure connection');
+            if (typeof showSecurityError === 'function') {
+                showSecurityError('Customer portal initialization failed. Please refresh the page.');
+            }
+            showLoadingSpinner(false);
+            return;
+        }
+
+        console.log('✅ Customer portal secure connection ready');
+
         // Handle auth tokens from email confirmation or password reset
         await handleAuthCallback();
         
@@ -2193,6 +2330,245 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
+ * Send order confirmation email to customer
+ * @function sendOrderConfirmationEmail
+ * @param {string} orderId - The order ID
+ * @param {Object} orderData - Complete order data including customer and items
+ */
+async function sendOrderConfirmationEmail(orderId, orderData) {
+    try {
+        if (!orderData.customer || !orderData.customer.email) {
+            console.warn('⚠️ No customer email available for confirmation');
+            return false;
+        }
+
+        // Validate email address
+        if (!validateEmail(orderData.customer.email)) {
+            console.warn('⚠️ Invalid customer email address:', orderData.customer.email);
+            return false;
+        }
+
+        console.log(`📧 Sending confirmation email to: ${orderData.customer.email}`);
+
+        // Generate order summary
+        const orderSummary = generateOrderSummary(orderData.items);
+        const orderTotal = calculateOrderTotal(orderData.items);
+
+        // Create confirmation email content
+        const emailSubject = `🐔 Bevestiging: Jou Plaas Hoenders bestelling #${orderId}`;
+
+        const emailBody = generateConfirmationEmailBody({
+            customerName: orderData.customer.name,
+            orderId: orderId,
+            orderDate: new Date(orderData.timestamp).toLocaleDateString('af-ZA', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }),
+            orderSummary: orderSummary,
+            orderTotal: orderTotal,
+            customerEmail: orderData.customer.email,
+            customerPhone: orderData.customer.phone,
+            customerAddress: orderData.customer.address
+        });
+
+        // Send email using the existing Google Apps Script service
+        const emailSent = await sendEmailViaGoogleScript(
+            orderData.customer.email,
+            emailSubject,
+            emailBody
+        );
+
+        if (emailSent) {
+            console.log('✅ Order confirmation email sent successfully');
+
+            // Show success notification to user
+            showToast('📧 Bevestiging e-pos gestuur!', 'success');
+
+            return true;
+        } else {
+            console.error('❌ Failed to send confirmation email');
+
+            // Show warning but don't block the order process
+            showToast('⚠️ Kon nie bevestiging e-pos stuur nie, maar jou bestelling is ontvang', 'warning');
+
+            return false;
+        }
+
+    } catch (error) {
+        console.error('❌ Error sending confirmation email:', error);
+
+        // Don't block order process if email fails
+        showToast('⚠️ E-pos fout, maar jou bestelling is suksesvol geplaas', 'warning');
+
+        return false;
+    }
+}
+
+/**
+ * Generate order summary HTML for email
+ * @function generateOrderSummary
+ * @param {Object} items - Cart items object
+ * @returns {string} HTML formatted order summary
+ */
+function generateOrderSummary(items) {
+    if (!items || Object.keys(items).length === 0) {
+        return '<p>Geen items in bestelling nie.</p>';
+    }
+
+    let summaryHTML = '<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">';
+    summaryHTML += '<tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">';
+    summaryHTML += '<th style="padding: 12px; text-align: left; font-weight: bold;">Produk</th>';
+    summaryHTML += '<th style="padding: 12px; text-align: center; font-weight: bold;">Hoeveelheid</th>';
+    summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Prys per kg</th>';
+    summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Subtotaal</th>';
+    summaryHTML += '</tr>';
+
+    let totalAmount = 0;
+
+    Object.entries(items).forEach(([productName, item]) => {
+        const quantity = item.quantity || 1;
+        const estimatedWeight = getEstimatedWeight(productName) || 1;
+        const totalWeight = quantity * estimatedWeight;
+        const pricing = getCustomerPricing()[productName];
+        const unitPrice = pricing ? pricing.selling : 0;
+        const itemTotal = totalWeight * unitPrice;
+
+        totalAmount += itemTotal;
+
+        summaryHTML += '<tr style="border-bottom: 1px solid #eee;">';
+        summaryHTML += `<td style="padding: 10px; font-weight: 500;">${productName}</td>`;
+        summaryHTML += `<td style="padding: 10px; text-align: center;">${quantity} (±${totalWeight.toFixed(1)}kg)</td>`;
+        summaryHTML += `<td style="padding: 10px; text-align: right;">R${unitPrice.toFixed(2)}/kg</td>`;
+        summaryHTML += `<td style="padding: 10px; text-align: right; font-weight: 500;">R${itemTotal.toFixed(2)}</td>`;
+        summaryHTML += '</tr>';
+    });
+
+    summaryHTML += '<tr style="background-color: #f9f9f9; border-top: 2px solid #ddd; font-weight: bold;">';
+    summaryHTML += '<td colspan="3" style="padding: 12px; text-align: right;">TOTAAL:</td>';
+    summaryHTML += `<td style="padding: 12px; text-align: right; font-size: 1.1em; color: #e67e22;">R${totalAmount.toFixed(2)}</td>`;
+    summaryHTML += '</tr>';
+
+    summaryHTML += '</table>';
+    return summaryHTML;
+}
+
+/**
+ * Calculate total order amount
+ * @function calculateOrderTotal
+ * @param {Object} items - Cart items object
+ * @returns {number} Total order amount
+ */
+function calculateOrderTotal(items) {
+    if (!items || Object.keys(items).length === 0) {
+        return 0;
+    }
+
+    let total = 0;
+    Object.entries(items).forEach(([productName, item]) => {
+        const quantity = item.quantity || 1;
+        const estimatedWeight = getEstimatedWeight(productName) || 1;
+        const totalWeight = quantity * estimatedWeight;
+        const pricing = getCustomerPricing()[productName];
+        const unitPrice = pricing ? pricing.selling : 0;
+        total += totalWeight * unitPrice;
+    });
+
+    return total;
+}
+
+/**
+ * Generate confirmation email body HTML
+ * @function generateConfirmationEmailBody
+ * @param {Object} data - Email data object
+ * @returns {string} HTML formatted email body
+ */
+function generateConfirmationEmailBody(data) {
+    return `
+<!DOCTYPE html>
+<html lang="af">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bestelling Bevestiging</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background: linear-gradient(135deg, #e67e22, #f39c12); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="margin: 0; font-size: 28px;">🐔 Plaas Hoenders</h1>
+        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Vars hoenders van die plaas na jou deur</p>
+    </div>
+
+    <div style="background: white; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-radius: 0 0 10px 10px;">
+        <h2 style="color: #e67e22; margin-top: 0;">Baie dankie vir jou bestelling! 🎉</h2>
+
+        <p>Hallo <strong>${data.customerName}</strong>,</p>
+
+        <p>Ons het jou bestelling suksesvol ontvang en dit word tans verwerk. Hier is jou bestelling besonderhede:</p>
+
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #2c3e50;">📋 Bestelling Besonderhede</h3>
+            <p><strong>Bestelling Nommer:</strong> #${data.orderId}</p>
+            <p><strong>Datum & Tyd:</strong> ${data.orderDate}</p>
+            <p><strong>Status:</strong> <span style="color: #f39c12; font-weight: bold;">Verwerk</span></p>
+        </div>
+
+        <h3 style="color: #2c3e50;">🛒 Jou Bestelling:</h3>
+        ${data.orderSummary}
+
+        <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #27ae60;">
+            <h3 style="margin-top: 0; color: #27ae60;">💰 Betaling Besonderhede</h3>
+            <p><strong>Totale Bedrag:</strong> <span style="font-size: 1.2em; color: #e67e22; font-weight: bold;">R${data.orderTotal.toFixed(2)}</span></p>
+            <p><strong>Betaling Metode:</strong> EFT / Bankoorplasing</p>
+            <p style="margin-bottom: 10px;"><strong>Bank Besonderhede:</strong></p>
+            <div style="background: white; padding: 15px; border-radius: 5px; font-family: monospace;">
+                <strong>CAPITEC BANK</strong><br>
+                Rekeninghouer: Adriaan Bester<br>
+                Rekening Nommer: 2258491149<br>
+                Tak Kode: 470010<br>
+                Rekening Tipe: Spaar rekening
+            </div>
+        </div>
+
+        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+            <h3 style="margin-top: 0; color: #856404;">📦 Aflewering Besonderhede</h3>
+            <p><strong>Aflewering Adres:</strong></p>
+            <p style="background: white; padding: 10px; border-radius: 5px;">${data.customerAddress || 'Nie verskaf nie'}</p>
+            <p><strong>Kontak Nommer:</strong> ${data.customerPhone || 'Nie verskaf nie'}</p>
+            <p><strong>Aflewering Tyd:</strong> Saterdae tussen 08:00 - 12:00</p>
+        </div>
+
+        <div style="background: #d1ecf1; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #17a2b8;">
+            <h3 style="margin-top: 0; color: #0c5460;">📞 Belangrike Inligting</h3>
+            <ul style="margin: 10px 0;">
+                <li>Jou bestelling sal Saterdag oggend afgelewer word</li>
+                <li>Ons sal jou kontak om die presiese aflewer tyd te bevestig</li>
+                <li>Maak asseblief die betaling voor Saterdag om jou bestelling te verseker</li>
+                <li>Alle hoenders is vars en van hoë kwaliteit</li>
+                <li>Gewigte is benaderd - werklike gewig kan effens verskil</li>
+            </ul>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+        <div style="text-align: center; color: #666;">
+            <p><strong>Kontak Ons:</strong></p>
+            <p>📞 Adriaan Bester: <a href="tel:0796167761" style="color: #e67e22;">079 616 7761</a></p>
+            <p>📧 E-pos: <a href="mailto:${data.customerEmail}" style="color: #e67e22;">${data.customerEmail}</a></p>
+            <p>🌐 Webwerf: <a href="https://bester1.github.io/hoenders" style="color: #e67e22;">plaashoenders.co.za</a></p>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #888; font-size: 14px;">
+            <p>Baie dankie dat jy Plaas Hoenders gekies het! 🐔</p>
+            <p><em>Vars, gesonde hoenders direk van die plaas na jou tafel</em></p>
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+/**
  * Handle order placement from beautiful portal
  * @function handleOrderPlacement
  */
@@ -2231,7 +2607,11 @@ async function handleOrderPlacement() {
         };
         localStorage.setItem(`orderData_${savedOrderId}`, JSON.stringify(orderDataForInvoice));
         console.log('💾 Order data saved to localStorage for invoice generation');
-        
+
+        // Send confirmation email to customer
+        console.log('📧 Sending confirmation email to customer...');
+        await sendOrderConfirmationEmail(savedOrderId, orderDataForInvoice);
+
         // Show confirmation step
         console.log('📱 Showing confirmation step...');
         showBeautifulStep(4);
