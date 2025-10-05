@@ -683,7 +683,21 @@
                             <h3 class="text-2xl mb-3 text-white tracking-tighter">Bestelling Ontvang!</h3>
                             <p class="text-zinc-300 mb-2">Jou bestelling is suksesvol geplaas</p>
                             <p class="text-zinc-500 text-sm mb-6">Bestelling nommer: <span id="orderNumber" class="text-orange-400 font-mono">#ORD-XXXX</span></p>
-                            
+
+                            <!-- Order Summary Section -->
+                            <div class="bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 mb-6 text-left" id="confirmationOrderSummary" style="display: none;">
+                                <h4 class="font-semibold text-white mb-4">📋 Jou Bestelling</h4>
+                                <div id="confirmationOrderItems" class="space-y-2 mb-4">
+                                    <!-- Order items will be populated here -->
+                                </div>
+                                <div class="border-t border-zinc-700 pt-3">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-zinc-300">Totaal:</span>
+                                        <span id="confirmationTotal" class="text-xl font-bold text-orange-400">R0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 mb-6 text-left">
                                 <h4 class="font-semibold text-white mb-3">Wat gebeur volgende?</h4>
                                 <div class="space-y-3 text-sm text-zinc-300">

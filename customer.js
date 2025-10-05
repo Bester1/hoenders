@@ -26,36 +26,68 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
     try {
         console.log('📧 Sending email via Google Apps Script...');
 
-        // Use form data to avoid CORS preflight request
-        const formData = new FormData();
-        formData.append('to', to);
-        formData.append('subject', subject);
-        formData.append('body', body);
-        formData.append('fromName', 'Plaas Hoenders');
-        if (attachments && attachments.length > 0) {
-            formData.append('attachments', JSON.stringify(attachments));
-        }
+        // Use URL-encoded data instead of FormData to avoid CORS issues
+        const emailData = {
+            to: to,
+            subject: subject,
+            body: body,
+            fromName: 'Plaas Hoenders',
+            attachments: attachments && attachments.length > 0 ? JSON.stringify(attachments) : undefined
+        };
 
-        const response = await fetch(customerPortalGoogleScriptUrl, {
-            method: 'POST',
-            body: formData
+        // Build URL with query parameters
+        const url = new URL(customerPortalGoogleScriptUrl);
+        Object.keys(emailData).forEach(key => {
+            if (emailData[key] !== undefined) {
+                url.searchParams.append(key, emailData[key]);
+            }
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
+        // Try fetch with no-cors mode first
+        try {
+            const response = await fetch(url.toString(), {
+                method: 'GET',
+                mode: 'no-cors'
+            });
 
-        const result = await response.json();
-
-        if (result.status === 'success') {
-            console.log('✅ Email sent successfully via Google Apps Script');
+            // With no-cors, we can't read the response, but assume success if no error
+            console.log('✅ Email sent via Google Apps Script (no-cors mode)');
             return true;
-        } else {
-            console.error('❌ Email failed:', result.message);
-            return false;
+        } catch (corsError) {
+            // Fallback to POST with FormData
+            console.log('🔄 Trying fallback POST method...');
+            const formData = new FormData();
+            formData.append('to', to);
+            formData.append('subject', subject);
+            formData.append('body', body);
+            formData.append('fromName', 'Plaas Hoenders');
+            if (attachments && attachments.length > 0) {
+                formData.append('attachments', JSON.stringify(attachments));
+            }
+
+            const response = await fetch(customerPortalGoogleScriptUrl, {
+                method: 'POST',
+                body: formData,
+                mode: 'cors'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                console.log('✅ Email sent successfully via Google Apps Script');
+                return true;
+            } else {
+                console.error('❌ Email failed:', result.message);
+                return false;
+            }
         }
     } catch (error) {
         console.error('❌ Error sending email:', error);
+        // Don't fail the order process due to email issues
         return false;
     }
 }
@@ -2686,26 +2718,13 @@ function generateConfirmationEmailBody(data) {
         <h3 style="color: #2c3e50;">🛒 Jou Bestelling:</h3>
         ${data.orderSummary}
 
-        <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #27ae60;">
-            <h3 style="margin-top: 0; color: #27ae60;">💰 Betaling Besonderhede</h3>
-            <p><strong>Totale Bedrag:</strong> <span style="font-size: 1.2em; color: #e67e22; font-weight: bold;">R${data.orderTotal.toFixed(2)}</span></p>
-            <p><strong>Betaling Metode:</strong> EFT / Bankoorplasing</p>
-            <p style="margin-bottom: 10px;"><strong>Bank Besonderhede:</strong></p>
-            <div style="background: white; padding: 15px; border-radius: 5px; font-family: monospace;">
-                <strong>CAPITEC BANK</strong><br>
-                Rekeninghouer: Adriaan Bester<br>
-                Rekening Nommer: 2258491149<br>
-                Tak Kode: 470010<br>
-                Rekening Tipe: Spaar rekening
-            </div>
-        </div>
-
+  
         <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
             <h3 style="margin-top: 0; color: #856404;">📦 Aflewering Besonderhede</h3>
             <p><strong>Aflewering Adres:</strong></p>
             <p style="background: white; padding: 10px; border-radius: 5px;">${data.customerAddress || 'Nie verskaf nie'}</p>
             <p><strong>Kontak Nommer:</strong> ${data.customerPhone || 'Nie verskaf nie'}</p>
-            <p><strong>Aflewering Tyd:</strong> Saterdae tussen 08:00 - 12:00</p>
+            <p><strong>Aflewering Tyd:</strong> Saterdae tussen 06:00 - 12:00</p>
         </div>
 
         <div style="background: #d1ecf1; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #17a2b8;">
@@ -2713,7 +2732,7 @@ function generateConfirmationEmailBody(data) {
             <ul style="margin: 10px 0;">
                 <li>Jou bestelling sal Saterdag oggend afgelewer word</li>
                 <li>Ons sal jou kontak om die presiese aflewer tyd te bevestig</li>
-                <li>Maak asseblief die betaling voor Saterdag om jou bestelling te verseker</li>
+                <li>Jou bestelling sal gereed wees vir aflewering</li>
                 <li>Alle hoenders is vars en van hoë kwaliteit</li>
                 <li>Gewigte is benaderd - werklike gewig kan effens verskil</li>
             </ul>
@@ -2784,12 +2803,15 @@ async function handleOrderPlacement() {
         // Show confirmation step
         console.log('📱 Showing confirmation step...');
         showBeautifulStep(4);
-        
+
         // Update order number with the actual saved order ID
         const orderNumber = document.getElementById('orderNumber');
         if (orderNumber) {
             orderNumber.textContent = `#${savedOrderId}`;
         }
+
+        // Populate confirmation order summary
+        populateConfirmationOrderSummary(orderData);
         
         // Re-enable button after successful order (will be reset by new order button later)
         const placeOrderBtn = document.getElementById('placeOrder');
@@ -2818,6 +2840,66 @@ async function handleOrderPlacement() {
         }
         
         alert(userMessage);
+    }
+}
+
+/**
+ * Populate confirmation order summary
+ * @function populateConfirmationOrderSummary
+ * @param {Object} orderData - Order data with customer, items, timestamp, status
+ */
+function populateConfirmationOrderSummary(orderData) {
+    try {
+        console.log('📋 Populating confirmation order summary...');
+
+        const summaryContainer = document.getElementById('confirmationOrderSummary');
+        const itemsContainer = document.getElementById('confirmationOrderItems');
+        const totalElement = document.getElementById('confirmationTotal');
+
+        if (!summaryContainer || !itemsContainer || !totalElement) {
+            console.error('❌ Confirmation summary elements not found');
+            return;
+        }
+
+        // Clear existing content
+        itemsContainer.innerHTML = '';
+
+        // Populate order items
+        let totalAmount = 0;
+        const cart = orderData.items || {};
+
+        Object.entries(cart).forEach(([productKey, itemData]) => {
+            const quantity = itemData.quantity || 0;
+            const weight = itemData.weight || 0;
+            const unitPrice = itemData.unitPrice || 0;
+            const lineTotal = itemData.lineTotal || (unitPrice * weight);
+
+            if (quantity > 0) {
+                totalAmount += lineTotal;
+
+                const itemElement = document.createElement('div');
+                itemElement.className = 'flex justify-between items-center text-sm';
+                itemElement.innerHTML = `
+                    <div class="text-zinc-300">
+                        <span class="font-medium">${itemData.productName || productKey}</span>
+                        <span class="text-zinc-500 ml-2">${quantity} × ${weight.toFixed(2)}kg</span>
+                    </div>
+                    <span class="text-zinc-100">R${lineTotal.toFixed(2)}</span>
+                `;
+                itemsContainer.appendChild(itemElement);
+            }
+        });
+
+        // Update total
+        totalElement.textContent = `R${totalAmount.toFixed(2)}`;
+
+        // Show the summary container
+        summaryContainer.style.display = 'block';
+
+        console.log('✅ Confirmation order summary populated successfully');
+
+    } catch (error) {
+        console.error('❌ Error populating confirmation order summary:', error);
     }
 }
 

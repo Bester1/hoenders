@@ -274,39 +274,65 @@ function initializeApp() {
 async function initializeDatabase() {
     try {
         console.log('Initializing Supabase connection...');
-        
+
         // Check if Supabase client is available
         if (!supabaseClient) {
-            console.log('Supabase client not available - config missing. Using local storage only.');
-            addActivity('Using local storage only - database config not found');
+            console.error('❌ Supabase client not available - config missing. Using local storage only.');
+            addActivity('Using local storage only - database config not found', 'error');
             return;
         }
-        
-        // Test the connection
-        const { error } = await supabaseClient
+
+        // Debug: Show current configuration
+        console.log('🔧 Debug - Supabase URL:', supabaseClient.supabaseUrl);
+        console.log('🔧 Debug - Client state:', !!supabaseClient);
+
+        // Test the connection with a simpler query first
+        console.log('🔍 Testing database connection...');
+        const { error, count } = await supabaseClient
             .from('imports')
-            .select('count', { count: 'exact', head: true });
-        
-        if (error && error.code === '42P01') {
-            // Tables don't exist, show setup message
-            console.log('Database tables need to be created.');
-            showDatabaseSetupModal();
-        } else if (error) {
-            console.error('Database connection error:', error);
-            addActivity('Database connection failed - using local storage');
+            .select('*', { count: 'exact', head: true });
+
+        console.log('📊 Connection test result:', { error, count });
+
+        if (error) {
+            console.error('❌ Database connection error details:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint
+            });
+
+            if (error.code === '42P01') {
+                // Tables don't exist, show setup message
+                console.log('⚠️ Database tables need to be created.');
+                addActivity('Database tables missing - setup required', 'warning');
+                showDatabaseSetupModal();
+            } else if (error.message.includes('Invalid API key') || error.message.includes('JWT')) {
+                console.error('❌ API key issue detected');
+                addActivity('Database API key invalid - check configuration', 'error');
+            } else if (error.message.includes('network') || error.message.includes('fetch')) {
+                console.error('❌ Network connectivity issue');
+                addActivity('Network error - check internet connection', 'error');
+            } else {
+                addActivity(`Database connection failed: ${error.message}`, 'error');
+            }
         } else {
-            console.log('Supabase connected successfully');
-            addActivity('Connected to Supabase database');
-            
+            console.log('✅ Supabase connected successfully');
+            addActivity('Connected to Supabase database', 'success');
+
             // Ensure database schema is up to date
             await updateDatabaseSchema();
-            
+
             // Try to migrate existing localStorage data
             await migrateToDatabase();
         }
     } catch (error) {
-        console.error('Database initialization error:', error);
-        addActivity('Database initialization failed - using local storage');
+        console.error('❌ Database initialization error:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        addActivity(`Database initialization failed: ${error.message}`, 'error');
     }
 }
 
