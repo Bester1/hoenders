@@ -250,10 +250,33 @@ async function handleAuthCallback() {
                 showFormMessage('Authentication failed. Please try logging in again.', 'error', 'loginMessage');
             } else {
                 console.info('Authentication callback successful:', type);
-                
+                console.log('✅ Session data received:', {
+                    hasUser: !!data?.user,
+                    userId: data?.user?.id,
+                    email: data?.user?.email,
+                    expiresAt: data?.user?.expires_at
+                });
+
+                // Debug: Check if session is being saved to localStorage
+                setTimeout(async () => {
+                    console.log('🔍 Checking if session was saved to localStorage...');
+                    const { data: savedSession } = await supabaseClient.auth.getSession();
+                    console.log('📋 Saved session check:', {
+                        hasSession: !!savedSession?.session,
+                        userId: savedSession?.session?.user?.id,
+                        email: savedSession?.session?.user?.email
+                    });
+
+                    // Check localStorage contents again
+                    const allKeys = Object.keys(localStorage);
+                    console.log('📄 localStorage keys after auth:', allKeys.filter(key =>
+                        key.includes('supabase') || key.includes('auth') || key.includes('hoenders')
+                    ));
+                }, 1000);
+
                 // Clear the hash from URL for security
                 window.history.replaceState({}, document.title, window.location.pathname);
-                
+
                 // Show success message based on callback type
                 if (type === 'signup') {
                     showToast('Email confirmed! Welcome to Plaas Hoenders!', 'success');
@@ -298,6 +321,16 @@ async function initializeCustomerPortal() {
         // Handle auth tokens from email confirmation or password reset
         await handleAuthCallback();
         
+        // Debug: Check localStorage contents before session check
+        console.log('🔍 Debugging localStorage contents:');
+        const allKeys = Object.keys(localStorage);
+        console.log('📋 All localStorage keys:', allKeys);
+        allKeys.forEach(key => {
+            if (key.includes('supabase') || key.includes('auth') || key.includes('hoenders')) {
+                console.log(`📄 ${key}:`, localStorage.getItem(key));
+            }
+        });
+
         // Check if user is already authenticated
         const { data: session } = await supabaseClient.auth.getSession();
 
@@ -306,7 +339,18 @@ async function initializeCustomerPortal() {
             hasSession: !!session?.session,
             userId: session?.session?.user?.id,
             email: session?.session?.user?.email,
-            expiresAt: session?.session?.expires_at
+            expiresAt: session?.session?.expires_at,
+            currentTime: new Date().toISOString(),
+            expiresIn: session?.session?.expires_at ? new Date(session.session.expires_at * 1000).toISOString() : 'N/A'
+        });
+
+        // Additional debugging: Try to get current user directly
+        const { data: currentUser, error: userError } = await supabaseClient.auth.getUser();
+        console.log('🔍 Direct user check:', {
+            hasUser: !!currentUser?.user,
+            userId: currentUser?.user?.id,
+            userEmail: currentUser?.user?.email,
+            userError: userError?.message
         });
 
         if (session?.session) {
