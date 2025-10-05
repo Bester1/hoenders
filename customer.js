@@ -164,11 +164,10 @@ async function initializeSecureConnection() {
             }
         });
 
-        // Debug: Test if storage is working immediately after initialization
-        console.log('🔍 Testing auth storage immediately after init...');
-
-        // Set up auth state change listener IMMEDIATELY to catch OAuth redirects
-        supabaseClient.auth.onAuthStateChange((event, session) => {
+        // CRITICAL: Set up auth state change listener IMMEDIATELY after client creation
+        // This must be done before any other auth operations
+        console.log('🔔 Setting up auth state change listener...');
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
             console.log('🔔 Auth state changed:', event, session?.user?.email);
             console.log('📦 Session stored in localStorage:', 'plaas-hoenders-auth' in localStorage);
             if ('plaas-hoenders-auth' in localStorage) {
@@ -180,11 +179,23 @@ async function initializeSecureConnection() {
             // Force a session save if this is a SIGNED_IN event
             if (event === 'SIGNED_IN' && session) {
                 console.log('💾 Forcing session save for SIGNED_IN event...');
+                // Give it multiple chances to save
                 setTimeout(() => {
-                    console.log('🔍 Checking saved session after delay:', 'plaas-hoenders-auth' in localStorage);
+                    console.log('🔍 Checking saved session after 500ms:', 'plaas-hoenders-auth' in localStorage);
                 }, 500);
+                setTimeout(() => {
+                    console.log('🔍 Checking saved session after 2000ms:', 'plaas-hoenders-auth' in localStorage);
+                }, 2000);
+            }
+
+            // Handle session restoration
+            if (event === 'INITIAL_SESSION' && session) {
+                console.log('✅ Initial session restored from storage:', session.user?.email);
             }
         });
+
+        // Debug: Test if storage is working immediately after initialization
+        console.log('🔍 Testing auth storage immediately after init...');
 
         // Initialize email configuration
         customerPortalGoogleScriptUrl = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
@@ -436,6 +447,41 @@ async function initializeCustomerPortal() {
             }
         });
 
+        // CRITICAL: Check if session exists in localStorage manually
+        const storedAuth = localStorage.getItem('plaas-hoenders-auth');
+        console.log('🔑 Manual localStorage check for plaas-hoenders-auth:', {
+            exists: !!storedAuth,
+            length: storedAuth?.length || 0,
+            preview: storedAuth ? storedAuth.substring(0, 100) + '...' : null
+        });
+
+        // If we have stored auth data but no session, try to restore it manually
+        if (storedAuth && !session?.session) {
+            console.log('🔄 Found stored auth but no active session - attempting manual restore...');
+            try {
+                const parsedAuth = JSON.parse(storedAuth);
+                console.log('📊 Parsed auth data:', {
+                    hasAccessToken: !!parsedAuth.access_token,
+                    hasRefreshToken: !!parsedAuth.refresh_token,
+                    expiresAt: parsedAuth.expires_at,
+                    userEmail: parsedAuth.user?.email
+                });
+
+                // Check if the stored session is still valid
+                const now = Math.floor(Date.now() / 1000);
+                if (parsedAuth.expires_at && parsedAuth.expires_at > now) {
+                    console.log('✅ Stored session still valid, restoring...');
+                    // The auth state change listener should automatically restore this
+                } else {
+                    console.warn('⚠️ Stored session expired, cleaning up...');
+                    localStorage.removeItem('plaas-hoenders-auth');
+                }
+            } catch (parseError) {
+                console.error('❌ Failed to parse stored auth data:', parseError);
+                localStorage.removeItem('plaas-hoenders-auth');
+            }
+        }
+
         // Check if user is already authenticated
         const { data: session } = await supabaseClient.auth.getSession();
 
@@ -448,6 +494,33 @@ async function initializeCustomerPortal() {
             currentTime: new Date().toISOString(),
             expiresIn: session?.session?.expires_at ? new Date(session.session.expires_at * 1000).toISOString() : 'N/A'
         });
+
+        // CRITICAL: If no session found but we have stored auth data, force restoration
+        if (!session?.session && storedAuth) {
+            console.log('🚨 No session found but stored auth exists - attempting forced restoration...');
+            try {
+                // Wait a moment for the auth state change listener to process
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // Check session again after delay
+                const { data: retrySession } = await supabaseClient.auth.getSession();
+                console.log('🔄 Session retry check:', {
+                    hasSession: !!retrySession?.session,
+                    userId: retrySession?.session?.user?.id,
+                    email: retrySession?.session?.user?.email
+                });
+
+                if (retrySession?.session) {
+                    console.log('✅ Session restored after delay!');
+                    // Update the session variable for the rest of the code
+                    session = retrySession;
+                } else {
+                    console.warn('⚠️ Session restoration failed - user may need to login again');
+                }
+            } catch (retryError) {
+                console.error('❌ Session restoration error:', retryError);
+            }
+        }
 
         // Additional debugging: Try to get current user directly
         const { data: currentUser, error: userError } = await supabaseClient.auth.getUser();
