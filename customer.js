@@ -69,6 +69,21 @@ async function initializeSecureConnection() {
 
         // Initialize Supabase with embedded configuration and session persistence
         const { createClient } = supabase;
+
+        // Debug localStorage availability
+        console.log('🔍 localStorage available:', typeof localStorage !== 'undefined');
+        console.log('🔍 Testing localStorage write:', (() => {
+            try {
+                localStorage.setItem('test-key', 'test-value');
+                const value = localStorage.getItem('test-key');
+                localStorage.removeItem('test-key');
+                return value === 'test-value';
+            } catch (e) {
+                console.error('❌ localStorage test failed:', e);
+                return false;
+            }
+        })());
+
         supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY, {
             auth: {
                 persistSession: true,              // Remember session between visits

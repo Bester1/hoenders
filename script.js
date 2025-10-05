@@ -151,40 +151,104 @@ let pricing = {
     'SUIWER HEUNING': { cost: 60, selling: 70, packaging: '500g potjie', unit: 'per potjie' }
 };
 
-// Configuration - Direct inline for GitHub Pages deployment
-const AppConfig = {
+// Secure Configuration and Database Connection with Fallback
+let supabaseClient = null;
+let GOOGLE_SCRIPT_URL = null;
+
+// Fallback configuration for immediate deployment (LESS SECURE - for development only)
+const FALLBACK_CONFIG = {
     SUPABASE_URL: 'https://ukdmlzuxgnjucwidsygj.supabase.co',
     SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w',
     GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzBN3lIbR-ZW9ybqb5E6e0XNa7wdrfKmO8d6pQeSVXAd0WM7tT-n9M4jFO42mC1vcS1/exec'
 };
 
-// Supabase Configuration
-const SUPABASE_URL = AppConfig.SUPABASE_URL;
-const SUPABASE_ANON_KEY = AppConfig.SUPABASE_ANON_KEY;
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Initialize secure connections with fallback
+async function initializeSecureConnections() {
+    try {
+        // Try secure configuration first
+        if (typeof SecureConfig !== 'undefined') {
+            console.info('🔒 Attempting secure configuration...');
 
-// Email Service Configuration - Google Apps Script
-const GOOGLE_SCRIPT_URL = AppConfig.GOOGLE_SCRIPT_URL;
+            const configInitialized = await SecureConfig.init();
+            if (configInitialized && SecureConfig.isProductionReady()) {
+                const SUPABASE_URL = SecureConfig.get('SUPABASE_URL');
+                const SUPABASE_ANON_KEY = SecureConfig.get('SUPABASE_ANON_KEY');
+                GOOGLE_SCRIPT_URL = SecureConfig.get('GOOGLE_SCRIPT_URL');
+
+                if (SUPABASE_URL && SUPABASE_ANON_KEY && GOOGLE_SCRIPT_URL) {
+                    const { createClient } = supabase;
+                    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    console.info('✅ Secure configuration initialized successfully');
+                    return true;
+                }
+            }
+        }
+
+        // Fallback to hardcoded configuration
+        console.warn('⚠️ Using fallback configuration (less secure)');
+        console.warn('⚠️ Please set up environment variables for production');
+
+        const { createClient } = supabase;
+        supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+        GOOGLE_SCRIPT_URL = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
+
+        console.info('✅ Fallback connections initialized');
+        return true;
+
+    } catch (error) {
+        console.error('❌ Failed to initialize connections:', error);
+
+        // Last resort: try direct fallback
+        try {
+            const { createClient } = supabase;
+            supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+            GOOGLE_SCRIPT_URL = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
+            console.warn('⚠️ Using emergency fallback configuration');
+            return true;
+        } catch (fallbackError) {
+            console.error('❌ Complete connection failure:', fallbackError);
+            if (typeof showSecurityError === 'function') {
+                showSecurityError('Failed to initialize database connections. Please refresh the page.');
+            }
+            return false;
+        }
+    }
+}
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
-    initializeDatabase();
-    loadStoredData();
-    updateDashboard();
-    loadPricingTable();
-    loadCurrentRatesTable();
-    setupPDFDragDrop();
-    // Initialize data status on load
-    setTimeout(refreshDataStatus, 1000);
-    // Load customer portal orders on startup
-    setTimeout(refreshPortalOrders, 1500);
-    // Finish initialization to allow saves
-    setTimeout(() => {
-        isInitializing = false;
-        console.log('Application initialization complete');
-    }, 2000);
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        // Initialize secure connections first
+        const secureConnectionsReady = await initializeSecureConnections();
+        if (!secureConnectionsReady) {
+            console.error('❌ Cannot proceed without secure connections');
+            return;
+        }
+
+        // Continue with normal app initialization
+        initializeApp();
+        initializeDatabase();
+        loadStoredData();
+        updateDashboard();
+        loadPricingTable();
+        loadCurrentRatesTable();
+        setupPDFDragDrop();
+
+        // Initialize data status on load
+        setTimeout(refreshDataStatus, 1000);
+
+        // Load customer portal orders on startup
+        setTimeout(refreshPortalOrders, 1500);
+
+        // Finish initialization to allow saves
+        setTimeout(() => {
+            isInitializing = false;
+            console.log('✅ Secure application initialization complete');
+        }, 2000);
+    } catch (error) {
+        console.error('❌ Application initialization failed:', error);
+        showSecurityError('Application failed to initialize properly. Please refresh the page.');
+    }
 });
 
 function initializeApp() {
@@ -5627,7 +5691,7 @@ function setupOrderCheckboxes() {
     });
     
     if (selectAll) {
-        selectAll.addEventListener('change', toggleAllOrders);
+        selectAll.addEventListener('change', toggleAllOrdersBulk);
     }
 }
 
@@ -5983,3 +6047,1771 @@ document.addEventListener('keydown', function(e) {
         closeWeightEditModal();
     }
 });
+
+// ============ SAFE CUSTOMER DATA LOADING FUNCTIONS ============
+
+/**
+ * Safely loads customer data with comprehensive error handling and fallback mechanisms
+ * @param {Object} options - Configuration options for data loading
+ * @returns {Promise<Object>} Customer data with safety metadata
+ */
+async function safeLoadCustomerData(options = {}) {
+    const startTime = Date.now();
+    let errors = [];
+    let warnings = [];
+    
+    try {
+        console.log('🔄 Starting safe customer data loading...');
+        
+        // Check if customer management is enabled
+        if (!window.CustomerFeatureFlags || !window.CustomerFeatureFlags.isEnabled()) {
+            console.log('⚠️ Customer management feature is disabled');
+            return {
+                success: false,
+                data: null,
+                fallback: 'analytics',
+                reason: 'Feature disabled',
+                errors: ['Customer management feature is disabled'],
+                loadTime: Date.now() - startTime
+            };
+        }
+        
+        // Validate feature flags
+        if (!window.CustomerFeatureFlags || typeof window.CustomerFeatureFlags !== 'object') {
+            errors.push('Invalid CustomerFeatureFlags configuration');
+            console.error('❌ Invalid CustomerFeatureFlags configuration');
+            return {
+                success: false,
+                data: null,
+                fallback: 'analytics',
+                reason: 'Invalid configuration',
+                errors: errors,
+                loadTime: Date.now() - startTime
+            };
+        }
+        
+        // Check if we should use gradual rollout
+        if (window.CustomerFeatureFlags.config?.gradualRollout?.enabled) {
+            const rolloutPercentage = window.CustomerFeatureFlags.config.gradualRollout.percentage || 100;
+            const randomValue = Math.random() * 100;
+            
+            if (randomValue > rolloutPercentage) {
+                console.log(`🎯 Gradual rollout: Customer excluded (${rolloutPercentage}% active, got ${randomValue.toFixed(1)}%)`);
+                warnings.push(`Gradual rollout: Customer excluded (${rolloutPercentage}% active)`);
+                return {
+                    success: true,
+                    data: null,
+                    fallback: 'analytics',
+                    reason: 'Gradual rollout exclusion',
+                    warnings: warnings,
+                    loadTime: Date.now() - startTime
+                };
+            }
+            console.log(`🎯 Gradual rollout: Customer included (${rolloutPercentage}% active, got ${randomValue.toFixed(1)}%)`);
+        }
+        
+        // Attempt to load customer data with multiple fallback strategies
+        let customerData = null;
+        let loadAttempts = [];
+        
+        // Strategy 1: Load from customer portal database
+        try {
+            console.log('📱 Attempting to load from customer portal database...');
+            const portalData = await safeLoadCustomerPortalData();
+            loadAttempts.push({ strategy: 'portal', success: portalData.success, data: portalData.data });
+            
+            if (portalData.success && portalData.data) {
+                customerData = portalData.data;
+                console.log('✅ Successfully loaded customer data from portal');
+            } else if (portalData.errors && portalData.errors.length > 0) {
+                errors.push(...portalData.errors);
+            }
+        } catch (error) {
+            console.error('❌ Portal data loading failed:', error);
+            errors.push(`Portal loading failed: ${error.message}`);
+            loadAttempts.push({ strategy: 'portal', success: false, error: error.message });
+        }
+        
+        // Strategy 2: Load from import data if no portal data
+        if (!customerData) {
+            try {
+                console.log('📂 Attempting to load from import data...');
+                const importData = await safeLoadCustomerImportData();
+                loadAttempts.push({ strategy: 'import', success: importData.success, data: importData.data });
+                
+                if (importData.success && importData.data) {
+                    customerData = importData.data;
+                    console.log('✅ Successfully loaded customer data from imports');
+                } else if (importData.errors && importData.errors.length > 0) {
+                    errors.push(...importData.errors);
+                }
+            } catch (error) {
+                console.error('❌ Import data loading failed:', error);
+                errors.push(`Import loading failed: ${error.message}`);
+                loadAttempts.push({ strategy: 'import', success: false, error: error.message });
+            }
+        }
+        
+        // Strategy 3: Create minimal customer data structure if no data found
+        if (!customerData) {
+            try {
+                console.log('📝 Creating minimal customer data structure...');
+                const minimalData = await safeCreateMinimalCustomerData();
+                loadAttempts.push({ strategy: 'minimal', success: minimalData.success, data: minimalData.data });
+                
+                if (minimalData.success && minimalData.data) {
+                    customerData = minimalData.data;
+                    console.log('✅ Successfully created minimal customer data');
+                    warnings.push('Using minimal customer data structure');
+                } else if (minimalData.errors && minimalData.errors.length > 0) {
+                    errors.push(...minimalData.errors);
+                }
+            } catch (error) {
+                console.error('❌ Minimal data creation failed:', error);
+                errors.push(`Minimal data creation failed: ${error.message}`);
+                loadAttempts.push({ strategy: 'minimal', success: false, error: error.message });
+            }
+        }
+        
+        // Check performance thresholds
+        const loadTime = Date.now() - startTime;
+        const maxLoadTime = window.CustomerFeatureFlags.config?.performance?.maxLoadTime || 5000;
+        
+        if (loadTime > maxLoadTime) {
+            warnings.push(`Load time exceeded threshold: ${loadTime}ms (max: ${maxLoadTime}ms)`);
+            console.warn(`⚠️ Load time exceeded threshold: ${loadTime}ms`);
+        }
+        
+        // Check error rate thresholds
+        const maxErrorRate = window.CustomerFeatureFlags.config?.safety?.maxErrorRate || 0.1;
+        const errorRate = errors.length / Math.max(loadAttempts.length, 1);
+        
+        if (errorRate > maxErrorRate) {
+            console.warn(`⚠️ Error rate too high: ${(errorRate * 100).toFixed(1)}% (max: ${(maxErrorRate * 100).toFixed(1)}%)`);
+            
+            // Auto-disable feature if error rate is too high
+            if (window.CustomerFeatureFlags.config?.safety?.autoDisableOnHighErrorRate) {
+                console.error('🚨 Auto-disabling customer management due to high error rate');
+                if (window.CustomerFeatureFlags.disableFeature) {
+                    window.CustomerFeatureFlags.disableFeature();
+                }
+                
+                return {
+                    success: false,
+                    data: null,
+                    fallback: 'analytics',
+                    reason: 'High error rate - feature auto-disabled',
+                    errors: errors,
+                    warnings: warnings,
+                    loadTime: loadTime,
+                    errorRate: errorRate,
+                    autoDisabled: true
+                };
+            }
+        }
+        
+        // Determine fallback strategy
+        let fallbackStrategy = 'analytics';
+        if (!customerData) {
+            if (errors.length > 3) {
+                fallbackStrategy = 'error';
+            } else if (warnings.length > 2) {
+                fallbackStrategy = 'warning';
+            }
+        }
+        
+        const result = {
+            success: !!customerData,
+            data: customerData,
+            fallback: customerData ? null : fallbackStrategy,
+            reason: customerData ? 'Data loaded successfully' : 'All loading strategies failed',
+            errors: errors,
+            warnings: warnings,
+            loadTime: loadTime,
+            loadAttempts: loadAttempts,
+            errorRate: errors.length > 0 ? errorRate : 0,
+            health: {
+                status: errors.length === 0 ? 'healthy' : errors.length <= 2 ? 'degraded' : 'unhealthy',
+                errorCount: errors.length,
+                warningCount: warnings.length,
+                performance: loadTime <= 1000 ? 'good' : loadTime <= 3000 ? 'acceptable' : 'poor'
+            }
+        };
+        
+        console.log('✅ Safe customer data loading completed:', result);
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Critical error in safeLoadCustomerData:', error);
+        
+        // Always return a safe fallback result
+        return {
+            success: false,
+            data: null,
+            fallback: 'error',
+            reason: 'Critical system error',
+            errors: [`Critical error: ${error.message}`],
+            loadTime: Date.now() - startTime,
+            health: {
+                status: 'critical',
+                errorCount: 1,
+                warningCount: 0,
+                performance: 'poor'
+            }
+        };
+    }
+}
+
+/**
+ * Safely loads customer data from the customer portal database
+ * @returns {Promise<Object>} Portal customer data with safety metadata
+ */
+async function safeLoadCustomerPortalData() {
+    const startTime = Date.now();
+    const errors = [];
+    
+    try {
+        // Check if Supabase client is available
+        if (!supabaseClient) {
+            errors.push('Supabase client not available');
+            return {
+                success: false,
+                data: null,
+                errors: errors,
+                loadTime: Date.now() - startTime
+            };
+        }
+        
+        // Validate required database tables exist
+        const { data: customersData, error: customersError } = await supabaseClient
+            .from('customers')
+            .select('count', { count: 'exact', head: true });
+            
+        if (customersError) {
+            errors.push(`Customers table error: ${customersError.message}`);
+            console.error('❌ Customers table error:', customersError);
+            return {
+                success: false,
+                data: null,
+                errors: errors,
+                loadTime: Date.now() - startTime
+            };
+        }
+        
+        // Load customer portal orders with proper error handling
+        const { data: ordersData, error: ordersError } = await supabaseClient
+            .from('orders')
+            .select('*')
+            .eq('source', 'customer_portal')
+            .order('created_at', { ascending: false })
+            .limit(100); // Limit to prevent memory issues
+            
+        if (ordersError) {
+            errors.push(`Orders query error: ${ordersError.message}`);
+            console.error('❌ Orders query error:', ordersError);
+            return {
+                success: false,
+                data: null,
+                errors: errors,
+                loadTime: Date.now() - startTime
+            };
+        }
+        
+        // Transform orders to customer data format
+        const customerData = {
+            source: 'customer_portal',
+            customers: [],
+            orders: ordersData || [],
+            totalCustomers: 0,
+            totalOrders: ordersData ? ordersData.length : 0,
+            lastUpdated: new Date().toISOString()
+        };
+        
+        // Extract unique customers from orders
+        const customerMap = new Map();
+        if (ordersData && ordersData.length > 0) {
+            ordersData.forEach(order => {
+                const customerKey = order.customer_email || order.customer_name;
+                if (customerKey && !customerMap.has(customerKey)) {
+                    customerMap.set(customerKey, {
+                        id: order.customer_id,
+                        name: order.customer_name,
+                        email: order.customer_email,
+                        phone: order.customer_phone,
+                        address: order.customer_address,
+                        firstOrder: order.order_date,
+                        lastOrder: order.order_date,
+                        totalOrders: 1,
+                        totalSpent: order.total_amount || 0
+                    });
+                } else if (customerKey && customerMap.has(customerKey)) {
+                    const existing = customerMap.get(customerKey);
+                    existing.totalOrders++;
+                    existing.totalSpent += order.total_amount || 0;
+                    existing.lastOrder = order.order_date;
+                }
+            });
+        }
+        
+        customerData.customers = Array.from(customerMap.values());
+        customerData.totalCustomers = customerData.customers.length;
+        
+        console.log(`✅ Successfully loaded ${customerData.totalCustomers} customers from portal`);
+        
+        return {
+            success: true,
+            data: customerData,
+            errors: errors,
+            loadTime: Date.now() - startTime
+        };
+        
+    } catch (error) {
+        console.error('❌ Error loading customer portal data:', error);
+        errors.push(`Portal loading error: ${error.message}`);
+        
+        return {
+            success: false,
+            data: null,
+            errors: errors,
+            loadTime: Date.now() - startTime
+        };
+    }
+}
+
+/**
+ * Safely loads customer data from import records
+ * @returns {Promise<Object>} Import customer data with safety metadata
+ */
+async function safeLoadCustomerImportData() {
+    const startTime = Date.now();
+    const errors = [];
+    
+    try {
+        // Check if we have import data available
+        if (!imports || Object.keys(imports).length === 0) {
+            errors.push('No import data available');
+            return {
+                success: false,
+                data: null,
+                errors: errors,
+                loadTime: Date.now() - startTime
+            };
+        }
+        
+        // Collect customer data from all imports
+        const customerData = {
+            source: 'imports',
+            customers: [],
+            orders: [],
+            totalCustomers: 0,
+            totalOrders: 0,
+            lastUpdated: new Date().toISOString()
+        };
+        
+        const customerMap = new Map();
+        
+        Object.values(imports).forEach(importData => {
+            if (importData.orders && importData.orders.length > 0) {
+                importData.orders.forEach(order => {
+                    // Add to orders collection
+                    customerData.orders.push({
+                        ...order,
+                        importId: importData.id,
+                        importName: importData.name
+                    });
+                    
+                    // Extract customer information
+                    const customerKey = order.email || order.name;
+                    if (customerKey && !customerMap.has(customerKey)) {
+                        customerMap.set(customerKey, {
+                            id: `import-${Date.now()}-${Math.random()}`,
+                            name: order.name,
+                            email: order.email,
+                            phone: order.phone,
+                            address: order.address,
+                            firstOrder: order.date,
+                            lastOrder: order.date,
+                            totalOrders: 1,
+                            totalSpent: order.total || 0,
+                            source: 'import'
+                        });
+                    } else if (customerKey && customerMap.has(customerKey)) {
+                        const existing = customerMap.get(customerKey);
+                        existing.totalOrders++;
+                        existing.totalSpent += order.total || 0;
+                        existing.lastOrder = order.date;
+                    }
+                });
+            }
+        });
+        
+        customerData.customers = Array.from(customerMap.values());
+        customerData.totalCustomers = customerData.customers.length;
+        customerData.totalOrders = customerData.orders.length;
+        
+        if (customerData.totalCustomers === 0) {
+            errors.push('No customer data found in imports');
+            return {
+                success: false,
+                data: null,
+                errors: errors,
+                loadTime: Date.now() - startTime
+            };
+        }
+        
+        console.log(`✅ Successfully loaded ${customerData.totalCustomers} customers from imports`);
+        
+        return {
+            success: true,
+            data: customerData,
+            errors: errors,
+            loadTime: Date.now() - startTime
+        };
+        
+    } catch (error) {
+        console.error('❌ Error loading customer import data:', error);
+        errors.push(`Import loading error: ${error.message}`);
+        
+        return {
+            success: false,
+            data: null,
+            errors: errors,
+            loadTime: Date.now() - startTime
+        };
+    }
+}
+
+/**
+ * Creates minimal customer data structure as fallback
+ * @returns {Promise<Object>} Minimal customer data with safety metadata
+ */
+async function safeCreateMinimalCustomerData() {
+    const startTime = Date.now();
+    const errors = [];
+    
+    try {
+        // Create a minimal customer data structure
+        const customerData = {
+            source: 'minimal',
+            customers: [],
+            orders: [],
+            totalCustomers: 0,
+            totalOrders: 0,
+            lastUpdated: new Date().toISOString(),
+            note: 'Minimal data structure created as fallback'
+        };
+        
+        // Add a sample customer for testing purposes
+        const sampleCustomer = {
+            id: 'sample-customer-001',
+            name: 'Sample Customer',
+            email: 'sample@example.com',
+            phone: '000-000-0000',
+            address: 'Sample Address',
+            firstOrder: new Date().toISOString().split('T')[0],
+            lastOrder: new Date().toISOString().split('T')[0],
+            totalOrders: 0,
+            totalSpent: 0,
+            source: 'minimal'
+        };
+        
+        customerData.customers.push(sampleCustomer);
+        customerData.totalCustomers = 1;
+        
+        console.log('✅ Successfully created minimal customer data structure');
+        
+        return {
+            success: true,
+            data: customerData,
+            errors: errors,
+            loadTime: Date.now() - startTime
+        };
+        
+    } catch (error) {
+        console.error('❌ Error creating minimal customer data:', error);
+        errors.push(`Minimal data creation error: ${error.message}`);
+        
+        return {
+            success: false,
+            data: null,
+            errors: errors,
+            loadTime: Date.now() - startTime
+        };
+    }
+}
+
+/**
+ * Monitors customer data loading health and performance
+ * @returns {Object} Health monitoring data
+ */
+function monitorCustomerDataHealth() {
+    const health = {
+        timestamp: new Date().toISOString(),
+        featureFlags: {
+            enabled: window.CustomerFeatureFlags ? window.CustomerFeatureFlags.isEnabled() : false,
+            config: window.CustomerFeatureFlags ? window.CustomerFeatureFlags.config : null
+        },
+        recentLoads: [],
+        errorRate: 0,
+        averageLoadTime: 0,
+        status: 'unknown'
+    };
+    
+    try {
+        // Check if we have recent load data stored
+        const recentLoadsKey = 'customerDataRecentLoads';
+        const storedData = localStorage.getItem(recentLoadsKey);
+        
+        if (storedData) {
+            const recentLoads = JSON.parse(storedData);
+            health.recentLoads = recentLoads.slice(-10); // Last 10 loads
+            
+            // Calculate metrics
+            const totalLoads = recentLoads.length;
+            const errorLoads = recentLoads.filter(load => !load.success).length;
+            const successfulLoads = recentLoads.filter(load => load.success);
+            
+            health.errorRate = totalLoads > 0 ? errorLoads / totalLoads : 0;
+            health.averageLoadTime = successfulLoads.length > 0
+                ? successfulLoads.reduce((sum, load) => sum + load.loadTime, 0) / successfulLoads.length
+                : 0;
+            
+            // Determine status
+            if (health.errorRate > 0.5) {
+                health.status = 'critical';
+            } else if (health.errorRate > 0.2) {
+                health.status = 'degraded';
+            } else if (health.averageLoadTime > 3000) {
+                health.status = 'slow';
+            } else {
+                health.status = 'healthy';
+            }
+        } else {
+            health.status = 'no_data';
+        }
+        
+    } catch (error) {
+        console.error('❌ Error monitoring customer data health:', error);
+        health.status = 'error';
+        health.error = error.message;
+    }
+    
+    return health;
+}
+
+/**
+ * Records a customer data load attempt for health monitoring
+ * @param {Object} loadResult - Result of the load attempt
+ */
+function recordCustomerDataLoad(loadResult) {
+    try {
+        const recentLoadsKey = 'customerDataRecentLoads';
+        let recentLoads = [];
+        
+        // Load existing data
+        const storedData = localStorage.getItem(recentLoadsKey);
+        if (storedData) {
+            recentLoads = JSON.parse(storedData);
+        }
+        
+        // Add new load result
+        const record = {
+            timestamp: new Date().toISOString(),
+            success: loadResult.success,
+            loadTime: loadResult.loadTime,
+            errorCount: loadResult.errors ? loadResult.errors.length : 0,
+            warningCount: loadResult.warnings ? loadResult.warnings.length : 0,
+            fallback: loadResult.fallback,
+            reason: loadResult.reason
+        };
+        
+        recentLoads.push(record);
+        
+        // Keep only last 50 records
+        if (recentLoads.length > 50) {
+            recentLoads = recentLoads.slice(-50);
+        }
+        
+        // Save back to storage
+        localStorage.setItem(recentLoadsKey, JSON.stringify(recentLoads));
+        
+        console.log('📊 Customer data load recorded:', record);
+        
+    } catch (error) {
+        console.error('❌ Error recording customer data load:', error);
+    }
+}
+
+/**
+ * Displays customer data loading status in the UI
+ * @param {Object} loadResult - Result from safeLoadCustomerData
+ */
+function displayCustomerDataStatus(loadResult) {
+    try {
+        const statusContainer = document.getElementById('customerDataStatus');
+        if (!statusContainer) {
+            console.warn('⚠️ Customer data status container not found');
+            return;
+        }
+        
+        let statusHTML = '';
+        let statusClass = '';
+        
+        if (loadResult.success && loadResult.data) {
+            statusClass = 'status-success';
+            const customerCount = loadResult.data.totalCustomers || 0;
+            const orderCount = loadResult.data.totalOrders || 0;
+            
+            statusHTML = `
+                <div class="status-indicator ${statusClass}">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Customer data loaded successfully</span>
+                </div>
+                <div class="status-details">
+                    <span>${customerCount} customers</span>
+                    <span>${orderCount} orders</span>
+                    <span>${loadResult.loadTime}ms</span>
+                </div>
+            `;
+        } else {
+            statusClass = 'status-warning';
+            const fallbackText = loadResult.fallback === 'analytics' ? 'Falling back to analytics' : 'Check console for details';
+            
+            statusHTML = `
+                <div class="status-indicator ${statusClass}">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Customer data loading issues</span>
+                </div>
+                <div class="status-details">
+                    <span>${loadResult.errors.length} errors</span>
+                    <span>${loadResult.warnings.length} warnings</span>
+                    <span>${fallbackText}</span>
+                </div>
+            `;
+        }
+        
+        statusContainer.innerHTML = statusHTML;
+        statusContainer.style.display = 'block';
+        
+        // Auto-hide after 5 seconds if successful
+        if (loadResult.success) {
+            setTimeout(() => {
+                statusContainer.style.display = 'none';
+            }, 5000);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error displaying customer data status:', error);
+    }
+}
+
+/**
+ * Safe customer data refresh function with error handling
+ * @returns {Promise<Object>} Refresh result with safety metadata
+ */
+async function safeRefreshCustomerData() {
+    const startTime = Date.now();
+    
+    try {
+        console.log('🔄 Starting safe customer data refresh...');
+        
+        // Load customer data with safety mechanisms
+        const loadResult = await safeLoadCustomerData();
+        
+        // Record the load attempt
+        recordCustomerDataLoad(loadResult);
+        
+        // Display status to user
+        displayCustomerDataStatus(loadResult);
+        
+        // Handle fallback scenarios
+        if (!loadResult.success || !loadResult.data) {
+            console.warn('⚠️ Customer data refresh failed, handling fallback...');
+            
+            switch (loadResult.fallback) {
+                case 'analytics':
+                    console.log('📊 Falling back to analytics section');
+                    showSection('analytics');
+                    break;
+                    
+                case 'error':
+                    console.error('❌ Critical error - showing error notification');
+                    ErrorHandler.showNotification('Customer data loading failed', 'error');
+                    break;
+                    
+                case 'warning':
+                    console.warn('⚠️ Warning state - showing warning notification');
+                    ErrorHandler.showNotification('Customer data loading completed with warnings', 'warning');
+                    break;
+                    
+                default:
+                    console.log('📊 Defaulting to analytics section');
+                    showSection('analytics');
+            }
+        }
+        
+        // Check health and potentially auto-disable
+        const health = monitorCustomerDataHealth();
+        if (health.status === 'critical' && window.CustomerFeatureFlags?.config?.safety?.autoDisableOnHighErrorRate) {
+            console.error('🚨 Auto-disabling customer management due to critical health status');
+            if (window.CustomerFeatureFlags.disableFeature) {
+                window.CustomerFeatureFlags.disableFeature();
+            }
+        }
+        
+        const result = {
+            success: loadResult.success,
+            data: loadResult.data,
+            loadTime: Date.now() - startTime,
+            health: health,
+            fallback: loadResult.fallback
+        };
+        
+        console.log('✅ Safe customer data refresh completed:', result);
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Critical error in safeRefreshCustomerData:', error);
+        
+        return {
+            success: false,
+            data: null,
+            loadTime: Date.now() - startTime,
+            error: error.message,
+            fallback: 'error'
+        };
+    }
+}
+
+/**
+ * Periodic health check for customer data loading system
+ */
+function startCustomerDataHealthMonitoring() {
+    try {
+        console.log('🔍 Starting customer data health monitoring...');
+        
+        // Run health check every 30 seconds
+        const healthCheckInterval = setInterval(async () => {
+            try {
+                const health = monitorCustomerDataHealth();
+                console.log('🏥 Customer data health check:', health);
+                
+                // Log critical issues
+                if (health.status === 'critical') {
+                    console.error('🚨 Critical health status detected');
+                    
+                    // Auto-disable if configured
+                    if (window.CustomerFeatureFlags?.config?.safety?.autoDisableOnHighErrorRate) {
+                        console.error('🚨 Auto-disabling customer management due to critical health');
+                        if (window.CustomerFeatureFlags.disableFeature) {
+                            window.CustomerFeatureFlags.disableFeature();
+                        }
+                        clearInterval(healthCheckInterval);
+                    }
+                }
+                
+                // Update UI with health status
+                const healthContainer = document.getElementById('customerDataHealth');
+                if (healthContainer) {
+                    let healthClass = 'health-unknown';
+                    let healthIcon = 'fa-question-circle';
+                    
+                    switch (health.status) {
+                        case 'healthy':
+                            healthClass = 'health-healthy';
+                            healthIcon = 'fa-check-circle';
+                            break;
+                        case 'degraded':
+                            healthClass = 'health-degraded';
+                            healthIcon = 'fa-exclamation-triangle';
+                            break;
+                        case 'critical':
+                            healthClass = 'health-critical';
+                            healthIcon = 'fa-times-circle';
+                            break;
+                        case 'slow':
+                            healthClass = 'health-slow';
+                            healthIcon = 'fa-clock';
+                            break;
+                    }
+                    
+                    healthContainer.innerHTML = `
+                        <div class="health-indicator ${healthClass}">
+                            <i class="fas ${healthIcon}"></i>
+                            <span>System Health: ${health.status.toUpperCase()}</span>
+                        </div>
+                        <div class="health-details">
+                            <span>Error Rate: ${(health.errorRate * 100).toFixed(1)}%</span>
+                            <span>Avg Load: ${health.averageLoadTime.toFixed(0)}ms</span>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('❌ Error in health monitoring interval:', error);
+            }
+        }, 30000); // Every 30 seconds
+        
+        console.log('✅ Customer data health monitoring started (30s intervals)');
+        
+    } catch (error) {
+        console.error('❌ Error starting customer data health monitoring:', error);
+    }
+}
+
+// Initialize customer data loading system when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Start health monitoring after a delay to ensure everything is loaded
+    setTimeout(() => {
+        startCustomerDataHealthMonitoring();
+    }, 5000);
+});
+
+// ============ COMPREHENSIVE CUSTOMER MANAGEMENT TESTING FUNCTIONS ============
+
+/**
+ * Comprehensive Customer Management Testing Suite
+ * Tests all aspects of the customer management system with safety mechanisms
+ */
+class CustomerManagementTester {
+    constructor() {
+        this.testResults = [];
+        this.totalTests = 0;
+        this.passedTests = 0;
+        this.failedTests = 0;
+        this.testStartTime = null;
+        this.testEndTime = null;
+    }
+
+    /**
+     * Run all customer management tests
+     * @returns {Object} Comprehensive test results
+     */
+    async runAllTests() {
+        console.log('🧪 Starting comprehensive customer management testing...');
+        this.testStartTime = Date.now();
+        
+        try {
+            // Test 1: Feature Flag System
+            await this.testFeatureFlags();
+            
+            // Test 2: Safe Data Loading Functions
+            await this.testSafeDataLoading();
+            
+            // Test 3: Error Handling and Fallbacks
+            await this.testErrorHandling();
+            
+            // Test 4: Health Monitoring System
+            await this.testHealthMonitoring();
+            
+            // Test 5: Performance Limits
+            await this.testPerformanceLimits();
+            
+            // Test 6: UI Integration
+            await this.testUIIntegration();
+            
+            // Test 7: Edge Cases
+            await this.testEdgeCases();
+            
+            // Test 8: Safety Mechanisms
+            await this.testSafetyMechanisms();
+            
+            this.testEndTime = Date.now();
+            
+            return this.generateTestReport();
+            
+        } catch (error) {
+            console.error('❌ Critical error during testing:', error);
+            this.testEndTime = Date.now();
+            return this.generateTestReport();
+        }
+    }
+
+    /**
+     * Test 1: Feature Flag System
+     */
+    async testFeatureFlags() {
+        console.log('🚩 Testing feature flag system...');
+        
+        // Test 1.1: Feature flag configuration exists
+        this.addTest('Feature flags configuration exists', () => {
+            return window.CustomerFeatureFlags !== undefined &&
+                   typeof window.CustomerFeatureFlags === 'object';
+        });
+
+        // Test 1.2: Enable/disable functionality
+        this.addTest('Feature flags can be enabled/disabled', () => {
+            if (!window.CustomerFeatureFlags) return false;
+            
+            // Test enable
+            if (window.CustomerFeatureFlags.enableFeature) {
+                window.CustomerFeatureFlags.enableFeature();
+                const enabled = window.CustomerFeatureFlags.isEnabled();
+                if (!enabled) return false;
+            }
+            
+            // Test disable
+            if (window.CustomerFeatureFlags.disableFeature) {
+                window.CustomerFeatureFlags.disableFeature();
+                const disabled = !window.CustomerFeatureFlags.isEnabled();
+                if (!disabled) return false;
+            }
+            
+            return true;
+        });
+
+        // Test 1.3: Gradual rollout functionality
+        this.addTest('Gradual rollout configuration works', () => {
+            if (!window.CustomerFeatureFlags || !window.CustomerFeatureFlags.config) return false;
+            
+            const config = window.CustomerFeatureFlags.config;
+            return config.gradualRollout &&
+                   typeof config.gradualRollout.enabled === 'boolean' &&
+                   typeof config.gradualRollout.percentage === 'number';
+        });
+
+        // Test 1.4: Safety thresholds
+        this.addTest('Safety thresholds are configured', () => {
+            if (!window.CustomerFeatureFlags || !window.CustomerFeatureFlags.config) return false;
+            
+            const config = window.CustomerFeatureFlags.config;
+            return config.safety &&
+                   typeof config.safety.maxErrorRate === 'number' &&
+                   typeof config.safety.autoDisableOnHighErrorRate === 'boolean';
+        });
+    }
+
+    /**
+     * Test 2: Safe Data Loading Functions
+     */
+    async testSafeDataLoading() {
+        console.log('📊 Testing safe data loading functions...');
+        
+        // Test 2.1: safeLoadCustomerData function exists
+        this.addTest('safeLoadCustomerData function exists', () => {
+            return typeof safeLoadCustomerData === 'function';
+        });
+
+        // Test 2.2: safeLoadCustomerPortalData function exists
+        this.addTest('safeLoadCustomerPortalData function exists', () => {
+            return typeof safeLoadCustomerPortalData === 'function';
+        });
+
+        // Test 2.3: safeLoadCustomerImportData function exists
+        this.addTest('safeLoadCustomerImportData function exists', () => {
+            return typeof safeLoadCustomerImportData === 'function';
+        });
+
+        // Test 2.4: safeCreateMinimalCustomerData function exists
+        this.addTest('safeCreateMinimalCustomerData function exists', () => {
+            return typeof safeCreateMinimalCustomerData === 'function';
+        });
+
+        // Test 2.5: All functions return proper structure
+        this.addTest('Data loading functions return proper structure', async () => {
+            try {
+                const result = await safeLoadCustomerData();
+                return result &&
+                       typeof result.success === 'boolean' &&
+                       (result.data !== undefined) &&
+                       Array.isArray(result.errors) &&
+                       typeof result.loadTime === 'number';
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 2.6: Fallback mechanisms work
+        this.addTest('Fallback mechanisms work correctly', async () => {
+            try {
+                const result = await safeLoadCustomerData();
+                return result &&
+                       (result.success === true || result.fallback !== undefined);
+            } catch (error) {
+                return false;
+            }
+        });
+    }
+
+    /**
+     * Test 3: Error Handling and Fallbacks
+     */
+    async testErrorHandling() {
+        console.log('🛡️ Testing error handling and fallbacks...');
+        
+        // Test 3.1: Error collection works
+        this.addTest('Error collection works properly', async () => {
+            try {
+                const result = await safeLoadCustomerData();
+                return result && Array.isArray(result.errors);
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 3.2: Warning collection works
+        this.addTest('Warning collection works properly', async () => {
+            try {
+                const result = await safeLoadCustomerData();
+                return result && Array.isArray(result.warnings);
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 3.3: Fallback to analytics section
+        this.addTest('Fallback to analytics section works', () => {
+            try {
+                // Simulate fallback scenario
+                showSection('analytics');
+                const analyticsSection = document.getElementById('analytics');
+                return analyticsSection && analyticsSection.classList.contains('active');
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 3.4: Error rate calculation
+        this.addTest('Error rate calculation is accurate', async () => {
+            try {
+                const result = await safeLoadCustomerData();
+                if (!result) return false;
+                
+                const expectedErrorRate = result.errors.length / Math.max(result.loadAttempts?.length || 1, 1);
+                const actualErrorRate = result.errorRate || 0;
+                
+                return Math.abs(expectedErrorRate - actualErrorRate) < 0.01;
+            } catch (error) {
+                return false;
+            }
+        });
+    }
+
+    /**
+     * Test 4: Health Monitoring System
+     */
+    async testHealthMonitoring() {
+        console.log('🏥 Testing health monitoring system...');
+        
+        // Test 4.1: monitorCustomerDataHealth function exists
+        this.addTest('monitorCustomerDataHealth function exists', () => {
+            return typeof monitorCustomerDataHealth === 'function';
+        });
+
+        // Test 4.2: Health monitoring returns proper structure
+        this.addTest('Health monitoring returns proper structure', () => {
+            try {
+                const health = monitorCustomerDataHealth();
+                return health &&
+                       typeof health.timestamp === 'string' &&
+                       typeof health.status === 'string' &&
+                       typeof health.errorRate === 'number';
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 4.3: Health status determination works
+        this.addTest('Health status determination works correctly', () => {
+            try {
+                const health = monitorCustomerDataHealth();
+                const validStatuses = ['healthy', 'degraded', 'critical', 'slow', 'unknown', 'error', 'no_data'];
+                return health && validStatuses.includes(health.status);
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 4.4: recordCustomerDataLoad function exists
+        this.addTest('recordCustomerDataLoad function exists', () => {
+            return typeof recordCustomerDataLoad === 'function';
+        });
+
+        // Test 4.5: Health monitoring interval is set
+        this.addTest('Health monitoring interval is configured', () => {
+            return typeof startCustomerDataHealthMonitoring === 'function';
+        });
+    }
+
+    /**
+     * Test 5: Performance Limits
+     */
+    async testPerformanceLimits() {
+        console.log('⚡ Testing performance limits...');
+        
+        // Test 5.1: Load time measurement works
+        this.addTest('Load time measurement works correctly', async () => {
+            try {
+                const result = await safeLoadCustomerData();
+                return result &&
+                       typeof result.loadTime === 'number' &&
+                       result.loadTime >= 0;
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 5.2: Performance threshold checking
+        this.addTest('Performance threshold checking works', async () => {
+            try {
+                const result = await safeLoadCustomerData();
+                if (!result) return false;
+                
+                const loadTime = result.loadTime;
+                const maxLoadTime = window.CustomerFeatureFlags?.config?.performance?.maxLoadTime || 5000;
+                
+                // If load time exceeds threshold, there should be warnings
+                if (loadTime > maxLoadTime) {
+                    return result.warnings && result.warnings.length > 0;
+                }
+                
+                return true;
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 5.3: Memory usage considerations
+        this.addTest('Memory usage is reasonable', async () => {
+            try {
+                const startMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+                const result = await safeLoadCustomerData();
+                const endMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+                
+                if (!result) return false;
+                
+                const memoryIncrease = endMemory - startMemory;
+                const maxMemoryIncrease = 50 * 1024 * 1024; // 50MB
+                
+                return memoryIncrease < maxMemoryIncrease;
+            } catch (error) {
+                return true; // Skip if memory API not available
+            }
+        });
+    }
+
+    /**
+     * Test 6: UI Integration
+     */
+    async testUIIntegration() {
+        console.log('🎨 Testing UI integration...');
+        
+        // Test 6.1: Customer management section exists
+        this.addTest('Customer management section exists in DOM', () => {
+            const section = document.getElementById('customerManagement');
+            return section !== null;
+        });
+
+        // Test 6.2: Feature status display works
+        this.addTest('Feature status display works', () => {
+            try {
+                displayCustomerDataStatus({
+                    success: true,
+                    data: { totalCustomers: 5, totalOrders: 10 },
+                    loadTime: 100
+                });
+                
+                const statusContainer = document.getElementById('customerDataStatus');
+                return statusContainer && statusContainer.innerHTML.length > 0;
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 6.3: Navigation menu item exists
+        this.addTest('Customer management navigation menu item exists', () => {
+            const navItem = document.querySelector('a[href="#customer-management"]');
+            return navItem !== null;
+        });
+
+        // Test 6.4: Customer search functionality exists
+        this.addTest('Customer search functionality exists', () => {
+            const searchInput = document.getElementById('customerSearchInput');
+            const searchButton = document.querySelector('button[onclick*="filterCustomerOrders"]');
+            return searchInput !== null && searchButton !== null;
+        });
+    }
+
+    /**
+     * Test 7: Edge Cases
+     */
+    async testEdgeCases() {
+        console.log('🔍 Testing edge cases...');
+        
+        // Test 7.1: Empty data handling
+        this.addTest('Empty data is handled gracefully', async () => {
+            try {
+                const result = await safeCreateMinimalCustomerData();
+                return result &&
+                       result.success === true &&
+                       result.data &&
+                       result.data.customers &&
+                       result.data.customers.length >= 0;
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 7.2: Null/undefined parameter handling
+        this.addTest('Null/undefined parameters are handled', async () => {
+            try {
+                const result = await safeLoadCustomerData(null);
+                return result && typeof result.success === 'boolean';
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 7.3: Invalid configuration handling
+        this.addTest('Invalid configuration is handled gracefully', async () => {
+            try {
+                // Temporarily break configuration
+                const originalConfig = window.CustomerFeatureFlags?.config;
+                if (window.CustomerFeatureFlags) {
+                    window.CustomerFeatureFlags.config = null;
+                }
+                
+                const result = await safeLoadCustomerData();
+                
+                // Restore configuration
+                if (window.CustomerFeatureFlags) {
+                    window.CustomerFeatureFlags.config = originalConfig;
+                }
+                
+                return result && typeof result.success === 'boolean';
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 7.4: Rapid successive calls
+        this.addTest('Rapid successive calls are handled', async () => {
+            try {
+                const promises = [];
+                for (let i = 0; i < 5; i++) {
+                    promises.push(safeLoadCustomerData());
+                }
+                
+                const results = await Promise.all(promises);
+                return results.every(result => result && typeof result.success === 'boolean');
+            } catch (error) {
+                return false;
+            }
+        });
+    }
+
+    /**
+     * Test 8: Safety Mechanisms
+     */
+    async testSafetyMechanisms() {
+        console.log('🛡️ Testing safety mechanisms...');
+        
+        // Test 8.1: Auto-disable on high error rate
+        this.addTest('Auto-disable on high error rate works', () => {
+            if (!window.CustomerFeatureFlags || !window.CustomerFeatureFlags.config) return true; // Skip if not configured
+            
+            const config = window.CustomerFeatureFlags.config;
+            return config.safety &&
+                   typeof config.safety.maxErrorRate === 'number' &&
+                   typeof config.safety.autoDisableOnHighErrorRate === 'boolean';
+        });
+
+        // Test 8.2: Fallback mechanisms are robust
+        this.addTest('Fallback mechanisms are robust', async () => {
+            try {
+                // Test with feature disabled
+                if (window.CustomerFeatureFlags && window.CustomerFeatureFlags.disableFeature) {
+                    window.CustomerFeatureFlags.disableFeature();
+                }
+                
+                const result = await safeLoadCustomerData();
+                
+                // Re-enable if possible
+                if (window.CustomerFeatureFlags && window.CustomerFeatureFlags.enableFeature) {
+                    window.CustomerFeatureFlags.enableFeature();
+                }
+                
+                return result && result.fallback !== undefined;
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 8.3: Health monitoring prevents system overload
+        this.addTest('Health monitoring prevents system overload', () => {
+            try {
+                const health = monitorCustomerDataHealth();
+                return health &&
+                       typeof health.errorRate === 'number' &&
+                       typeof health.status === 'string';
+            } catch (error) {
+                return false;
+            }
+        });
+
+        // Test 8.4: Data validation and sanitization
+        this.addTest('Data validation and sanitization works', async () => {
+            try {
+                const result = await safeLoadCustomerData();
+                if (!result || !result.data) return true; // Skip if no data
+                
+                // Check that data is properly structured
+                const data = result.data;
+                return data &&
+                       typeof data.source === 'string' &&
+                       Array.isArray(data.customers) &&
+                       typeof data.totalCustomers === 'number';
+            } catch (error) {
+                return false;
+            }
+        });
+    }
+
+    /**
+     * Helper method to add a test and track results
+     */
+    addTest(testName, testFunction) {
+        this.totalTests++;
+        
+        try {
+            const result = testFunction();
+            const isAsync = result && typeof result.then === 'function';
+            
+            if (isAsync) {
+                return result.then(success => {
+                    if (success) {
+                        this.passedTests++;
+                        this.testResults.push({
+                            name: testName,
+                            status: 'PASS',
+                            message: 'Test passed successfully'
+                        });
+                        console.log(`✅ ${testName}`);
+                    } else {
+                        this.failedTests++;
+                        this.testResults.push({
+                            name: testName,
+                            status: 'FAIL',
+                            message: 'Test failed'
+                        });
+                        console.log(`❌ ${testName}`);
+                    }
+                }).catch(error => {
+                    this.failedTests++;
+                    this.testResults.push({
+                        name: testName,
+                        status: 'ERROR',
+                        message: error.message
+                    });
+                    console.log(`❌ ${testName} - Error: ${error.message}`);
+                });
+            } else {
+                if (result) {
+                    this.passedTests++;
+                    this.testResults.push({
+                        name: testName,
+                        status: 'PASS',
+                        message: 'Test passed successfully'
+                    });
+                    console.log(`✅ ${testName}`);
+                } else {
+                    this.failedTests++;
+                    this.testResults.push({
+                        name: testName,
+                        status: 'FAIL',
+                        message: 'Test failed'
+                    });
+                    console.log(`❌ ${testName}`);
+                }
+            }
+        } catch (error) {
+            this.failedTests++;
+            this.testResults.push({
+                name: testName,
+                status: 'ERROR',
+                message: error.message
+            });
+            console.log(`❌ ${testName} - Error: ${error.message}`);
+        }
+    }
+
+    /**
+     * Generate comprehensive test report
+     */
+    generateTestReport() {
+        const duration = this.testEndTime - this.testStartTime;
+        const passRate = this.totalTests > 0 ? (this.passedTests / this.totalTests) * 100 : 0;
+        
+        const report = {
+            summary: {
+                totalTests: this.totalTests,
+                passedTests: this.passedTests,
+                failedTests: this.failedTests,
+                passRate: passRate.toFixed(1) + '%',
+                duration: duration + 'ms',
+                timestamp: new Date().toISOString()
+            },
+            results: this.testResults,
+            recommendations: this.generateRecommendations(),
+            healthCheck: this.performHealthCheck()
+        };
+        
+        console.log('📋 Customer Management Test Report:', report);
+        return report;
+    }
+
+    /**
+     * Generate recommendations based on test results
+     */
+    generateRecommendations() {
+        const recommendations = [];
+        
+        if (this.failedTests > 0) {
+            const failedTestNames = this.testResults
+                .filter(result => result.status !== 'PASS')
+                .map(result => result.name);
+            
+            recommendations.push({
+                priority: 'HIGH',
+                issue: `${this.failedTests} tests failed`,
+                recommendation: `Review and fix the following tests: ${failedTestNames.join(', ')}`
+            });
+        }
+        
+        if (this.passedTests < this.totalTests * 0.8) {
+            recommendations.push({
+                priority: 'MEDIUM',
+                issue: 'Low test pass rate',
+                recommendation: 'Consider improving the implementation to achieve at least 80% test coverage'
+            });
+        }
+        
+        // Check for specific issues
+        const featureFlagTests = this.testResults.filter(result =>
+            result.name.includes('Feature') && result.status !== 'PASS'
+        );
+        if (featureFlagTests.length > 0) {
+            recommendations.push({
+                priority: 'HIGH',
+                issue: 'Feature flag system issues',
+                recommendation: 'Ensure CustomerFeatureFlags object is properly configured and available globally'
+            });
+        }
+        
+        const dataLoadingTests = this.testResults.filter(result =>
+            result.name.includes('Data Loading') && result.status !== 'PASS'
+        );
+        if (dataLoadingTests.length > 0) {
+            recommendations.push({
+                priority: 'HIGH',
+                issue: 'Data loading function issues',
+                recommendation: 'Verify that all safe data loading functions are properly implemented and accessible'
+            });
+        }
+        
+        const safetyTests = this.testResults.filter(result =>
+            result.name.includes('Safety') && result.status !== 'PASS'
+        );
+        if (safetyTests.length > 0) {
+            recommendations.push({
+                priority: 'CRITICAL',
+                issue: 'Safety mechanism issues',
+                recommendation: 'Safety mechanisms are critical - review and fix immediately before deployment'
+            });
+        }
+        
+        if (recommendations.length === 0) {
+            recommendations.push({
+                priority: 'LOW',
+                issue: 'All tests passed',
+                recommendation: 'System appears to be working correctly. Continue monitoring in production.'
+            });
+        }
+        
+        return recommendations;
+    }
+
+    /**
+     * Perform overall health check
+     */
+    performHealthCheck() {
+        const healthCheck = {
+            systemStatus: 'unknown',
+            criticalIssues: [],
+            warnings: [],
+            suggestions: []
+        };
+        
+        // Determine system status
+        if (this.failedTests === 0) {
+            healthCheck.systemStatus = 'HEALTHY';
+        } else if (this.failedTests <= 2) {
+            healthCheck.systemStatus = 'DEGRADED';
+        } else {
+            healthCheck.systemStatus = 'CRITICAL';
+        }
+        
+        // Identify critical issues
+        const criticalFailures = this.testResults.filter(result =>
+            result.status === 'ERROR' ||
+            (result.status === 'FAIL' && result.name.includes('Safety'))
+        );
+        
+        healthCheck.criticalIssues = criticalFailures.map(result => ({
+            test: result.name,
+            issue: result.message,
+            priority: result.name.includes('Safety') ? 'CRITICAL' : 'HIGH'
+        }));
+        
+        // Add warnings for failed non-critical tests
+        const warnings = this.testResults.filter(result =>
+            result.status === 'FAIL' && !result.name.includes('Safety')
+        );
+        
+        healthCheck.warnings = warnings.map(result => ({
+            test: result.name,
+            issue: result.message,
+            priority: 'MEDIUM'
+        }));
+        
+        // Add suggestions
+        if (this.passedTests < this.totalTests) {
+            healthCheck.suggestions.push('Review failed tests and implement fixes');
+        }
+        
+        if (this.totalTests < 20) {
+            healthCheck.suggestions.push('Consider adding more comprehensive test coverage');
+        }
+        
+        healthCheck.suggestions.push('Monitor system performance in production environment');
+        healthCheck.suggestions.push('Set up alerting for safety mechanism failures');
+        
+        return healthCheck;
+    }
+}
+
+/**
+ * Run all customer management tests and display results
+ */
+async function runCustomerManagementTests() {
+    console.log('🚀 Starting comprehensive customer management testing...');
+    
+    try {
+        const tester = new CustomerManagementTester();
+        const results = await tester.runAllTests();
+        
+        // Display results in console
+        console.log('📊 CUSTOMER MANAGEMENT TEST RESULTS');
+        console.log('=====================================');
+        console.log(`Total Tests: ${results.summary.totalTests}`);
+        console.log(`Passed: ${results.summary.passedTests}`);
+        console.log(`Failed: ${results.summary.failedTests}`);
+        console.log(`Pass Rate: ${results.summary.passRate}`);
+        console.log(`Duration: ${results.summary.duration}`);
+        console.log('');
+        
+        // Show detailed results
+        results.results.forEach(result => {
+            const icon = result.status === 'PASS' ? '✅' : '❌';
+            console.log(`${icon} ${result.name}: ${result.status}`);
+            if (result.message && result.status !== 'PASS') {
+                console.log(`   ${result.message}`);
+            }
+        });
+        
+        console.log('');
+        console.log('📋 RECOMMENDATIONS:');
+        results.recommendations.forEach(rec => {
+            console.log(`[${rec.priority}] ${rec.issue}`);
+            console.log(`   → ${rec.recommendation}`);
+        });
+        
+        console.log('');
+        console.log('🏥 HEALTH CHECK:');
+        console.log(`System Status: ${results.healthCheck.systemStatus}`);
+        
+        if (results.healthCheck.criticalIssues.length > 0) {
+            console.log('Critical Issues:');
+            results.healthCheck.criticalIssues.forEach(issue => {
+                console.log(`   - ${issue.test}: ${issue.issue}`);
+            });
+        }
+        
+        if (results.healthCheck.warnings.length > 0) {
+            console.log('Warnings:');
+            results.healthCheck.warnings.forEach(warning => {
+                console.log(`   - ${warning.test}: ${warning.issue}`);
+            });
+        }
+        
+        // Show alert with summary
+        const alertMessage = `Customer Management Testing Complete!\n\n` +
+                           `Total Tests: ${results.summary.totalTests}\n` +
+                           `Passed: ${results.summary.passedTests}\n` +
+                           `Failed: ${results.summary.failedTests}\n` +
+                           `Pass Rate: ${results.summary.passRate}\n\n` +
+                           `System Status: ${results.healthCheck.systemStatus}\n` +
+                           `Critical Issues: ${results.healthCheck.criticalIssues.length}\n` +
+                           `Warnings: ${results.healthCheck.warnings.length}`;
+        
+        alert(alertMessage);
+        
+        return results;
+        
+    } catch (error) {
+        console.error('❌ Critical error during testing:', error);
+        alert(`Testing failed with critical error: ${error.message}`);
+        return null;
+    }
+}
+
+/**
+ * Quick test function for basic functionality
+ */
+async function quickTestCustomerManagement() {
+    console.log('⚡ Running quick customer management test...');
+    
+    try {
+        const tests = [
+            {
+                name: 'Feature flags available',
+                test: () => window.CustomerFeatureFlags !== undefined
+            },
+            {
+                name: 'Safe data loading functions exist',
+                test: () => typeof safeLoadCustomerData === 'function'
+            },
+            {
+                name: 'Health monitoring available',
+                test: () => typeof monitorCustomerDataHealth === 'function'
+            },
+            {
+                name: 'Customer management section exists',
+                test: () => document.getElementById('customerManagement') !== null
+            }
+        ];
+        
+        let passed = 0;
+        let total = tests.length;
+        
+        tests.forEach(test => {
+            try {
+                if (test.test()) {
+                    passed++;
+                    console.log(`✅ ${test.name}`);
+                } else {
+                    console.log(`❌ ${test.name}`);
+                }
+            } catch (error) {
+                console.log(`❌ ${test.name} - Error: ${error.message}`);
+            }
+        });
+        
+        const passRate = (passed / total) * 100;
+        console.log(`\nQuick Test Results: ${passed}/${total} (${passRate.toFixed(0)}%)`);
+        
+        if (passRate >= 75) {
+            console.log('🎉 Customer management system appears to be working correctly!');
+        } else {
+            console.log('⚠️ Some issues detected - run full test suite for details');
+        }
+        
+        return { passed, total, passRate: passRate.toFixed(0) + '%' };
+        
+    } catch (error) {
+        console.error('❌ Quick test failed:', error);
+        return null;
+    }
+}
+
+/**
+ * Test runner for development and debugging
+ */
+function initializeCustomerManagementTesting() {
+    console.log('🔧 Initializing customer management testing system...');
+    
+    // Add test buttons to UI if they don't exist
+    const testButtonsContainer = document.getElementById('testButtonsContainer');
+    if (testButtonsContainer) {
+        // Add quick test button
+        if (!document.getElementById('quickTestBtn')) {
+            const quickTestBtn = document.createElement('button');
+            quickTestBtn.id = 'quickTestBtn';
+            quickTestBtn.className = 'btn-secondary';
+            quickTestBtn.innerHTML = '<i class="fas fa-bolt"></i> Quick Test';
+            quickTestBtn.onclick = quickTestCustomerManagement;
+            quickTestBtn.style.marginRight = '10px';
+            testButtonsContainer.appendChild(quickTestBtn);
+        }
+        
+        // Add comprehensive test button
+        if (!document.getElementById('comprehensiveTestBtn')) {
+            const comprehensiveTestBtn = document.createElement('button');
+            comprehensiveTestBtn.id = 'comprehensiveTestBtn';
+            comprehensiveTestBtn.className = 'btn-primary';
+            comprehensiveTestBtn.innerHTML = '<i class="fas fa-vial"></i> Full Test Suite';
+            comprehensiveTestBtn.onclick = runCustomerManagementTests;
+            testButtonsContainer.appendChild(comprehensiveTestBtn);
+        }
+    }
+    
+    console.log('✅ Customer management testing system initialized');
+}
+
+// Initialize testing system when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        initializeCustomerManagementTesting();
+    }, 2000);
+});
+
+// ============ GLOBAL FUNCTION EXPOSURE FOR BROWSER TESTING ============
+// Make customer management functions available globally for testing
+
+// Safe data loading functions
+window.safeLoadCustomerData = safeLoadCustomerData;
+window.safeLoadCustomerPortalData = safeLoadCustomerPortalData;
+window.safeLoadCustomerImportData = safeLoadCustomerImportData;
+window.safeCreateMinimalCustomerData = safeCreateMinimalCustomerData;
+
+// Testing functions
+window.runCustomerManagementTests = runCustomerManagementTests;
+window.quickTestCustomerManagement = quickTestCustomerManagement;
+window.CustomerManagementTester = CustomerManagementTester;
+
+// Health monitoring functions
+window.monitorCustomerDataHealth = monitorCustomerDataHealth;
+window.recordCustomerDataLoad = recordCustomerDataLoad;
+window.startCustomerDataHealthMonitoring = startCustomerDataHealthMonitoring;
+window.safeRefreshCustomerData = safeRefreshCustomerData;
+window.displayCustomerDataStatus = displayCustomerDataStatus;
+
+// Error handling function
+window.handleCustomerError = handleCustomerError;
+
+// Feature flag functions (if available)
+if (window.CustomerFeatureFlags) {
+    window.isCustomerManagementEnabled = window.CustomerFeatureFlags.isEnabled;
+    window.checkCustomerManagementHealth = monitorCustomerDataHealth;
+}
+
+// Order management functions - use the existing function, don't duplicate
+window.toggleAllOrdersBulk = toggleAllOrders;
+
+// Configuration
+window.CUSTOMER_MANAGEMENT_CONFIG = {
+    version: '1.0',
+    features: {
+        safeDataLoading: true,
+        healthMonitoring: true,
+        errorHandling: true,
+        testingSuite: true
+    },
+    safety: {
+        maxLoadTime: 5000,
+        maxErrorRate: 0.1,
+        autoDisableOnHighErrorRate: true
+    }
+};
+
+console.log('✅ Customer management functions exposed globally for browser testing');

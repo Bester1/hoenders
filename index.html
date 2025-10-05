@@ -26,6 +26,7 @@
             <ul class="nav-menu">
                 <li><a href="#dashboard" class="nav-link active"><i class="fas fa-chart-line"></i> Dashboard</a></li>
                 <li><a href="#analytics" class="nav-link"><i class="fas fa-chart-bar"></i> Business Intelligence</a></li>
+                <li><a href="#customers" class="nav-link"><i class="fas fa-users"></i> Customer Management</a></li>
                 <li><a href="#orders" class="nav-link"><i class="fas fa-shopping-cart"></i> Orders</a></li>
                 <li><a href="#invoices" class="nav-link"><i class="fas fa-file-invoice"></i> Invoices</a></li>
                 <li><a href="#emails" class="nav-link"><i class="fas fa-envelope"></i> Email Center</a></li>
@@ -234,6 +235,138 @@
                                 <!-- Dynamic profit breakdown table -->
                             </div>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Customer Management Section -->
+            <section id="customers" class="content-section">
+                <div class="section-header">
+                    <h2>👥 Customer Management</h2>
+                    <div class="header-actions">
+                        <div class="feature-status" id="customerFeatureStatus">
+                            <span class="status-indicator" id="customerStatusIndicator"></span>
+                            <span class="status-text" id="customerStatusText">Loading...</span>
+                        </div>
+                        <button class="btn-primary" onclick="refreshCustomerData()" id="refreshCustomerDataBtn">
+                            <i class="fas fa-sync"></i> Refresh Data
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Customer Feature Status Message -->
+                <div id="customerFeatureMessage" class="feature-message" style="display: none;">
+                    <div class="message-content">
+                        <i class="fas fa-info-circle"></i>
+                        <span id="customerFeatureMessageText"></span>
+                    </div>
+                </div>
+
+                <!-- Customer Data Loading Status -->
+                <div id="customerDataStatus" class="data-status-card" style="display: none;">
+                    <div class="status-header">
+                        <h3><i class="fas fa-database"></i> Customer Data Status</h3>
+                    </div>
+                    <div class="status-content">
+                        <div class="status-item">
+                            <span class="status-label">Portal Database:</span>
+                            <span class="status-value" id="portalDataStatus">Not loaded</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Import Records:</span>
+                            <span class="status-value" id="importDataStatus">Not loaded</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Total Customers:</span>
+                            <span class="status-value" id="totalCustomerCount">0</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Last Updated:</span>
+                            <span class="status-value" id="lastCustomerUpdate">Never</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Customer Management Grid -->
+                <div class="customer-management-grid" id="customerManagementGrid" style="display: none;">
+                    <!-- Customer Search and Filter -->
+                    <div class="customer-search-card">
+                        <h3><i class="fas fa-search"></i> Find Customer</h3>
+                        <div class="search-controls">
+                            <input type="text" id="customerSearchInput" placeholder="Search by name, email, or phone..." onkeyup="searchCustomers()">
+                            <select id="customerFilterSelect" onchange="filterCustomers()">
+                                <option value="all">All Customers</option>
+                                <option value="active">Active Customers</option>
+                                <option value="inactive">Inactive Customers</option>
+                                <option value="portal">Portal Customers</option>
+                                <option value="import">Import Customers</option>
+                            </select>
+                        </div>
+                        <div class="search-results" id="customerSearchResults">
+                            <p class="no-results">Start typing to search customers...</p>
+                        </div>
+                    </div>
+
+                    <!-- Customer Details Card -->
+                    <div class="customer-details-card" id="customerDetailsCard" style="display: none;">
+                        <h3><i class="fas fa-user"></i> Customer Details</h3>
+                        <div class="customer-info" id="customerInfo">
+                            <!-- Customer details will be populated here -->
+                        </div>
+                        <div class="customer-actions">
+                            <button class="btn-primary" onclick="editCustomer()">
+                                <i class="fas fa-edit"></i> Edit Customer
+                            </button>
+                            <button class="btn-secondary" onclick="viewCustomerOrders()">
+                                <i class="fas fa-history"></i> View Order History
+                            </button>
+                            <button class="btn-secondary" onclick="contactCustomer()">
+                                <i class="fas fa-envelope"></i> Contact Customer
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Customer Statistics -->
+                    <div class="customer-stats-card">
+                        <h3><i class="fas fa-chart-bar"></i> Customer Statistics</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Customers</div>
+                                <div class="stat-value" id="statTotalCustomers">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Active Customers</div>
+                                <div class="stat-value" id="statActiveCustomers">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Portal Customers</div>
+                                <div class="stat-value" id="statPortalCustomers">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Import Customers</div>
+                                <div class="stat-value" id="statImportCustomers">0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Customers -->
+                    <div class="recent-customers-card">
+                        <h3><i class="fas fa-clock"></i> Recent Customers</h3>
+                        <div class="recent-customers-list" id="recentCustomersList">
+                            <p class="no-data">No recent customers</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fallback to Analytics Section -->
+                <div id="customerFallbackSection" class="fallback-section">
+                    <div class="fallback-message">
+                        <i class="fas fa-shield-alt"></i>
+                        <h3>Customer Management Temporarily Unavailable</h3>
+                        <p>We're experiencing technical difficulties with the customer management system. Please use the Business Intelligence section below for customer analytics.</p>
+                        <button class="btn-primary" onclick="showSection('analytics')">
+                            <i class="fas fa-chart-bar"></i> Go to Business Intelligence
+                        </button>
                     </div>
                 </div>
             </section>
@@ -854,9 +987,12 @@ Savings/Spaar rek</textarea>
     <link rel="stylesheet" href="shared-styles.css">
     
     <!-- Security and Environment Configuration -->
-    <script src="env-config.js"></script>
-    <script src="config.js"></script>
+    <script src="env-config-dev.js"></script>
     <script src="security-utils.js"></script>
+    <script src="secure-config.js"></script>
+    <script src="secure-dom.js"></script>
+    <script src="secure-storage.js"></script>
+    <script src="config.js"></script>
     <script src="error-handler.js"></script>
     
     <!-- Configuration now embedded directly in script.js for GitHub Pages -->

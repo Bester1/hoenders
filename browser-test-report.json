@@ -1,0 +1,21 @@
+{
+  "passed": 0,
+  "failed": 3,
+  "errors": [
+    "Page title or customer section not found",
+    "Error handling: Only 0/3 tests passed",
+    "UI integration error: Cannot convert undefined or null to object"
+  ],
+  "browserTests": {
+    "basicLoading": false,
+    "customerDataLoading": "not-found",
+    "comprehensiveTesting": "not-found",
+    "errorHandling": false,
+    "uiIntegration": false
+  },
+  "performance": {
+    "totalTestTime": 8343,
+    "testsPerSecond": 0.35958288385472853
+  },
+  "warnings": 2
+}
