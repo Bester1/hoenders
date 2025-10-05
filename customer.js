@@ -192,6 +192,40 @@ async function initializeSecureConnection() {
             if (event === 'INITIAL_SESSION' && session) {
                 console.log('✅ Initial session restored from storage:', session.user?.email);
             }
+
+            // CRITICAL: Log when session is lost
+            if (event === 'SIGNED_OUT') {
+                console.warn('🚨 Session was signed out - checking localStorage...');
+                console.log('📦 plaas-hoenders-auth in localStorage:', 'plaas-hoenders-auth' in localStorage);
+                if ('plaas-hoenders-auth' in localStorage) {
+                    console.warn('⚠️ WARNING: Session cleared but localStorage still has auth data');
+                }
+            }
+
+            // Monitor TOKEN_REFRESHED events
+            if (event === 'TOKEN_REFRESHED') {
+                console.log('🔄 Token was refreshed, checking localStorage...');
+                console.log('📦 Session stored in localStorage:', 'plaas-hoenders-auth' in localStorage);
+            }
+        });
+
+        // Add browser storage event listeners to detect localStorage changes
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'plaas-hoenders-auth') {
+                if (e.newValue === null) {
+                    console.warn('🚨 localStorage plaas-hoenders-auth was cleared by another tab/window');
+                } else if (e.oldValue === null && e.newValue !== null) {
+                    console.log('✅ localStorage plaas-hoenders-auth was created/set');
+                } else {
+                    console.log('🔄 localStorage plaas-hoenders-auth was updated');
+                }
+            }
+        });
+
+        // Add beforeunload listener to check session on page close
+        window.addEventListener('beforeunload', () => {
+            const hasSession = localStorage.getItem('plaas-hoenders-auth');
+            console.log('🔍 Page unloading - session in localStorage:', !!hasSession);
         });
 
         // Debug: Test if storage is working immediately after initialization
@@ -499,6 +533,39 @@ async function initializeCustomerPortal() {
         if (!session?.session && storedAuth) {
             console.log('🚨 No session found but stored auth exists - attempting forced restoration...');
             try {
+                const parsedAuth = JSON.parse(storedAuth);
+                console.log('📊 Attempting to restore session manually:', {
+                    hasAccessToken: !!parsedAuth.access_token,
+                    expiresAt: parsedAuth.expires_at,
+                    currentTime: Math.floor(Date.now() / 1000),
+                    isExpired: parsedAuth.expires_at ? parsedAuth.expires_at < Math.floor(Date.now() / 1000) : 'unknown'
+                });
+
+                // Check if the stored session is still valid
+                const now = Math.floor(Date.now() / 1000);
+                if (parsedAuth.expires_at && parsedAuth.expires_at > now) {
+                    console.log('✅ Stored session is valid, manually setting session...');
+
+                    // Try to manually restore the session using setSession
+                    const { data: manualSession, error: setSessionError } = await supabaseClient.auth.setSession({
+                        access_token: parsedAuth.access_token,
+                        refresh_token: parsedAuth.refresh_token
+                    });
+
+                    if (setSessionError) {
+                        console.error('❌ Manual session restore failed:', setSessionError);
+                        console.warn('⚠️ Clearing invalid stored session...');
+                        localStorage.removeItem('plaas-hoenders-auth');
+                    } else {
+                        console.log('✅ Manual session restore successful:', manualSession.user?.email);
+                        // Update the session variable for the rest of the code
+                        session = { session: manualSession };
+                    }
+                } else {
+                    console.warn('⚠️ Stored session expired, cleaning up...');
+                    localStorage.removeItem('plaas-hoenders-auth');
+                }
+
                 // Wait a moment for the auth state change listener to process
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -519,6 +586,8 @@ async function initializeCustomerPortal() {
                 }
             } catch (retryError) {
                 console.error('❌ Session restoration error:', retryError);
+                console.warn('⚠️ Clearing invalid stored session...');
+                localStorage.removeItem('plaas-hoenders-auth');
             }
         }
 
