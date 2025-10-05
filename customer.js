@@ -2906,7 +2906,7 @@ async function saveOrderToDatabase(orderData) {
                 await new Promise(resolve => setTimeout(resolve, delay));
                 
                 // Create fresh client instance for retry to prevent connection accumulation
-                const retryClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                const retryClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
                 
                 // Recreate the timeout promise for the retry
                 insertWithTimeout = new Promise((resolve, reject) => {
@@ -2946,7 +2946,7 @@ async function saveOrderToDatabase(orderData) {
             console.log('🔍 First order item sample:', JSON.stringify(orderItems[0], null, 2));
             
             // Create fresh client instance for order items to prevent connection accumulation
-            const itemsClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            const itemsClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
             
             // Insert with .select() and timeout to force data return even with RLS
             const itemsInsertWithTimeout = new Promise((resolve, reject) => {
