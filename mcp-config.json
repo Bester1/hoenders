@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "http",
+      "args": ["https://mcp.supabase.com/mcp?project=ukdmlzuxgnjucwidsygj&readOnly=true"]
+    }
+  }
+}
