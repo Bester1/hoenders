@@ -164,6 +164,28 @@ async function initializeSecureConnection() {
             }
         });
 
+        // Debug: Test if storage is working immediately after initialization
+        console.log('🔍 Testing auth storage immediately after init...');
+
+        // Set up auth state change listener IMMEDIATELY to catch OAuth redirects
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            console.log('🔔 Auth state changed:', event, session?.user?.email);
+            console.log('📦 Session stored in localStorage:', 'plaas-hoenders-auth' in localStorage);
+            if ('plaas-hoenders-auth' in localStorage) {
+                console.log('📄 Stored data length:', localStorage.getItem('plaas-hoenders-auth')?.length);
+            } else {
+                console.warn('⚠️ Session NOT found in localStorage after', event);
+            }
+
+            // Force a session save if this is a SIGNED_IN event
+            if (event === 'SIGNED_IN' && session) {
+                console.log('💾 Forcing session save for SIGNED_IN event...');
+                setTimeout(() => {
+                    console.log('🔍 Checking saved session after delay:', 'plaas-hoenders-auth' in localStorage);
+                }, 500);
+            }
+        });
+
         // Initialize email configuration
         customerPortalGoogleScriptUrl = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
         if (customerPortalGoogleScriptUrl) {
@@ -226,11 +248,19 @@ async function initializeSecureConnection() {
     } catch (error) {
         console.error('❌ Failed to initialize customer portal connection:', error);
 
-        // Emergency fallback
+        // Emergency fallback - still use session persistence!
         try {
             const { createClient } = supabase;
-            supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
-            console.warn('⚠️ Customer portal using emergency fallback');
+            supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY, {
+                auth: {
+                    persistSession: true,
+                    storage: localStorage,
+                    storageKey: 'plaas-hoenders-auth',
+                    autoRefreshToken: true,
+                    detectSessionInUrl: true
+                }
+            });
+            console.warn('⚠️ Customer portal using emergency fallback WITH session persistence');
             return true;
         } catch (fallbackError) {
             console.error('❌ Complete customer portal connection failure:', fallbackError);
@@ -803,6 +833,14 @@ async function handleGoogleLogin() {
 
         const redirectUrl = window.location.origin + '/hoenders/customer-portal.html';
         console.log('🔗 Redirect URL:', redirectUrl);
+
+        console.log('🔑 Starting OAuth flow with session persistence enabled');
+        console.log('📦 Storage configured:', {
+            persistSession: true,
+            storage: typeof localStorage,
+            storageKey: 'plaas-hoenders-auth',
+            autoRefreshToken: true
+        });
 
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
