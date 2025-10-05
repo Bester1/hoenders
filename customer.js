@@ -455,6 +455,19 @@ async function initializeCustomerPortal() {
             preview: storedAuth ? storedAuth.substring(0, 100) + '...' : null
         });
 
+        // Check if user is already authenticated
+        const { data: session } = await supabaseClient.auth.getSession();
+
+        // Debug: Check session persistence
+        console.log('🔍 Session check:', {
+            hasSession: !!session?.session,
+            userId: session?.session?.user?.id,
+            email: session?.session?.user?.email,
+            expiresAt: session?.session?.expires_at,
+            currentTime: new Date().toISOString(),
+            expiresIn: session?.session?.expires_at ? new Date(session.session.expires_at * 1000).toISOString() : 'N/A'
+        });
+
         // If we have stored auth data but no session, try to restore it manually
         if (storedAuth && !session?.session) {
             console.log('🔄 Found stored auth but no active session - attempting manual restore...');
@@ -481,19 +494,6 @@ async function initializeCustomerPortal() {
                 localStorage.removeItem('plaas-hoenders-auth');
             }
         }
-
-        // Check if user is already authenticated
-        const { data: session } = await supabaseClient.auth.getSession();
-
-        // Debug: Check session persistence
-        console.log('🔍 Session check:', {
-            hasSession: !!session?.session,
-            userId: session?.session?.user?.id,
-            email: session?.session?.user?.email,
-            expiresAt: session?.session?.expires_at,
-            currentTime: new Date().toISOString(),
-            expiresIn: session?.session?.expires_at ? new Date(session.session.expires_at * 1000).toISOString() : 'N/A'
-        });
 
         // CRITICAL: If no session found but we have stored auth data, force restoration
         if (!session?.session && storedAuth) {
