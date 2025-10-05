@@ -275,6 +275,11 @@ async function handleAuthCallback() {
         console.log('DEBUG: Refresh token found:', !!refreshToken);
         console.log('DEBUG: Type:', type);
 
+        // If we have tokens, show loading state immediately to prevent login screen flicker
+        if (accessToken && refreshToken) {
+            showLoadingSpinner(true, 'Processing login...');
+        }
+
         // Check for error parameters (expired links, etc.)
         const error = hashParams.get('error');
         const errorCode = hashParams.get('error_code');
@@ -469,17 +474,27 @@ async function initializeCustomerPortal() {
         // Listen for auth state changes
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
             console.info('Auth state changed:', event);
-            
+
             if (event === 'SIGNED_IN' && session) {
+                // Show loading state immediately to prevent login screen flicker
+                showLoadingSpinner(true, 'Logging you in...');
+
                 customerSession = session;
                 await loadCustomerProfile();
-                
+
                 // Process any pending profile updates when back online
                 if (typeof processPendingProfileUpdates === 'function') {
                     await processPendingProfileUpdates();
                 }
-                
+
+                // Clear any auth tokens from URL after successful login
+                if (window.location.hash.includes('access_token')) {
+                    console.log('🧹 Clearing auth tokens from URL after successful login');
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+
                 showCustomerPortal();
+                showLoadingSpinner(false);
             } else if (event === 'SIGNED_OUT') {
                 customerSession = null;
                 currentCustomer = null;
@@ -2589,8 +2604,8 @@ async function sendOrderConfirmationEmail(orderId, orderData) {
 
         console.log(`📧 Sending confirmation email to: ${orderData.customer.email}`);
 
-        // Generate order summary
-        const orderSummary = generateOrderSummary(orderData.items);
+        // Generate order summary using actual order data
+        const orderSummary = generateOrderSummaryFromActualData(orderData.items);
         const orderTotal = calculateOrderTotal(orderData.items);
 
         // Create confirmation email content
@@ -2644,6 +2659,55 @@ async function sendOrderConfirmationEmail(orderId, orderData) {
 
         return false;
     }
+}
+
+/**
+ * Generate order summary HTML for email using actual order data (with real weights and prices)
+ * @function generateOrderSummaryFromActualData
+ * @param {Object} items - Cart items object with actual weights and prices
+ * @returns {string} HTML formatted order summary
+ */
+function generateOrderSummaryFromActualData(items) {
+    if (!items || Object.keys(items).length === 0) {
+        return '<p>Geen items in bestelling nie.</p>';
+    }
+
+    let summaryHTML = '<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">';
+    summaryHTML += '<tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">';
+    summaryHTML += '<th style="padding: 12px; text-align: left; font-weight: bold;">Produk</th>';
+    summaryHTML += '<th style="padding: 12px; text-align: center; font-weight: bold;">Hoeveelheid</th>';
+    summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Prys per kg</th>';
+    summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Subtotaal</th>';
+    summaryHTML += '</tr>';
+
+    let totalAmount = 0;
+
+    Object.entries(items).forEach(([productKey, item]) => {
+        const quantity = item.quantity || 0;
+        const weight = item.weight || 0;  // Actual weight from order
+        const unitPrice = item.unitPrice || 0;  // Actual price from order
+        const lineTotal = item.lineTotal || (weight * unitPrice);
+        const productName = item.productName || productKey;
+
+        if (quantity > 0) {
+            totalAmount += lineTotal;
+
+            summaryHTML += '<tr style="border-bottom: 1px solid #eee;">';
+            summaryHTML += `<td style="padding: 10px; font-weight: 500;">${productName}</td>`;
+            summaryHTML += `<td style="padding: 10px; text-align: center;">${quantity} × ${weight.toFixed(2)}kg</td>`;
+            summaryHTML += `<td style="padding: 10px; text-align: right;">R${unitPrice.toFixed(2)}/kg</td>`;
+            summaryHTML += `<td style="padding: 10px; text-align: right; font-weight: 500;">R${lineTotal.toFixed(2)}</td>`;
+            summaryHTML += '</tr>';
+        }
+    });
+
+    summaryHTML += '<tr style="background-color: #f9f9f9; border-top: 2px solid #ddd; font-weight: bold;">';
+    summaryHTML += '<td colspan="3" style="padding: 12px; text-align: right;">TOTAAL:</td>';
+    summaryHTML += `<td style="padding: 12px; text-align: right; font-size: 1.1em; color: #e67e22;">R${totalAmount.toFixed(2)}</td>`;
+    summaryHTML += '</tr>';
+
+    summaryHTML += '</table>';
+    return summaryHTML;
 }
 
 /**
