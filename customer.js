@@ -14,11 +14,11 @@ const FALLBACK_CONFIG = {
 };
 
 // Email configuration for order confirmations
-let GOOGLE_SCRIPT_URL = null;
+let customerPortalGoogleScriptUrl = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
 
 // Google Apps Script Email Function for customer portal
 async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
-    if (!GOOGLE_SCRIPT_URL) {
+    if (!customerPortalGoogleScriptUrl) {
         console.warn('⚠️ Google Apps Script URL not configured');
         return false;
     }
@@ -36,7 +36,7 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
             formData.append('attachments', JSON.stringify(attachments));
         }
 
-        const response = await fetch(GOOGLE_SCRIPT_URL, {
+        const response = await fetch(customerPortalGoogleScriptUrl, {
             method: 'POST',
             body: formData
         });
@@ -77,8 +77,8 @@ async function initializeSecureConnection() {
                     supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
                     // Initialize email configuration
-                    GOOGLE_SCRIPT_URL = SecureConfig.get('GOOGLE_SCRIPT_URL');
-                    if (GOOGLE_SCRIPT_URL) {
+                    customerPortalGoogleScriptUrl = SecureConfig.get('GOOGLE_SCRIPT_URL');
+                    if (customerPortalGoogleScriptUrl) {
                         console.log('✅ Email configuration initialized');
                     } else {
                         console.warn('⚠️ Email configuration not found');
@@ -98,8 +98,8 @@ async function initializeSecureConnection() {
         supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
 
         // Initialize email configuration with fallback
-        GOOGLE_SCRIPT_URL = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
-        if (GOOGLE_SCRIPT_URL) {
+        customerPortalGoogleScriptUrl = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
+        if (customerPortalGoogleScriptUrl) {
             console.log('✅ Email configuration initialized (fallback)');
         } else {
             console.warn('⚠️ Email configuration not found (fallback)');
