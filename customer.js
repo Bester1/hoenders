@@ -43,45 +43,83 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
             }
         });
 
-        // Try fetch with no-cors mode first
+        // Create a simple form submission that will work
         try {
-            const response = await fetch(url.toString(), {
-                method: 'GET',
-                mode: 'no-cors'
-            });
+            // Create an iframe to submit the form without leaving the page
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.name = 'emailIframe';
+            document.body.appendChild(iframe);
 
-            // With no-cors, we can't read the response, but assume success if no error
-            console.log('✅ Email sent via Google Apps Script (no-cors mode)');
-            return true;
-        } catch (corsError) {
-            // Fallback to POST with FormData
-            console.log('🔄 Trying fallback POST method...');
-            const formData = new FormData();
-            formData.append('to', to);
-            formData.append('subject', subject);
-            formData.append('body', body);
-            formData.append('fromName', 'Plaas Hoenders');
+            // Create a form
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = customerPortalGoogleScriptUrl;
+            form.target = 'emailIframe';
+
+            // Add form fields
+            const fields = {
+                'to': to,
+                'subject': subject,
+                'body': body,
+                'fromName': 'Plaas Hoenders'
+            };
+
             if (attachments && attachments.length > 0) {
-                formData.append('attachments', JSON.stringify(attachments));
+                fields['attachments'] = JSON.stringify(attachments);
             }
 
-            const response = await fetch(customerPortalGoogleScriptUrl, {
-                method: 'POST',
-                body: formData,
-                mode: 'cors'
+            Object.entries(fields).forEach(([key, value]) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
+            // Submit the form
+            document.body.appendChild(form);
+            form.submit();
 
-            const result = await response.json();
+            // Clean up after submission
+            setTimeout(() => {
+                document.body.removeChild(form);
+                document.body.removeChild(iframe);
+            }, 5000);
 
-            if (result.status === 'success') {
-                console.log('✅ Email sent successfully via Google Apps Script');
+            console.log('✅ Email submitted via form POST (bypasses CORS)');
+            return true;
+
+        } catch (formError) {
+            console.error('❌ Form submission failed:', formError);
+
+            // Final fallback: Try GET method (will show Google Script page)
+            try {
+                const params = new URLSearchParams({
+                    'to': to,
+                    'subject': subject,
+                    'body': body,
+                    'fromName': 'Plaas Hoenders'
+                });
+
+                if (attachments && attachments.length > 0) {
+                    params.append('attachments', JSON.stringify(attachments));
+                }
+
+                const popup = window.open(`${customerPortalGoogleScriptUrl}?${params.toString()}`, 'emailWindow', 'width=600,height=400');
+
+                // Close popup after 5 seconds
+                setTimeout(() => {
+                    if (popup && !popup.closed) {
+                        popup.close();
+                    }
+                }, 5000);
+
+                console.log('✅ Email sent via popup (last resort)');
                 return true;
-            } else {
-                console.error('❌ Email failed:', result.message);
+
+            } catch (popupError) {
+                console.error('❌ All email methods failed:', popupError);
                 return false;
             }
         }

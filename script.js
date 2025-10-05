@@ -286,45 +286,82 @@ async function initializeDatabase() {
         console.log('🔧 Debug - Supabase URL:', supabaseClient.supabaseUrl);
         console.log('🔧 Debug - Client state:', !!supabaseClient);
 
+        // Test basic connectivity first
+        const basicConnectivity = await testBasicConnectivity();
+        if (!basicConnectivity) {
+            addActivity('Basic internet connectivity failed - check network connection', 'error');
+            return;
+        }
+
         // Test the connection with a simpler query first
         console.log('🔍 Testing database connection...');
-        const { error, count } = await supabaseClient
-            .from('imports')
-            .select('*', { count: 'exact', head: true });
 
-        console.log('📊 Connection test result:', { error, count });
+        // First test with a very simple health check
+        try {
+            const { error, count } = await supabaseClient
+                .from('imports')
+                .select('*', { count: 'exact', head: true });
 
-        if (error) {
+            console.log('📊 Connection test result:', { error, count });
+
+            if (error) {
+                throw error;
+            } else {
+                console.log('✅ Supabase connected successfully');
+                addActivity('Connected to Supabase database', 'success');
+
+                // Ensure database schema is up to date
+                await updateDatabaseSchema();
+
+                // Try to migrate existing localStorage data
+                await migrateToDatabase();
+            }
+        } catch (connectionError) {
             console.error('❌ Database connection error details:', {
-                message: error.message,
-                code: error.code,
-                details: error.details,
-                hint: error.hint
+                message: connectionError.message,
+                code: connectionError.code,
+                details: connectionError.details,
+                hint: connectionError.hint,
+                stack: connectionError.stack
             });
 
-            if (error.code === '42P01') {
+            // Try a simpler connection test to identify the specific issue
+            try {
+                console.log('🔄 Testing basic connectivity...');
+                const healthCheck = await supabaseClient.rpc('version');
+                console.log('✅ Basic connectivity works, issue might be table-specific');
+            } catch (healthError) {
+                console.error('❌ Basic connectivity failed:', healthError.message);
+
+                if (healthError.message.includes('Failed to fetch') || healthError.message.includes('NetworkError')) {
+                    addActivity('Network connectivity issue - possible CORS or firewall problem', 'error');
+                    console.log('💡 Possible solutions:');
+                    console.log('   1. Check if browser extensions are blocking requests');
+                    console.log('   2. Try a different browser');
+                    console.log('   3. Check if VPN/firewall is blocking Supabase');
+                    console.log('   4. Try loading from a different network');
+                } else if (healthError.message.includes('Invalid API key') || healthError.message.includes('JWT')) {
+                    addActivity('Database API key invalid - configuration error', 'error');
+                } else {
+                    addActivity(`Database connection failed: ${healthError.message}`, 'error');
+                }
+                return;
+            }
+
+            // If basic connectivity works but table query fails
+            if (connectionError.code === '42P01') {
                 // Tables don't exist, show setup message
                 console.log('⚠️ Database tables need to be created.');
                 addActivity('Database tables missing - setup required', 'warning');
                 showDatabaseSetupModal();
-            } else if (error.message.includes('Invalid API key') || error.message.includes('JWT')) {
+            } else if (connectionError.message.includes('Invalid API key') || connectionError.message.includes('JWT')) {
                 console.error('❌ API key issue detected');
                 addActivity('Database API key invalid - check configuration', 'error');
-            } else if (error.message.includes('network') || error.message.includes('fetch')) {
-                console.error('❌ Network connectivity issue');
-                addActivity('Network error - check internet connection', 'error');
+            } else if (connectionError.message.includes('permission') || connectionError.message.includes('authorization')) {
+                addActivity('Database permission error - check RLS policies', 'error');
             } else {
-                addActivity(`Database connection failed: ${error.message}`, 'error');
+                addActivity(`Database connection failed: ${connectionError.message}`, 'error');
             }
-        } else {
-            console.log('✅ Supabase connected successfully');
-            addActivity('Connected to Supabase database', 'success');
-
-            // Ensure database schema is up to date
-            await updateDatabaseSchema();
-
-            // Try to migrate existing localStorage data
-            await migrateToDatabase();
         }
     } catch (error) {
         console.error('❌ Database initialization error:', {
@@ -333,6 +370,33 @@ async function initializeDatabase() {
             name: error.name
         });
         addActivity(`Database initialization failed: ${error.message}`, 'error');
+    }
+}
+
+// Simple connectivity test function
+async function testBasicConnectivity() {
+    try {
+        console.log('🔍 Testing basic internet connectivity...');
+
+        // Test a simple GET request to Supabase REST API
+        const response = await fetch('https://ukdmlzuxgnjucwidsygj.supabase.co/rest/v1/', {
+            method: 'GET',
+            headers: {
+                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            console.log('✅ Basic internet connectivity working');
+            return true;
+        } else {
+            console.error('❌ Basic connectivity failed with status:', response.status);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Basic connectivity error:', error.message);
+        return false;
     }
 }
 
