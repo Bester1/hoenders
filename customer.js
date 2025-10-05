@@ -2964,7 +2964,7 @@ async function saveOrderToDatabase(orderData) {
             console.log('🔍 First order item sample:', JSON.stringify(orderItems[0], null, 2));
             
             // Create fresh client instance for order items to prevent connection accumulation
-            const itemsClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+            const itemsClient = supabase.createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
             
             // Insert with .select() and timeout to force data return even with RLS
             const itemsInsertWithTimeout = new Promise((resolve, reject) => {
