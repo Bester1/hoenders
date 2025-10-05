@@ -455,8 +455,18 @@ async function initializeCustomerPortal() {
             hasUser: !!currentUser?.user,
             userId: currentUser?.user?.id,
             userEmail: currentUser?.user?.email,
-            userError: userError?.message
+            userError: userError?.message,
+            userErrorStatus: userError?.status
         });
+
+        // Debug: Check if we have a valid JWT token
+        const currentSession = await supabaseClient.auth.getSession();
+        if (currentSession?.data?.session?.access_token) {
+            console.log('🔑 JWT token present:', currentSession.data.session.access_token.substring(0, 20) + '...');
+            console.log('📅 Token expires at:', new Date(currentSession.data.session.expires_at * 1000).toISOString());
+        } else {
+            console.warn('⚠️ No JWT token found in session');
+        }
 
         if (session?.session) {
             customerSession = session.session;
