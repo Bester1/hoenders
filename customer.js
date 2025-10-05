@@ -213,7 +213,17 @@ async function handleAuthCallback() {
 
         if (accessToken && refreshToken) {
             console.info('Processing auth callback:', type);
-            
+
+            // Check if we already have a valid session before processing OAuth tokens
+            const { data: existingSession } = await supabaseClient.auth.getSession();
+
+            if (existingSession?.session && existingSession.session.user.email) {
+                console.log('✅ User already has valid session, ignoring OAuth callback');
+                // Clear tokens from URL and continue with existing session
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return;
+            }
+
             // Set the session with the tokens from the URL
             const { data, error } = await supabaseClient.auth.setSession({
                 access_token: accessToken,
@@ -287,6 +297,13 @@ async function initializeCustomerPortal() {
         if (session?.session) {
             customerSession = session.session;
             console.log('✅ Found existing session, user stays logged in');
+
+            // Clear any auth tokens from URL to prevent callback processing
+            if (window.location.hash.includes('access_token')) {
+                console.log('🧹 Clearing auth tokens from URL - user already logged in');
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
             await loadCustomerProfile();
             showCustomerPortal();
         } else {
@@ -649,7 +666,8 @@ async function handleGoogleLogin() {
                 redirectTo: redirectUrl,
                 queryParams: {
                     access_type: 'offline',
-                    prompt: 'consent',
+                    // Remove 'prompt: consent' to allow persistent login
+                    // Only prompt on first login or when needed
                 }
             }
         });
