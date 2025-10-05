@@ -569,9 +569,9 @@ async function loadCustomerProfile() {
         // Try to get customer profile from database (gracefully handle missing table)
         let customer = null;
         let error = null;
-        
+
         try {
-            console.log('🔍 Attempting to load customer from database...');
+            console.log('🔍 Attempting to load customer from database by auth_user_id...');
             const result = await supabaseClient
                 .from('customers')
                 .select('*')
@@ -579,7 +579,38 @@ async function loadCustomerProfile() {
                 .single();
             customer = result.data;
             error = result.error;
-            console.log('📊 Database result:', { customer, error });
+            console.log('📊 Database result (by auth_user_id):', { customer, error });
+
+            // Fallback: Try to find customer by email if auth_user_id lookup fails
+            if (!customer && (error?.code === 'PGRST116' || error?.message?.includes('404') || error?.message?.includes('406'))) {
+                console.log('🔍 Trying fallback lookup by email...');
+                const emailResult = await supabaseClient
+                    .from('customers')
+                    .select('*')
+                    .eq('email', customerSession.user.email)
+                    .single();
+                customer = emailResult.data;
+                error = emailResult.error;
+                console.log('📊 Database result (by email fallback):', { customer, error });
+
+                // If found by email, link the auth_user_id to connect Google OAuth to existing customer
+                if (customer && !customer.auth_user_id) {
+                    console.log('🔗 Linking Google OAuth to existing customer record...');
+                    const { data: updatedCustomer, error: updateError } = await supabaseClient
+                        .from('customers')
+                        .update({ auth_user_id: customerSession.user.id })
+                        .eq('id', customer.id)
+                        .select()
+                        .single();
+
+                    if (!updateError) {
+                        customer = updatedCustomer;
+                        console.log('✅ Successfully linked Google OAuth to existing customer:', customer);
+                    } else {
+                        console.warn('⚠️ Could not link auth_user_id:', updateError);
+                    }
+                }
+            }
         } catch (dbError) {
             console.warn('❌ Customer table not found, using auth data directly:', dbError);
             error = dbError;
@@ -593,6 +624,11 @@ async function loadCustomerProfile() {
         if (!customer) {
             console.log('🆕 Creating new customer profile from auth data');
             // Create customer profile for new user (e.g., Google OAuth user)
+            // Extract phone number from multiple possible locations in Google auth data
+            const phoneFromAuth = customerSession.user.user_metadata?.phone ||
+                                 customerSession.user.phone ||
+                                 null;
+
             const newCustomer = {
                 auth_user_id: customerSession.user.id,
                 full_name: customerSession.user.user_metadata?.full_name ||
@@ -602,13 +638,14 @@ async function loadCustomerProfile() {
                       customerSession.user.user_metadata?.name ||
                       customerSession.user.email.split('@')[0],
                 email: customerSession.user.email,
-                phone: customerSession.user.user_metadata?.phone || null,
-                address: null,
+                phone: phoneFromAuth,
+                address: customerSession.user.user_metadata?.address || null,
                 communication_preferences: { email_notifications: true },
                 last_login: new Date().toISOString()
             };
             
             console.log('📝 New customer data from auth:', newCustomer);
+            console.log('📞 Phone extracted from auth:', phoneFromAuth);
 
             // Try to create customer in database (handle missing table gracefully)
             try {
@@ -625,6 +662,7 @@ async function loadCustomerProfile() {
                 } else {
                     currentCustomer = createdCustomer;
                     console.log('✅ Customer created in database:', currentCustomer);
+                    console.log('📞 Phone in created customer:', currentCustomer.phone);
                 }
             } catch (dbError) {
                 console.warn('⚠️ Customer table not available, using auth data directly:', dbError);
