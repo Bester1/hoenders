@@ -2604,6 +2604,13 @@ async function sendOrderConfirmationEmail(orderId, orderData) {
 
         console.log(`📧 Sending confirmation email to: ${orderData.customer.email}`);
 
+        // Debug the order data structure
+        console.log('🔍 Order data structure for email:', {
+            orderDataItems: orderData.items,
+            cartContents: Object.keys(orderData.items || {}),
+            sampleItem: orderData.items ? Object.values(orderData.items)[0] : null
+        });
+
         // Generate order summary using actual order data
         const orderSummary = generateOrderSummaryFromActualData(orderData.items);
         const orderTotal = calculateOrderTotal(orderData.items);

@@ -189,8 +189,18 @@ async function initializeSecureConnections() {
         console.warn('⚠️ Please set up environment variables for production');
 
         const { createClient } = supabase;
-        supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+
+        // Force correct Supabase configuration
+        const correctSupabaseUrl = 'https://ukdmlzuxgnjucwidsygj.supabase.co';
+        const correctSupabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w';
+
+        supabaseClient = createClient(correctSupabaseUrl, correctSupabaseKey);
         GOOGLE_SCRIPT_URL = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
+
+        console.log('🔧 Forced correct Supabase configuration:', {
+            url: correctSupabaseUrl,
+            projectId: 'ukdmlzuxgnjucwidsygj'
+        });
 
         console.info('✅ Fallback connections initialized');
         return true;
@@ -7811,6 +7821,55 @@ async function quickTestCustomerManagement() {
     } catch (error) {
         console.error('❌ Quick test failed:', error);
         return null;
+    }
+}
+
+// Missing functions that are referenced but not defined
+
+// Handle customer errors (for customer management system)
+function handleCustomerError(error, context = '') {
+    console.error(`Customer Management Error ${context}:`, error);
+
+    // Show user-friendly error message
+    const errorMessage = error?.message || error || 'Unknown error occurred';
+
+    if (typeof addActivity === 'function') {
+        addActivity(`Customer error ${context}: ${errorMessage}`, 'error');
+    }
+
+    // Show alert for critical errors
+    if (error?.critical) {
+        alert(`Customer Management Error: ${errorMessage}`);
+    }
+}
+
+// Toggle all orders bulk selection (for order management)
+function toggleAllOrdersBulk(checkbox) {
+    const checkboxes = document.querySelectorAll('.order-bulk-checkbox');
+    const isChecked = checkbox.checked;
+
+    checkboxes.forEach(cb => {
+        if (cb !== checkbox) {
+            cb.checked = isChecked;
+        }
+    });
+
+    // Update bulk actions visibility
+    updateBulkActionsVisibility();
+}
+
+// Update bulk actions visibility
+function updateBulkActionsVisibility() {
+    const checkedBoxes = document.querySelectorAll('.order-bulk-checkbox:checked');
+    const bulkActions = document.getElementById('bulkActions');
+
+    if (bulkActions) {
+        if (checkedBoxes.length > 0) {
+            bulkActions.style.display = 'block';
+            bulkActions.textContent = `${checkedBoxes.length} order(s) selected`;
+        } else {
+            bulkActions.style.display = 'none';
+        }
     }
 }
 
