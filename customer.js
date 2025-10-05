@@ -67,9 +67,17 @@ async function initializeSecureConnection() {
         // Skip secure config validation to avoid confusing users
         console.info('🔒 Using embedded customer portal configuration...');
 
-        // Initialize Supabase with embedded configuration
+        // Initialize Supabase with embedded configuration and session persistence
         const { createClient } = supabase;
-        supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+        supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY, {
+            auth: {
+                persistSession: true,              // Remember session between visits
+                storage: localStorage,              // Store session in browser storage
+                storageKey: 'plaas-hoenders-auth',  // Custom storage key to avoid conflicts
+                autoRefreshToken: true,             // Refresh tokens automatically
+                detectSessionInUrl: true            // Handle email confirmation links
+            }
+        });
 
         // Initialize email configuration
         customerPortalGoogleScriptUrl = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
@@ -267,13 +275,22 @@ async function initializeCustomerPortal() {
         
         // Check if user is already authenticated
         const { data: session } = await supabaseClient.auth.getSession();
-        
+
+        // Debug: Check session persistence
+        console.log('🔍 Session check:', {
+            hasSession: !!session?.session,
+            userId: session?.session?.user?.id,
+            email: session?.session?.user?.email,
+            expiresAt: session?.session?.expires_at
+        });
+
         if (session?.session) {
             customerSession = session.session;
+            console.log('✅ Found existing session, user stays logged in');
             await loadCustomerProfile();
             showCustomerPortal();
         } else {
-            console.log('No session found, showing auth section');
+            console.log('🔓 No session found, showing auth section');
             showAuthSection();
         }
         
@@ -837,7 +854,44 @@ function showAuthSection() {
         authSection.style.display = 'block';
     }
 
+    // Add session persistence info
+    addRememberMeInfo();
+
     updateAuthUI();
+}
+
+/**
+ * Add "Remember Me" info to auth section
+ * @function addRememberMeInfo
+ */
+function addRememberMeInfo() {
+    // Check if remember me info already exists
+    if (document.getElementById('remember-me-info')) {
+        return; // Already added
+    }
+
+    // Create remember me info element
+    const rememberMeInfo = document.createElement('div');
+    rememberMeInfo.id = 'remember-me-info';
+    rememberMeInfo.className = 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg';
+    rememberMeInfo.innerHTML = `
+        <div class="flex items-center">
+            <span class="text-green-600 mr-2">✅</span>
+            <div class="text-sm text-green-800">
+                <strong>Stay Logged In:</strong> Your session will be saved automatically.
+                You won't need to login again unless you explicitly sign out.
+            </div>
+        </div>
+    `;
+
+    // Add to auth section
+    const authSection = document.getElementById('auth-section');
+    if (authSection) {
+        const authContainer = authSection.querySelector('.max-w-md');
+        if (authContainer) {
+            authContainer.insertBefore(rememberMeInfo, authContainer.firstChild);
+        }
+    }
 }
 
 /**
