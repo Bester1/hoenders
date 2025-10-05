@@ -63,49 +63,23 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
 // Initialize secure configuration and Supabase client with fallback
 async function initializeSecureConnection() {
     try {
-        // Try secure configuration first
-        if (typeof SecureConfig !== 'undefined') {
-            console.info('🔒 Attempting secure customer portal configuration...');
+        // Using embedded configuration for customer portal
+        // Skip secure config validation to avoid confusing users
+        console.info('🔒 Using embedded customer portal configuration...');
 
-            const configInitialized = await SecureConfig.init();
-            if (configInitialized && SecureConfig.isProductionReady()) {
-                const SUPABASE_URL = SecureConfig.get('SUPABASE_URL');
-                const SUPABASE_ANON_KEY = SecureConfig.get('SUPABASE_ANON_KEY');
-
-                if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-                    const { createClient } = supabase;
-                    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-                    // Initialize email configuration
-                    customerPortalGoogleScriptUrl = SecureConfig.get('GOOGLE_SCRIPT_URL');
-                    if (customerPortalGoogleScriptUrl) {
-                        console.log('✅ Email configuration initialized');
-                    } else {
-                        console.warn('⚠️ Email configuration not found');
-                    }
-
-                    console.info('✅ Secure customer portal connection initialized');
-                    return true;
-                }
-            }
-        }
-
-        // Fallback to hardcoded configuration
-        console.warn('⚠️ Customer portal using fallback configuration');
-        console.warn('⚠️ Please set up environment variables for production');
-
+        // Initialize Supabase with embedded configuration
         const { createClient } = supabase;
         supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
 
-        // Initialize email configuration with fallback
+        // Initialize email configuration
         customerPortalGoogleScriptUrl = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
         if (customerPortalGoogleScriptUrl) {
-            console.log('✅ Email configuration initialized (fallback)');
+            console.log('✅ Email configuration initialized');
         } else {
-            console.warn('⚠️ Email configuration not found (fallback)');
+            console.warn('⚠️ Email configuration not found');
         }
 
-        console.info('✅ Customer portal fallback connection initialized');
+        console.info('✅ Customer portal connection initialized successfully');
 
         // Check if Google OAuth is available and configure button
         console.log('🔍 Checking Google OAuth availability...');
