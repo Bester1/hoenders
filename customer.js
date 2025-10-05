@@ -2807,7 +2807,7 @@ async function saveOrderToDatabase(orderData) {
         console.log('💾 About to insert order record:', JSON.stringify(orderRecord, null, 2));
         
         // Create fresh client instance to prevent connection accumulation
-        const freshClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const freshClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         // Add timeout wrapper for database operation with increased timeout
         let insertWithTimeout = new Promise((resolve, reject) => {
