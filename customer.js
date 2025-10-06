@@ -1989,15 +1989,16 @@ function setQuantity(productKey, quantity) {
 
     if (qty > 0) {
         // Store complete product data including weight and pricing
-        const estimatedWeight = getEstimatedWeight(productKey) || 1;
+        const estimatedWeightStr = getEstimatedWeight(productKey) || '1kg';
+        const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', '')) || 1;
         const pricing = getCustomerPricing()[productKey];
-        const unitPrice = pricing ? pricing.selling : 0;
+        const unitPrice = pricing ? parseFloat(pricing.selling) : 0;
 
         cart[productKey] = {
             quantity: qty,
             productName: productKey,
-            weight: estimatedWeight,
-            unitPrice: unitPrice,
+            weight: estimatedWeight,  // Ensure number
+            unitPrice: unitPrice,     // Ensure number
             lineTotal: qty * estimatedWeight * unitPrice
         };
     } else {
@@ -3052,9 +3053,9 @@ function generateOrderSummaryFromActualData(items) {
 
     Object.entries(items).forEach(([productKey, item]) => {
         const quantity = item.quantity || 0;
-        const weight = item.weight || 0;  // Actual weight from order
-        const unitPrice = item.unitPrice || 0;  // Actual price from order
-        const lineTotal = item.lineTotal || (weight * unitPrice);
+        const weight = parseFloat(item.weight) || 0;  // Convert to number
+        const unitPrice = parseFloat(item.unitPrice) || 0;  // Convert to number
+        const lineTotal = parseFloat(item.lineTotal) || (weight * unitPrice);
         const productName = item.productName || productKey;
 
         if (quantity > 0) {
@@ -3339,10 +3340,10 @@ function populateConfirmationOrderSummary(orderData) {
         const cart = orderData.items || {};
 
         Object.entries(cart).forEach(([productKey, itemData]) => {
-            const quantity = itemData.quantity || 0;
-            const weight = itemData.weight || 0;
-            const unitPrice = itemData.unitPrice || 0;
-            const lineTotal = itemData.lineTotal || (unitPrice * weight);
+            const quantity = parseInt(itemData.quantity) || 0;
+            const weight = parseFloat(itemData.weight) || 0;
+            const unitPrice = parseFloat(itemData.unitPrice) || 0;
+            const lineTotal = parseFloat(itemData.lineTotal) || (unitPrice * weight);
 
             if (quantity > 0) {
                 totalAmount += lineTotal;
