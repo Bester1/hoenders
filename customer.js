@@ -1683,25 +1683,30 @@ function setupBeautifulPortalEventListeners() {
  * @param {number} stepNumber - Step to show (1-4)
  */
 function showBeautifulStep(stepNumber) {
+    console.log(`🎯 Showing step ${stepNumber}`);
+
     // Hide all steps
     document.querySelectorAll('.step-content').forEach(step => {
         step.classList.remove('active');
+        step.style.display = 'none';
     });
-    
+
     // Show target step
     const targetStep = document.getElementById(`step-${stepNumber}`);
     if (targetStep) {
+        console.log(`✅ Found step ${stepNumber}, showing it`);
         targetStep.classList.add('active');
-        
+        targetStep.style.display = 'block';
+
         // Update step indicators
         updateStepIndicators(stepNumber);
-        
+
         // Populate products when showing step 2
         if (stepNumber === 2) {
             populateAllProducts();
             populateCartQuantities();
         }
-        
+
         // Also pre-populate products on step 1 so they're ready
         if (stepNumber === 1) {
             // Pre-load products in background
@@ -1709,6 +1714,19 @@ function showBeautifulStep(stepNumber) {
                 populateAllProducts();
             }, 100);
         }
+
+        // Special handling for confirmation step
+        if (stepNumber === 4) {
+            console.log('🎉 Confirmation step activated');
+            // Ensure the confirmation summary is visible
+            const summaryContainer = document.getElementById('confirmationOrderSummary');
+            if (summaryContainer) {
+                summaryContainer.style.display = 'block';
+                summaryContainer.style.visibility = 'visible';
+            }
+        }
+    } else {
+        console.error(`❌ Step ${stepNumber} not found!`);
     }
 }
 
@@ -3366,6 +3384,7 @@ function populateConfirmationOrderSummary(orderData) {
 
         // Show the summary container
         summaryContainer.style.display = 'block';
+        summaryContainer.style.visibility = 'visible';
 
         console.log('✅ Confirmation order summary populated successfully');
 
