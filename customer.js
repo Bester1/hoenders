@@ -1885,30 +1885,30 @@ function loadCartFromStorage() {
             const cleanedCart = {};
             let removedCount = 0;
             
-            for (const [productKey, quantity] of Object.entries(cart)) {
+            for (const [productKey, cartItem] of Object.entries(cart)) {
                 // Skip the old BORSSTUKKE product without pack size
                 if (productKey === 'BORSSTUKKE_MET_BEEN_EN_VEL') {
                     console.warn(`🧹 Removing old BORSSTUKKE product (use 2 IN PAK or 4 IN PAK instead)`);
                     removedCount++;
                     continue;
                 }
-                
+
                 // Try to find the product in current pricing
                 let productFound = false;
                 for (const productName of Object.keys(pricing)) {
                     const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
                     if (generatedKey === productKey) {
-                        cleanedCart[productKey] = quantity;
+                        cleanedCart[productKey] = cartItem;
                         productFound = true;
                         break;
                     }
                 }
-                
+
                 if (!productFound) {
                     console.warn(`🧹 Removing invalid product from cart: ${productKey}`);
                     removedCount++;
                 } else {
-                    cleanedCart[productKey] = quantity;
+                    cleanedCart[productKey] = cartItem;
                 }
             }
             
@@ -1989,7 +1989,6 @@ function setQuantity(productKey, quantity) {
 
     if (qty > 0) {
         // Store complete product data including weight and pricing
-        const product = getProductInfo(productKey);
         const estimatedWeight = getEstimatedWeight(productKey) || 1;
         const pricing = getCustomerPricing()[productKey];
         const unitPrice = pricing ? pricing.selling : 0;
@@ -2015,7 +2014,7 @@ function setQuantity(productKey, quantity) {
  * @function updateCartDisplay
  */
 function updateCartDisplay() {
-    const totalItems = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+    const totalItems = Object.values(cart).reduce((sum, item) => sum + (item.quantity || 0), 0);
     
     // Update cart badge
     const cartBadge = document.getElementById('cartBadge');
