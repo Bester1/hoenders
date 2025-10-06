@@ -137,6 +137,22 @@ async function initializeSecureConnection() {
         // Skip secure config validation to avoid confusing users
         console.info('🔒 Using embedded customer portal configuration...');
 
+        // AGGRESSIVE SESSION RESTORATION - Run before Supabase initialization
+        console.log('🚨 AGGRESSIVE SESSION RESTORATION STARTED...');
+
+        // Check for existing session in multiple locations
+        const storedSession = localStorage.getItem('plaas-hoenders-auth');
+        const backupSession = localStorage.getItem('plaas-hoenders-auth-backup');
+
+        if (storedSession) {
+            console.log('✅ Found main session in localStorage');
+        } else if (backupSession) {
+            console.log('🔄 Found backup session, restoring main...');
+            localStorage.setItem('plaas-hoenders-auth', backupSession);
+        } else {
+            console.warn('⚠️ No session found in any storage');
+        }
+
         // Initialize Supabase with embedded configuration and session persistence
         const { createClient } = supabase;
 
@@ -160,7 +176,12 @@ async function initializeSecureConnection() {
                 storage: localStorage,              // Store session in browser storage
                 storageKey: 'plaas-hoenders-auth',  // Custom storage key to avoid conflicts
                 autoRefreshToken: true,             // Refresh tokens automatically
-                detectSessionInUrl: true            // Handle email confirmation links
+                detectSessionInUrl: true,           // Handle email confirmation links
+                refreshToken: true,                 // Enable refresh tokens for long sessions
+                // Maximize session duration (30 days)
+                maxSessionTime: 30 * 24 * 60 * 60,  // 30 days in seconds
+                // Don't clear session on refresh
+                debug: true                          // Enable debug logging
             }
         });
 
@@ -206,6 +227,31 @@ async function initializeSecureConnection() {
             if (event === 'TOKEN_REFRESHED') {
                 console.log('🔄 Token was refreshed, checking localStorage...');
                 console.log('📦 Session stored in localStorage:', 'plaas-hoenders-auth' in localStorage);
+
+                // Force backup creation on token refresh
+                if ('plaas-hoenders-auth' in localStorage) {
+                    const sessionData = localStorage.getItem('plaas-hoenders-auth');
+                    localStorage.setItem('plaas-hoenders-auth-backup', sessionData);
+                    console.log('💾 Backup created on token refresh');
+                }
+            }
+
+            // AGGRESSIVE: Force session persistence for any active session
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+                if (session) {
+                    console.log('💪 AGGRESSIVE: Forcing session persistence for event:', event);
+
+                    // Save session immediately
+                    setTimeout(() => {
+                        const currentSession = localStorage.getItem('plaas-hoenders-auth');
+                        if (currentSession) {
+                            // Create multiple backups
+                            localStorage.setItem('plaas-hoenders-auth-backup', currentSession);
+                            localStorage.setItem('plaas-hoenders-auth-backup2', currentSession);
+                            console.log('💾 Multiple backups created for session persistence');
+                        }
+                    }, 100);
+                }
             }
         });
 
@@ -226,10 +272,49 @@ async function initializeSecureConnection() {
         window.addEventListener('beforeunload', () => {
             const hasSession = localStorage.getItem('plaas-hoenders-auth');
             console.log('🔍 Page unloading - session in localStorage:', !!hasSession);
+
+            // Force save session before page unload
+            if (hasSession) {
+                console.log('💾 Force saving session before unload...');
+                const sessionData = localStorage.getItem('plaas-hoenders-auth');
+                // Create backup in case main gets cleared
+                localStorage.setItem('plaas-hoenders-auth-backup', sessionData);
+            }
         });
+
+        // AGGRESSIVE RESTORE from all backup locations
+        const mainSession = localStorage.getItem('plaas-hoenders-auth');
+        const backupSession = localStorage.getItem('plaas-hoenders-auth-backup');
+        const backupSession2 = localStorage.getItem('plaas-hoenders-auth-backup2');
+
+        if (!mainSession) {
+            console.log('🚨 Main session missing, checking backups...');
+
+            if (backupSession) {
+                console.log('🔄 Restoring session from backup 1...');
+                localStorage.setItem('plaas-hoenders-auth', backupSession);
+            } else if (backupSession2) {
+                console.log('🔄 Restoring session from backup 2...');
+                localStorage.setItem('plaas-hoenders-auth', backupSession2);
+            } else {
+                console.warn('⚠️ No session backups found');
+            }
+        } else {
+            console.log('✅ Main session found in localStorage');
+        }
 
         // Debug: Test if storage is working immediately after initialization
         console.log('🔍 Testing auth storage immediately after init...');
+
+        // PERSISTENT SESSION PROTECTION - Keep session alive
+        setInterval(() => {
+            const currentSession = localStorage.getItem('plaas-hoenders-auth');
+            if (currentSession) {
+                // Verify session is still there and refresh backups
+                localStorage.setItem('plaas-hoenders-auth-backup', currentSession);
+                localStorage.setItem('plaas-hoenders-auth-backup2', currentSession);
+            }
+        }, 5000); // Check every 5 seconds
 
         // Initialize email configuration
         customerPortalGoogleScriptUrl = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
