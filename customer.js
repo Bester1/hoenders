@@ -3405,7 +3405,9 @@ async function saveOrderToDatabase(orderData) {
         // Process each cart item
         console.log('🛒 Processing cart items:', Object.entries(orderData.items));
         let itemIndex = 0;
-        for (const [productKey, quantity] of Object.entries(orderData.items)) {
+        for (const [productKey, cartItem] of Object.entries(orderData.items)) {
+            // Extract quantity from cart item object
+            const quantity = cartItem.quantity || cartItem || 0;
             console.log(`🔑 Processing product key: "${productKey}" with quantity: ${quantity}`);
             
             // Convert product key back to product name
