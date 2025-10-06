@@ -284,18 +284,18 @@ async function initializeSecureConnection() {
 
         // AGGRESSIVE RESTORE from all backup locations
         const mainSession = localStorage.getItem('plaas-hoenders-auth');
-        const backupSession = localStorage.getItem('plaas-hoenders-auth-backup');
-        const backupSession2 = localStorage.getItem('plaas-hoenders-auth-backup2');
+        const storedBackup = localStorage.getItem('plaas-hoenders-auth-backup');
+        const storedBackup2 = localStorage.getItem('plaas-hoenders-auth-backup2');
 
         if (!mainSession) {
             console.log('🚨 Main session missing, checking backups...');
 
-            if (backupSession) {
+            if (storedBackup) {
                 console.log('🔄 Restoring session from backup 1...');
-                localStorage.setItem('plaas-hoenders-auth', backupSession);
-            } else if (backupSession2) {
+                localStorage.setItem('plaas-hoenders-auth', storedBackup);
+            } else if (storedBackup2) {
                 console.log('🔄 Restoring session from backup 2...');
-                localStorage.setItem('plaas-hoenders-auth', backupSession2);
+                localStorage.setItem('plaas-hoenders-auth', storedBackup2);
             } else {
                 console.warn('⚠️ No session backups found');
             }
