@@ -137,20 +137,38 @@ async function initializeSecureConnection() {
         // Skip secure config validation to avoid confusing users
         console.info('🔒 Using embedded customer portal configuration...');
 
-        // AGGRESSIVE SESSION RESTORATION - Run before Supabase initialization
-        console.log('🚨 AGGRESSIVE SESSION RESTORATION STARTED...');
+        // CRITICAL SESSION RESTORATION - MUST happen before ANY Supabase operations
+        console.log('🚨 CRITICAL SESSION RESTORATION STARTED...');
 
-        // Check for existing session in multiple locations
-        const storedSession = localStorage.getItem('plaas-hoenders-auth');
+        // IMMEDIATELY restore main session from backups if missing
+        const mainSession = localStorage.getItem('plaas-hoenders-auth');
         const backupSession = localStorage.getItem('plaas-hoenders-auth-backup');
+        const backupSession2 = localStorage.getItem('plaas-hoenders-auth-backup2');
 
-        if (storedSession) {
-            console.log('✅ Found main session in localStorage');
-        } else if (backupSession) {
-            console.log('🔄 Found backup session, restoring main...');
-            localStorage.setItem('plaas-hoenders-auth', backupSession);
+        if (!mainSession) {
+            console.log('🚨 MAIN SESSION MISSING - EMERGENCY RESTORATION...');
+
+            if (backupSession) {
+                console.log('🔄 RESTORING from backup 1...');
+                localStorage.setItem('plaas-hoenders-auth', backupSession);
+                console.log('✅ Main session restored from backup 1');
+            } else if (backupSession2) {
+                console.log('🔄 RESTORING from backup 2...');
+                localStorage.setItem('plaas-hoenders-auth', backupSession2);
+                console.log('✅ Main session restored from backup 2');
+            } else {
+                console.warn('⚠️ CRITICAL: No session backups found!');
+            }
         } else {
-            console.warn('⚠️ No session found in any storage');
+            console.log('✅ Main session found in localStorage');
+        }
+
+        // VERIFY restoration worked
+        const verifySession = localStorage.getItem('plaas-hoenders-auth');
+        if (verifySession) {
+            console.log('✅ Session verification passed - main session exists');
+        } else {
+            console.error('❌ Session verification FAILED - main session still missing!');
         }
 
         // Initialize Supabase with embedded configuration and session persistence
@@ -170,10 +188,45 @@ async function initializeSecureConnection() {
             }
         })());
 
+        // Create custom storage that prevents session clearing
+        const customStorage = {
+            getItem: (key) => {
+                const value = localStorage.getItem(key);
+                console.log(`📖 CustomStorage getItem: ${key}`, value ? 'found' : 'not found');
+                return value;
+            },
+            setItem: (key, value) => {
+                console.log(`💾 CustomStorage setItem: ${key}`, value ? 'data saved' : 'no data');
+
+                // If this is our auth key being cleared, block it!
+                if (key === 'plaas-hoenders-auth' && (!value || value === 'null' || value === 'undefined')) {
+                    console.warn('🚨 BLOCKING attempt to clear auth session!');
+                    return; // Don't allow clearing
+                }
+
+                localStorage.setItem(key, value);
+
+                // Create backups when auth session is saved
+                if (key === 'plaas-hoenders-auth' && value) {
+                    localStorage.setItem('plaas-hoenders-auth-backup', value);
+                    localStorage.setItem('plaas-hoenders-auth-backup2', value);
+                    console.log('💾 Backups created automatically');
+                }
+            },
+            removeItem: (key) => {
+                if (key === 'plaas-hoenders-auth') {
+                    console.warn('🚨 BLOCKING attempt to remove auth session!');
+                    return; // Don't allow removal
+                }
+                console.log(`🗑️ CustomStorage removeItem: ${key}`);
+                localStorage.removeItem(key);
+            }
+        };
+
         supabaseClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY, {
             auth: {
                 persistSession: true,              // Remember session between visits
-                storage: localStorage,              // Store session in browser storage
+                storage: customStorage,             // Use custom storage that prevents clearing
                 storageKey: 'plaas-hoenders-auth',  // Custom storage key to avoid conflicts
                 autoRefreshToken: true,             // Refresh tokens automatically
                 detectSessionInUrl: true,           // Handle email confirmation links
@@ -282,26 +335,7 @@ async function initializeSecureConnection() {
             }
         });
 
-        // AGGRESSIVE RESTORE from all backup locations
-        const mainSession = localStorage.getItem('plaas-hoenders-auth');
-        const storedBackup = localStorage.getItem('plaas-hoenders-auth-backup');
-        const storedBackup2 = localStorage.getItem('plaas-hoenders-auth-backup2');
-
-        if (!mainSession) {
-            console.log('🚨 Main session missing, checking backups...');
-
-            if (storedBackup) {
-                console.log('🔄 Restoring session from backup 1...');
-                localStorage.setItem('plaas-hoenders-auth', storedBackup);
-            } else if (storedBackup2) {
-                console.log('🔄 Restoring session from backup 2...');
-                localStorage.setItem('plaas-hoenders-auth', storedBackup2);
-            } else {
-                console.warn('⚠️ No session backups found');
-            }
-        } else {
-            console.log('✅ Main session found in localStorage');
-        }
+        // Session already restored above - no need for duplicate restoration
 
         // Debug: Test if storage is working immediately after initialization
         console.log('🔍 Testing auth storage immediately after init...');
