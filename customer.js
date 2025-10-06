@@ -1948,7 +1948,8 @@ function clearCart() {
 function populateCartQuantities() {
     console.log('🔄 Populating cart quantities in product UI');
     
-    Object.entries(cart).forEach(([productKey, quantity]) => {
+    Object.entries(cart).forEach(([productKey, cartItem]) => {
+        const quantity = cartItem.quantity || 0;
         const qtyInput = document.getElementById(`qty-${productKey}`);
         if (qtyInput) {
             qtyInput.value = quantity;
@@ -1985,13 +1986,25 @@ function updateQuantity(productKey, change) {
  */
 function setQuantity(productKey, quantity) {
     const qty = Math.max(0, parseInt(quantity) || 0);
-    
+
     if (qty > 0) {
-        cart[productKey] = qty;
+        // Store complete product data including weight and pricing
+        const product = getProductInfo(productKey);
+        const estimatedWeight = getEstimatedWeight(productKey) || 1;
+        const pricing = getCustomerPricing()[productKey];
+        const unitPrice = pricing ? pricing.selling : 0;
+
+        cart[productKey] = {
+            quantity: qty,
+            productName: productKey,
+            weight: estimatedWeight,
+            unitPrice: unitPrice,
+            lineTotal: qty * estimatedWeight * unitPrice
+        };
     } else {
         delete cart[productKey];
     }
-    
+
     updateCartDisplay();
     updateCartSummary();
     saveCartToStorage();
@@ -2067,15 +2080,16 @@ function updateCartSummary() {
         if (Object.keys(cart).length === 0) {
             cartItems.innerHTML = '<p class="text-zinc-400 text-center py-4">Geen items in mandjie nie</p>';
         } else {
-            Object.entries(cart).forEach(([productKey, qty]) => {
+            Object.entries(cart).forEach(([productKey, cartItem]) => {
+                const qty = cartItem.quantity || 0;
                 const productName = getProductNameFromKey(productKey);
                 const product = pricing[productName];
-                
+
                 if (product) {
                     const displayInfo = getProductDisplayInfo(productName);
                     const estimatedWeightStr = getEstimatedWeight(productName);
                     const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
-                    
+
                     // Calculate based on unit type
                     let amount;
                     let weight = 0;
@@ -2085,7 +2099,7 @@ function updateCartSummary() {
                         weight = estimatedWeight * qty;
                         amount = product.selling * weight;
                     }
-                    
+
                     totalWeight += weight;
                     totalAmount += amount;
                     totalItems += qty;
@@ -2641,15 +2655,16 @@ function populateOrderItemsSummary() {
         if (Object.keys(cart).length === 0) {
             orderItemsSummary.innerHTML = '<p class="text-zinc-400 text-center py-4">Geen items in mandjie</p>';
         } else {
-            Object.entries(cart).forEach(([productKey, qty]) => {
+            Object.entries(cart).forEach(([productKey, cartItem]) => {
+                const qty = cartItem.quantity || 0;
                 const productName = getProductNameFromKey(productKey);
                 const product = pricing[productName];
-                
+
                 if (product) {
                     const displayInfo = getProductDisplayInfo(productName);
                     const estimatedWeightStr = getEstimatedWeight(productName);
                     const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
-                    
+
                     // Calculate based on unit type
                     let amount;
                     let weight = 0;

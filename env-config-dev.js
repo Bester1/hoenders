@@ -6,11 +6,11 @@
 (function() {
     'use strict';
     
-    // Development configuration with safe fallback values
+    // Development configuration with actual production values
     window.ENV = {
-        SUPABASE_URL: 'https://test-project.supabase.co',
-        SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRlc3QtcHJvamVjdCIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNjI3MjA3NjAwLCJleHAiOjE5NDI3ODM2MDB9.example',
-        GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/test-script-id/exec'
+        SUPABASE_URL: 'https://ukdmlzuxgnjucwidsygj.supabase.co',
+        SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w',
+        GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzBN3lIbR-ZW9ybqb5E6e0XNa7wdrfKmO8d6pQeSVXAd0WM7tT-n9M4jFO42mC1vcS1/exec'
     };
     
     // Log configuration status (without exposing actual values)
