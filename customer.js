@@ -2006,15 +2006,18 @@ function setQuantity(productKey, quantity) {
     const qty = Math.max(0, parseInt(quantity) || 0);
 
     if (qty > 0) {
+        // Get the actual product name from the key
+        const productName = getProductNameFromKey(productKey);
+
         // Store complete product data including weight and pricing
-        const estimatedWeightStr = getEstimatedWeight(productKey) || '1kg';
+        const estimatedWeightStr = getEstimatedWeight(productName) || '1kg';
         const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', '')) || 1;
-        const pricing = getCustomerPricing()[productKey];
+        const pricing = getCustomerPricing()[productName];
         const unitPrice = pricing ? parseFloat(pricing.selling) : 0;
 
         cart[productKey] = {
             quantity: qty,
-            productName: productKey,
+            productName: productName,  // Store actual product name, not key
             weight: estimatedWeight,  // Ensure number
             unitPrice: unitPrice,     // Ensure number
             lineTotal: qty * estimatedWeight * unitPrice
