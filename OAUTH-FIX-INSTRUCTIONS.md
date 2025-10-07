@@ -21,11 +21,15 @@ The actual database has the following tables:
 
 ## Solution
 
-### Step 1: Apply the Comprehensive Fix (Recommended)
+### Step 1: Apply the OAuth Fix (Recommended)
+
+**Important:** Make sure you're copying the SQL file, NOT this markdown file!
+
 1. Go to your Supabase dashboard: https://supabase.com/dashboard/project/ukdmlzuxgnjucwidsygj
 2. Navigate to **SQL Editor**
-3. Copy and paste the contents of `oauth-comprehensive-fix.sql`
-4. Click **Run**
+3. Copy the contents of `oauth-fix-simple.sql` (NOT this file!)
+4. Paste into the SQL editor
+5. Click **Run**
 
 This comprehensive fix will:
 - Temporarily disable RLS to allow customer record creation
