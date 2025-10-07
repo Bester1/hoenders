@@ -21,26 +21,36 @@ The actual database has the following tables:
 
 ## Solution
 
-### Step 1: Apply the Main Fix
+### Step 1: Apply the Comprehensive Fix (Recommended)
 1. Go to your Supabase dashboard: https://supabase.com/dashboard/project/ukdmlzuxgnjucwidsygj
 2. Navigate to **SQL Editor**
-3. Copy and paste the contents of `oauth-fix-updated.sql` (updated to match actual schema)
+3. Copy and paste the contents of `oauth-comprehensive-fix.sql`
 4. Click **Run**
 
-This will:
-- Create a trigger that automatically creates customer records for new users
-- Update Row Level Security (RLS) policies to match the actual database schema
-- Handle both `name` and `full_name` columns in the customers table
+This comprehensive fix will:
+- Temporarily disable RLS to allow customer record creation
+- Create a trigger with error handling that won't fail OAuth
+- Create customer records for ALL existing verified users
+- Re-enable RLS with proper policies
+- Show a summary of what was fixed
 
-### Step 2: Fix Existing Users (Optional)
-1. In the same SQL Editor, copy and paste the contents of `quick-fix-existing-users-updated.sql`
-2. Click **Run**
+### Step 2: Clear Browser Data
+1. Open Chrome settings
+2. Go to Privacy and security → Clear browsing data
+3. Select "Cookies and other site data" and "Cached images and files"
+4. Click Clear data
+5. Close all browser windows and reopen
 
-### Step 3: Diagnose Issues (If Needed)
-If problems persist, run `diagnose-auth-issue.sql` to check:
-- Current RLS policies
-- Whether triggers exist
-- Which users are missing customer records
+### Step 3: Test the Login
+1. Go to: https://bester1.github.io/hoenders/customer-portal.html
+2. Click "Continue with Google"
+3. Complete the OAuth flow
+4. Should now redirect to the customer portal successfully
+
+### Alternative: Individual Fixes (If comprehensive doesn't work)
+1. Run `oauth-fix-updated.sql` - Creates trigger and updates policies
+2. Run `quick-fix-existing-users-updated.sql` - Creates records for existing users
+3. Run `diagnose-auth-issue.sql` - Check what's still broken
 
 This will create customer records for existing users who don't have them.
 
