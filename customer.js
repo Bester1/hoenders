@@ -2011,7 +2011,18 @@ function setQuantity(productKey, quantity) {
 
         // Store complete product data including weight and pricing
         const estimatedWeightStr = getEstimatedWeight(productName) || '1kg';
-        const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', '')) || 1;
+        let estimatedWeight;
+
+        // Handle different weight formats
+        if (estimatedWeightStr.includes('kg')) {
+            estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', '')) || 1;
+        } else if (estimatedWeightStr.includes('g')) {
+            estimatedWeight = parseFloat(estimatedWeightStr.replace('g', '').replace(' potjie', '')) / 1000 || 0.001;
+        } else {
+            // Default to 1kg for unspecified items
+            estimatedWeight = 1;
+        }
+
         const pricing = getCustomerPricing()[productName];
         const unitPrice = pricing ? parseFloat(pricing.selling) : 0;
 
@@ -2109,7 +2120,16 @@ function updateCartSummary() {
                 if (product) {
                     const displayInfo = getProductDisplayInfo(productName);
                     const estimatedWeightStr = getEstimatedWeight(productName);
-                    const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
+                    let estimatedWeight;
+
+                    // Parse weight correctly for different formats
+                    if (estimatedWeightStr.includes('kg')) {
+                        estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', '')) || 1;
+                    } else if (estimatedWeightStr.includes('g')) {
+                        estimatedWeight = parseFloat(estimatedWeightStr.replace('g', '').replace(' potjie', '')) / 1000 || 0.001;
+                    } else {
+                        estimatedWeight = 1;
+                    }
 
                     // Calculate based on unit type
                     let amount;
@@ -2684,7 +2704,16 @@ function populateOrderItemsSummary() {
                 if (product) {
                     const displayInfo = getProductDisplayInfo(productName);
                     const estimatedWeightStr = getEstimatedWeight(productName);
-                    const estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', ''));
+                    let estimatedWeight;
+
+                    // Parse weight correctly for different formats
+                    if (estimatedWeightStr.includes('kg')) {
+                        estimatedWeight = parseFloat(estimatedWeightStr.replace('kg', '')) || 1;
+                    } else if (estimatedWeightStr.includes('g')) {
+                        estimatedWeight = parseFloat(estimatedWeightStr.replace('g', '').replace(' potjie', '')) / 1000 || 0.001;
+                    } else {
+                        estimatedWeight = 1;
+                    }
 
                     // Calculate based on unit type
                     let amount;
@@ -3066,7 +3095,7 @@ function generateOrderSummaryFromActualData(items) {
     summaryHTML += '<tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">';
     summaryHTML += '<th style="padding: 12px; text-align: left; font-weight: bold;">Produk</th>';
     summaryHTML += '<th style="padding: 12px; text-align: center; font-weight: bold;">Hoeveelheid</th>';
-    summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Prys per kg</th>';
+    summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Prys</th>';
     summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Subtotaal</th>';
     summaryHTML += '</tr>';
 
@@ -3079,13 +3108,32 @@ function generateOrderSummaryFromActualData(items) {
         const lineTotal = parseFloat(item.lineTotal) || (weight * unitPrice);
         const productName = item.productName || productKey;
 
+        // Check if this is a per-unit product
+        const pricing = getCustomerPricing()[productName];
+        const isPerUnit = pricing && (pricing.unit === 'per potjie' || pricing.unit === 'per unit');
+
         if (quantity > 0) {
             totalAmount += lineTotal;
 
             summaryHTML += '<tr style="border-bottom: 1px solid #eee;">';
             summaryHTML += `<td style="padding: 10px; font-weight: 500;">${productName}</td>`;
-            summaryHTML += `<td style="padding: 10px; text-align: center;">${quantity} × ${weight.toFixed(2)}kg</td>`;
-            summaryHTML += `<td style="padding: 10px; text-align: right;">R${unitPrice.toFixed(2)}/kg</td>`;
+
+            // Format quantity and price based on unit type
+            if (isPerUnit) {
+                const weightStr = getEstimatedWeight(productName);
+                if (weightStr.includes('500g')) {
+                    summaryHTML += `<td style="padding: 10px; text-align: center;">${quantity} × 500g potjie${quantity > 1 ? 's' : ''}</td>`;
+                } else if (weightStr.includes('375ml')) {
+                    summaryHTML += `<td style="padding: 10px; text-align: center;">${quantity} × 375ml potjie${quantity > 1 ? 's' : ''}</td>`;
+                } else {
+                    summaryHTML += `<td style="padding: 10px; text-align: center;">${quantity} × unit${quantity > 1 ? 's' : ''}</td>`;
+                }
+                summaryHTML += `<td style="padding: 10px; text-align: right;">R${unitPrice.toFixed(2)}/unit</td>`;
+            } else {
+                summaryHTML += `<td style="padding: 10px; text-align: center;">${quantity} × ${weight.toFixed(2)}kg</td>`;
+                summaryHTML += `<td style="padding: 10px; text-align: right;">R${unitPrice.toFixed(2)}/kg</td>`;
+            }
+
             summaryHTML += `<td style="padding: 10px; text-align: right; font-weight: 500;">R${lineTotal.toFixed(2)}</td>`;
             summaryHTML += '</tr>';
         }
@@ -3115,7 +3163,7 @@ function generateOrderSummary(items) {
     summaryHTML += '<tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">';
     summaryHTML += '<th style="padding: 12px; text-align: left; font-weight: bold;">Produk</th>';
     summaryHTML += '<th style="padding: 12px; text-align: center; font-weight: bold;">Hoeveelheid</th>';
-    summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Prys per kg</th>';
+    summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Prys</th>';
     summaryHTML += '<th style="padding: 12px; text-align: right; font-weight: bold;">Subtotaal</th>';
     summaryHTML += '</tr>';
 
@@ -3365,16 +3413,37 @@ function populateConfirmationOrderSummary(orderData) {
             const weight = parseFloat(itemData.weight) || 0;
             const unitPrice = parseFloat(itemData.unitPrice) || 0;
             const lineTotal = parseFloat(itemData.lineTotal) || (unitPrice * weight);
+            const productName = itemData.productName || productKey;
+
+            // Check if this is a per-unit product
+            const pricing = getCustomerPricing()[productName];
+            const isPerUnit = pricing && (pricing.unit === 'per potjie' || pricing.unit === 'per unit');
 
             if (quantity > 0) {
                 totalAmount += lineTotal;
 
                 const itemElement = document.createElement('div');
                 itemElement.className = 'flex justify-between items-center text-sm';
+
+                // Format display based on unit type
+                let quantityDisplay;
+                if (isPerUnit) {
+                    const weightStr = getEstimatedWeight(productName);
+                    if (weightStr.includes('500g')) {
+                        quantityDisplay = `${quantity} × 500g potjie${quantity > 1 ? 's' : ''}`;
+                    } else if (weightStr.includes('375ml')) {
+                        quantityDisplay = `${quantity} × 375ml potjie${quantity > 1 ? 's' : ''}`;
+                    } else {
+                        quantityDisplay = `${quantity} × unit${quantity > 1 ? 's' : ''}`;
+                    }
+                } else {
+                    quantityDisplay = `${quantity} × ${weight.toFixed(2)}kg`;
+                }
+
                 itemElement.innerHTML = `
                     <div class="text-zinc-300">
-                        <span class="font-medium">${itemData.productName || productKey}</span>
-                        <span class="text-zinc-500 ml-2">${quantity} × ${weight.toFixed(2)}kg</span>
+                        <span class="font-medium">${productName}</span>
+                        <span class="text-zinc-500 ml-2">${quantityDisplay}</span>
                     </div>
                     <span class="text-zinc-100">R${lineTotal.toFixed(2)}</span>
                 `;
