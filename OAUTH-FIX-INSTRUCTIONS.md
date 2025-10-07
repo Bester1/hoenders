@@ -8,6 +8,12 @@ AuthImplicitGrantRedirectError: Database error saving new user
 
 This happens because Supabase creates the user in `auth.users` but there's no corresponding record in the `customers` table, which the customer portal expects.
 
+## Actual Database Schema
+The actual database has the following tables:
+- `customers` with columns: `id`, `auth_user_id`, `name`, `full_name`, `email`, `phone`, `address`, etc.
+- `orders` with columns: `order_id`, `customer_id`, `customer_name`, `customer_email`, etc.
+- `order_items` with columns: `id`, `order_id`, `product_name`, `quantity`, `weight_kg`, etc.
+
 ## Root Cause
 1. User signs in via Google OAuth → Supabase creates user in `auth.users`
 2. Customer portal code tries to load/create customer record from `customers` table
@@ -18,17 +24,23 @@ This happens because Supabase creates the user in `auth.users` but there's no co
 ### Step 1: Apply the Main Fix
 1. Go to your Supabase dashboard: https://supabase.com/dashboard/project/ukdmlzuxgnjucwidsygj
 2. Navigate to **SQL Editor**
-3. Copy and paste the contents of `fix-oauth-login.sql`
+3. Copy and paste the contents of `oauth-fix-updated.sql` (updated to match actual schema)
 4. Click **Run**
 
 This will:
-- Create the `customers`, `orders`, and `order_items` tables if they don't exist
 - Create a trigger that automatically creates customer records for new users
-- Set up proper Row Level Security (RLS) policies
+- Update Row Level Security (RLS) policies to match the actual database schema
+- Handle both `name` and `full_name` columns in the customers table
 
 ### Step 2: Fix Existing Users (Optional)
-1. In the same SQL Editor, copy and paste the contents of `quick-fix-existing-users.sql`
+1. In the same SQL Editor, copy and paste the contents of `quick-fix-existing-users-updated.sql`
 2. Click **Run**
+
+### Step 3: Diagnose Issues (If Needed)
+If problems persist, run `diagnose-auth-issue.sql` to check:
+- Current RLS policies
+- Whether triggers exist
+- Which users are missing customer records
 
 This will create customer records for existing users who don't have them.
 
@@ -36,19 +48,20 @@ This will create customer records for existing users who don't have them.
 
 ### 1. Automatic Customer Record Creation
 The trigger `handle_new_user()` runs automatically whenever a new user is created in `auth.users`:
-- Extracts name, email, phone, and address from Google OAuth metadata
-- Creates a corresponding record in the `customers` table
+- Extracts `full_name`, email, phone, and address from Google OAuth metadata
+- Populates both `name` and `full_name` columns in the `customers` table
 - Handles conflicts gracefully (won't duplicate if record already exists)
 
-### 2. Proper RLS Policies
-- Users can only see/update their own customer profile
-- Service role has full access for admin operations
-- Anonymous users have limited access as needed
+### 2. Updated RLS Policies
+- Removed the blanket "Allow all operations" policies
+- Created specific policies for users to only access their own data
+- Order items policies now properly check foreign key relationships
+- Service role maintains full access for admin operations
 
-### 3. Complete Table Structure
-- `customers` - Main customer profiles
-- `orders` - Customer orders
-- `order_items` - Individual items within orders
+### 3. Proper Schema Matching
+- Uses actual column names (`weight_kg` instead of `weight`)
+- Respects foreign key constraints between orders and customers
+- Handles both `name` and `full_name` columns correctly
 
 ## Testing After Fix
 
