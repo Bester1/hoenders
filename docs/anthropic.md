@@ -1,0 +1,2 @@
+export ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic
+export ANTHROPIC_AUTH_TOKEN=e9daa5e8c8c448058eb58cb20314e129.MoQQgltlYHhHZeRg

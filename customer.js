@@ -3258,6 +3258,11 @@ function generateConfirmationEmailBody(data) {
         <h3 style="color: #2c3e50;">🛒 Jou Bestelling:</h3>
         ${data.orderSummary}
 
+        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+            <p style="margin: 0; font-weight: bold; color: #856404;">⚠️ Provisionele Totaal</p>
+            <p style="margin: 5px 0 0 0; color: #856404;">Finale bedrag sal bereken word op werklike gewigte van plaas slaghuis.</p>
+        </div>
+
   
         <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
             <h3 style="margin-top: 0; color: #856404;">📦 Aflewering Besonderhede</h3>
@@ -3283,8 +3288,8 @@ function generateConfirmationEmailBody(data) {
         <div style="text-align: center; color: #666;">
             <p><strong>Kontak Ons:</strong></p>
             <p>📞 Adriaan Bester: <a href="tel:0796167761" style="color: #e67e22;">079 616 7761</a></p>
-            <p>📧 E-pos: <a href="mailto:${data.customerEmail}" style="color: #e67e22;">${data.customerEmail}</a></p>
-            <p>🌐 Webwerf: <a href="https://bester1.github.io/hoenders" style="color: #e67e22;">plaashoenders.co.za</a></p>
+            <p>📧 E-pos: <a href="mailto:abester7@gmail.com" style="color: #e67e22;">abester7@gmail.com</a></p>
+            <p>🌐 Webwerf: <a href="https://bester1.github.io/hoenders/customer-portal.html" style="color: #e67e22;">Klietshuis Portaal</a></p>
         </div>
 
         <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #888; font-size: 14px;">
