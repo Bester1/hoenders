@@ -927,19 +927,78 @@ async function loadCustomerProfile() {
             // Try to create customer in database (handle missing table gracefully)
             try {
                 console.log('🔄 Attempting to create customer in database...');
-                const { data: createdCustomer, error: createError } = await supabaseClient
-                    .from('customers')
-                    .insert([newCustomer])
-                    .select()
-                    .single();
 
-                if (createError) {
-                    console.warn('⚠️ Could not create customer in database, using auth data:', createError);
-                    currentCustomer = newCustomer; // Use the customer data we have
+                // First check if customer already exists by email to prevent duplicates
+                console.log('🔍 Checking for existing customer by email before creating...');
+                const { data: existingCustomerByEmail, error: emailCheckError } = await supabaseClient
+                    .from('customers')
+                    .select('*')
+                    .eq('email', newCustomer.email)
+                    .maybeSingle();
+
+                if (emailCheckError && emailCheckError.code !== 'PGRST116') {
+                    console.warn('⚠️ Error checking existing customer by email:', emailCheckError);
+                }
+
+                if (existingCustomerByEmail) {
+                    // Customer already exists by email - update with auth_user_id if needed
+                    console.log('✅ Found existing customer by email, linking auth account...');
+                    const { data: updatedCustomer, error: updateError } = await supabaseClient
+                        .from('customers')
+                        .update({
+                            auth_user_id: newCustomer.auth_user_id,
+                            name: newCustomer.name,
+                            full_name: newCustomer.full_name,
+                            phone: newCustomer.phone,
+                            address: newCustomer.address,
+                            last_login: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', existingCustomerByEmail.id)
+                        .select()
+                        .single();
+
+                    if (updateError) {
+                        console.warn('⚠️ Could not update existing customer, using existing data:', updateError);
+                        currentCustomer = existingCustomerByEmail;
+                    } else {
+                        currentCustomer = updatedCustomer;
+                        console.log('✅ Updated existing customer with auth data:', currentCustomer);
+                    }
                 } else {
-                    currentCustomer = createdCustomer;
-                    console.log('✅ Customer created in database:', currentCustomer);
-                    console.log('📞 Phone in created customer:', currentCustomer.phone);
+                    // Create new customer record
+                    const { data: createdCustomer, error: createError } = await supabaseClient
+                        .from('customers')
+                        .insert([newCustomer])
+                        .select()
+                        .single();
+
+                    if (createError) {
+                        // Check if this is a unique constraint violation (duplicate email)
+                        if (createError.code === '23505' || createError.message?.includes('unique constraint')) {
+                            console.log('⚠️ Duplicate email detected, fetching existing customer...');
+                            const { data: duplicateCustomer, error: fetchError } = await supabaseClient
+                                .from('customers')
+                                .select('*')
+                                .eq('email', newCustomer.email)
+                                .single();
+
+                            if (!fetchError && duplicateCustomer) {
+                                currentCustomer = duplicateCustomer;
+                                console.log('✅ Retrieved existing customer after duplicate error:', currentCustomer);
+                            } else {
+                                console.warn('⚠️ Could not fetch existing customer after duplicate, using auth data:', createError);
+                                currentCustomer = newCustomer;
+                            }
+                        } else {
+                            console.warn('⚠️ Could not create customer in database, using auth data:', createError);
+                            currentCustomer = newCustomer;
+                        }
+                    } else {
+                        currentCustomer = createdCustomer;
+                        console.log('✅ Customer created in database:', currentCustomer);
+                        console.log('📞 Phone in created customer:', currentCustomer.phone);
+                    }
                 }
             } catch (dbError) {
                 console.warn('⚠️ Customer table not available, using auth data directly:', dbError);
@@ -1040,29 +1099,81 @@ async function handleRegister(event) {
 
         // If user is immediately signed in (email confirmation disabled)
         if (authData.session) {
-            // Create customer profile
-            const customerProfile = {
-                auth_user_id: authData.user.id,
-                name: registrationData.name,
-                email: registrationData.email,
-                phone: registrationData.phone,
-                address: registrationData.address,
-                communication_preferences: {
-                    email_notifications: registrationData.emailNotifications
-                }
-            };
-
-            const { error: profileError } = await supabaseClient
+            // Check if customer profile already exists before creating
+            console.log('🔍 Checking for existing customer profile before creating...');
+            const { data: existingProfile, error: checkError } = await supabaseClient
                 .from('customers')
-                .insert([customerProfile]);
+                .select('*')
+                .eq('email', registrationData.email)
+                .maybeSingle();
 
-            if (profileError) {
-                console.error('Error creating customer profile:', profileError);
-                // Don't throw - auth was successful, profile creation can be retried
+            if (checkError && checkError.code !== 'PGRST116') {
+                console.warn('⚠️ Error checking existing customer profile:', checkError);
+            }
+
+            if (existingProfile) {
+                // Update existing profile with auth_user_id and latest info
+                console.log('✅ Found existing customer profile, updating with auth data...');
+                const { error: updateError } = await supabaseClient
+                    .from('customers')
+                    .update({
+                        auth_user_id: authData.user.id,
+                        name: registrationData.name,
+                        phone: registrationData.phone,
+                        address: registrationData.address,
+                        communication_preferences: {
+                            email_notifications: registrationData.emailNotifications
+                        },
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existingProfile.id);
+
+                if (updateError) {
+                    console.error('Error updating existing customer profile:', updateError);
+                } else {
+                    console.log('✅ Updated existing customer profile successfully');
+                }
+            } else {
+                // Create new customer profile
+                const customerProfile = {
+                    auth_user_id: authData.user.id,
+                    name: registrationData.name,
+                    email: registrationData.email,
+                    phone: registrationData.phone,
+                    address: registrationData.address,
+                    communication_preferences: {
+                        email_notifications: registrationData.emailNotifications
+                    }
+                };
+
+                const { error: profileError } = await supabaseClient
+                    .from('customers')
+                    .insert([customerProfile]);
+
+                if (profileError) {
+                    if (profileError.code === '23505' || profileError.message?.includes('unique constraint')) {
+                        console.log('⚠️ Duplicate email during registration, fetching existing profile...');
+                        // Handle race condition - profile was created by another process
+                        const { data: duplicateProfile } = await supabaseClient
+                            .from('customers')
+                            .select('*')
+                            .eq('email', registrationData.email)
+                            .single();
+
+                        if (duplicateProfile) {
+                            console.log('✅ Retrieved existing profile after race condition');
+                        }
+                    } else {
+                        console.error('Error creating customer profile:', profileError);
+                        // Don't throw - auth was successful, profile creation can be retried
+                    }
+                } else {
+                    console.log('✅ Created new customer profile successfully');
+                }
             }
 
             showFormMessage('Account created successfully! Welcome to Plaas Hoenders!', 'success', 'registerMessage');
-            
+
             // Session will be handled by auth state change listener
         }
 
