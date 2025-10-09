@@ -1344,7 +1344,11 @@ function showLoadingSpinner(show) {
     // Also control session loading overlay
     const sessionLoading = document.getElementById('sessionLoading');
     if (sessionLoading) {
-        sessionLoading.style.display = show ? 'flex' : 'none';
+        if (show) {
+            sessionLoading.style.setProperty('display', 'flex', 'important');
+        } else {
+            sessionLoading.style.setProperty('display', 'none', 'important');
+        }
         console.log(`🔄 Session loading overlay: ${show ? 'SHOW' : 'HIDE'}`);
     }
 }
@@ -1358,7 +1362,7 @@ function showAuthSection() {
     // Hide session loading overlay if it's still visible
     const sessionLoading = document.getElementById('sessionLoading');
     if (sessionLoading) {
-        sessionLoading.style.display = 'none';
+        sessionLoading.style.setProperty('display', 'none', 'important');
     }
 
     // Hide navigation
@@ -1472,7 +1476,7 @@ function showCustomerPortal() {
     // Hide session loading overlay if it's still visible
     const sessionLoading = document.getElementById('sessionLoading');
     if (sessionLoading) {
-        sessionLoading.style.display = 'none';
+        sessionLoading.style.setProperty('display', 'none', 'important');
     }
 
     // Hide auth section
