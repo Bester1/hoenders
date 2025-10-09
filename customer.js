@@ -1339,6 +1339,12 @@ function showLoadingSpinner(show) {
  * @function showAuthSection
  */
 function showAuthSection() {
+    // Hide session loading overlay if it's still visible
+    const sessionLoading = document.getElementById('sessionLoading');
+    if (sessionLoading) {
+        sessionLoading.style.display = 'none';
+    }
+
     // Hide navigation
     const navigation = document.getElementById('customer-navigation');
     if (navigation) {
@@ -1447,6 +1453,12 @@ function showAuthForm(formType) {
  * @function showCustomerPortal
  */
 function showCustomerPortal() {
+    // Hide session loading overlay if it's still visible
+    const sessionLoading = document.getElementById('sessionLoading');
+    if (sessionLoading) {
+        sessionLoading.style.display = 'none';
+    }
+
     // Hide auth section
     const authSection = document.getElementById('auth-section');
     if (authSection) {
