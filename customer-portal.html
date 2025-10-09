@@ -97,6 +97,39 @@
         .hidden { display: none !important; }
         .modal-open { overflow: hidden; }
         
+        /* Customer portal improvements */
+        .modal-header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+        .modal-header-content > div:nth-child(2) {
+            flex: 1;
+            text-align: center;
+        }
+        .customer-details-section .bg-zinc-800\/30 {
+            background-color: rgba(0, 0, 0, 0.7) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+        }
+        .customer-details-section .text-zinc-400 {
+            color: rgba(255, 255, 255, 0.9) !important;
+            font-weight: 600 !important;
+        }
+        .customer-details-section .text-white {
+            color: #ffffff !important;
+            font-weight: 700 !important;
+        }
+        .edit-details-btn {
+            background-color: rgba(249, 115, 22, 0.8) !important;
+            color: #ffffff !important;
+            font-weight: 600 !important;
+            border: 1px solid rgba(249, 115, 22, 0.5) !important;
+        }
+        .edit-details-btn:hover {
+            background-color: rgba(234, 88, 12, 0.9) !important;
+        }
+
         /* Order filters styles for future use */
         .filter-btn {
             padding: 0.5rem 1rem;
@@ -370,37 +403,33 @@
                     </svg>
                 </button>
 
-                <div class="flex gap-4 opacity-0 animate-slide-up animation-delay-300 items-center">
+                <div class="modal-header-content opacity-0 animate-slide-up animation-delay-300">
                     <!-- Brand Logo -->
                     <div class="flex w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white" class="w-6 h-6">
                             <path d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z"/>
                         </svg>
                     </div>
-                    
+
                     <div>
-                        <div class="flex items-center justify-between w-full">
-                        <div>
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="text-xs uppercase tracking-wider text-white/80 font-medium">Plaas Hoenders</span>
-                                <span class="px-2 py-0.5 bg-white/20 text-white text-xs rounded-xl border border-white/30">Fresh</span>
-                            </div>
-                            <h1 class="text-2xl lg:text-3xl text-white font-bold tracking-tighter">Bestel Vars Hoenders</h1>
+                        <div class="flex items-center gap-2 mb-1 justify-center">
+                            <span class="text-xs uppercase tracking-wider text-white/80 font-medium">Plaas Hoenders</span>
+                            <span class="px-2 py-0.5 bg-white/20 text-white text-xs rounded-xl border border-white/30">Fresh</span>
                         </div>
-                        
-                        <!-- Cart Icon with Badge -->
-                        <div class="relative">
-                            <button id="cartToggle" class="flex items-center justify-center w-12 h-12 bg-zinc-800/50 hover:bg-zinc-700/50 rounded-xl border border-zinc-700/30 transition-all duration-200">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-zinc-300">
-                                    <path d="M3 3h2l.4 2M7 13h10l4-8H5.4m.6 8L4 6H2"></path>
-                                    <circle cx="9" cy="22" r="1"></circle>
-                                    <circle cx="20" cy="22" r="1"></circle>
-                                </svg>
-                                <!-- Cart Badge -->
-                                <span id="cartBadge" class="absolute -top-2 -right-2 flex items-center justify-center w-6 h-6 bg-orange-500 text-white text-xs font-bold rounded-full border-2 border-black/20 min-w-6 transition-all duration-300 opacity-0 scale-0">0</span>
-                            </button>
-                        </div>
+                        <h1 class="text-2xl lg:text-3xl text-white font-bold tracking-tighter text-center">Bestel Vars Hoenders</h1>
                     </div>
+
+                    <!-- Cart Icon with Badge -->
+                    <div class="cart-icon-wrapper">
+                        <button id="cartToggle" class="flex items-center justify-center w-12 h-12 bg-zinc-800/50 hover:bg-zinc-700/50 rounded-xl border border-zinc-700/30 transition-all duration-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-zinc-300">
+                                <path d="M3 3h2l.4 2M7 13h10l4-8H5.4m.6 8L4 6H2"></path>
+                                <circle cx="9" cy="22" r="1"></circle>
+                                <circle cx="20" cy="22" r="1"></circle>
+                            </svg>
+                            <!-- Cart Badge -->
+                            <span id="cartBadge" class="absolute -top-2 -right-2 flex items-center justify-center w-6 h-6 bg-orange-500 text-white text-xs font-bold rounded-full border-2 border-black/20 min-w-6 transition-all duration-300 opacity-0 scale-0">0</span>
+                        </button>
                     </div>
                 </div>
             </div>
