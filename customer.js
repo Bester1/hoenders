@@ -43,6 +43,13 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
             }
         });
 
+        console.log('🔍 Email data being sent:', {
+            to: emailData.to,
+            subject: emailData.subject,
+            bodyLength: emailData.body?.length || 0,
+            bodyPreview: emailData.body?.substring(0, 200) + '...'
+        });
+
         // Create a simple form submission that will work
         try {
             // Create an iframe to submit the form without leaving the page
@@ -3062,7 +3069,7 @@ async function sendOrderConfirmationEmail(orderId, orderData) {
         // Create confirmation email content
         const emailSubject = `🐔 Bevestiging: Jou Plaas Hoenders bestelling #${orderId}`;
 
-        const emailBody = generateConfirmationEmailBody({
+        const emailBodyData = {
             customerName: orderData.customer.name,
             orderId: orderId,
             orderDate: new Date(orderData.timestamp).toLocaleDateString('af-ZA', {
@@ -3077,7 +3084,19 @@ async function sendOrderConfirmationEmail(orderId, orderData) {
             customerEmail: orderData.customer.email,
             customerPhone: orderData.customer.phone,
             customerAddress: orderData.customer.address
+        };
+
+        console.log('🔍 Email template data:', {
+            customerName: emailBodyData.customerName,
+            orderId: emailBodyData.orderId,
+            orderSummaryLength: emailBodyData.orderSummary?.length || 0,
+            orderSummaryPreview: emailBodyData.orderSummary?.substring(0, 300) + '...',
+            orderTotal: emailBodyData.orderTotal
         });
+
+        const emailBody = generateConfirmationEmailBody(emailBodyData);
+
+        console.log('🔍 Generated email body length:', emailBody?.length || 0);
 
         // Send email using the existing Google Apps Script service
         const emailSent = await sendEmailViaGoogleScript(
