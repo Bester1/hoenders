@@ -574,6 +574,9 @@ async function initializeCustomerPortal() {
 
         console.log('🚀 Initializing Customer Portal with secure connections...');
 
+        // Ensure loading overlay shows for at least 1.5 seconds
+        const minLoadingTime = new Date().getTime() + 1500;
+
         // Initialize secure connection first
         const connectionReady = await initializeSecureConnection();
         if (!connectionReady) {
@@ -746,8 +749,14 @@ async function initializeCustomerPortal() {
             showAuthSection();
         }
         
-        showLoadingSpinner(false);
-        
+        // Wait for minimum loading time before hiding spinner
+        const now = new Date().getTime();
+        if (now < minLoadingTime) {
+            setTimeout(() => showLoadingSpinner(false), minLoadingTime - now);
+        } else {
+            showLoadingSpinner(false);
+        }
+
         // Set up close portal button
         const closePortalBtn = document.getElementById('closePortal');
         if (closePortalBtn) {
@@ -1330,6 +1339,12 @@ function showLoadingSpinner(show) {
     const spinner = document.getElementById('loadingSpinner');
     if (spinner) {
         spinner.className = show ? 'loading-spinner active' : 'loading-spinner';
+    }
+
+    // Also control session loading overlay
+    const sessionLoading = document.getElementById('sessionLoading');
+    if (sessionLoading) {
+        sessionLoading.style.display = show ? 'flex' : 'none';
     }
 }
 
