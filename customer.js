@@ -1345,6 +1345,7 @@ function showLoadingSpinner(show) {
     const sessionLoading = document.getElementById('sessionLoading');
     if (sessionLoading) {
         sessionLoading.style.display = show ? 'flex' : 'none';
+        console.log(`🔄 Session loading overlay: ${show ? 'SHOW' : 'HIDE'}`);
     }
 }
 
