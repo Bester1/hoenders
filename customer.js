@@ -933,7 +933,7 @@ async function loadCustomerProfile() {
                 const { data: existingCustomerByEmail, error: emailCheckError } = await supabaseClient
                     .from('customers')
                     .select('*')
-                    .eq('email', newCustomer.email)
+                    .eq('email', newCustomer.email.toLowerCase())
                     .maybeSingle();
 
                 if (emailCheckError && emailCheckError.code !== 'PGRST116') {
@@ -980,7 +980,7 @@ async function loadCustomerProfile() {
                             const { data: duplicateCustomer, error: fetchError } = await supabaseClient
                                 .from('customers')
                                 .select('*')
-                                .eq('email', newCustomer.email)
+                                .eq('email', newCustomer.email.toLowerCase())
                                 .single();
 
                             if (!fetchError && duplicateCustomer) {
@@ -1157,7 +1157,7 @@ async function handleRegister(event) {
                         const { data: duplicateProfile } = await supabaseClient
                             .from('customers')
                             .select('*')
-                            .eq('email', registrationData.email)
+                            .eq('email', registrationData.email.toLowerCase())
                             .single();
 
                         if (duplicateProfile) {
