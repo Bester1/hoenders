@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +17,7 @@
         }
     </script>
 </head>
+
 <body>
     <div class="admin-container">
         <!-- Sidebar Navigation -->
@@ -25,13 +27,15 @@
             </div>
             <ul class="nav-menu">
                 <li><a href="#dashboard" class="nav-link active"><i class="fas fa-chart-line"></i> Dashboard</a></li>
-                <li><a href="#analytics" class="nav-link"><i class="fas fa-chart-bar"></i> Business Intelligence</a></li>
+                <li><a href="#analytics" class="nav-link"><i class="fas fa-chart-bar"></i> Business Intelligence</a>
+                </li>
                 <li><a href="#customers" class="nav-link"><i class="fas fa-users"></i> Customer Management</a></li>
                 <li><a href="#orders" class="nav-link"><i class="fas fa-shopping-cart"></i> Orders</a></li>
                 <li><a href="#invoices" class="nav-link"><i class="fas fa-file-invoice"></i> Invoices</a></li>
                 <li><a href="#emails" class="nav-link"><i class="fas fa-envelope"></i> Email Center</a></li>
                 <li><a href="#pricing" class="nav-link"><i class="fas fa-tags"></i> Pricing</a></li>
-                <li><a href="#pdf-analysis" class="nav-link"><i class="fas fa-robot"></i> Import & Analyze Invoices</a></li>
+                <li><a href="#pdf-analysis" class="nav-link"><i class="fas fa-robot"></i> Import & Analyze Invoices</a>
+                </li>
                 <li><a href="#settings" class="nav-link"><i class="fas fa-cog"></i> Settings</a></li>
             </ul>
         </nav>
@@ -293,7 +297,8 @@
                     <div class="customer-search-card">
                         <h3><i class="fas fa-search"></i> Find Customer</h3>
                         <div class="search-controls">
-                            <input type="text" id="customerSearchInput" placeholder="Search by name, email, or phone..." onkeyup="searchCustomers()">
+                            <input type="text" id="customerSearchInput" placeholder="Search by name, email, or phone..."
+                                onkeyup="searchCustomers()">
                             <select id="customerFilterSelect" onchange="filterCustomers()">
                                 <option value="all">All Customers</option>
                                 <option value="active">Active Customers</option>
@@ -363,7 +368,8 @@
                     <div class="fallback-message">
                         <i class="fas fa-shield-alt"></i>
                         <h3>Customer Management Temporarily Unavailable</h3>
-                        <p>We're experiencing technical difficulties with the customer management system. Please use the Business Intelligence section below for customer analytics.</p>
+                        <p>We're experiencing technical difficulties with the customer management system. Please use the
+                            Business Intelligence section below for customer analytics.</p>
                         <button class="btn-primary" onclick="showSection('analytics')">
                             <i class="fas fa-chart-bar"></i> Go to Business Intelligence
                         </button>
@@ -377,7 +383,7 @@
                     <h2>📦 Monthly Order Management</h2>
                     <div class="header-actions">
                         <span class="order-cycle-info">
-                            <i class="fas fa-calendar-alt"></i> 
+                            <i class="fas fa-calendar-alt"></i>
                             Next Delivery: <strong id="nextDelivery">Last Saturday of Month</strong>
                         </span>
                     </div>
@@ -420,7 +426,7 @@
                                 <div class="stat-value" id="orderStatusSummary">Open</div>
                             </div>
                         </div>
-                        
+
                         <div class="portal-actions">
                             <div class="bulk-actions" id="bulkActions" style="display: none;">
                                 <span class="selected-count" id="selectedCount">0 selected</span>
@@ -480,7 +486,8 @@
                     <div class="customer-orders-card">
                         <h3>👥 Customer Orders</h3>
                         <div class="orders-filter">
-                            <input type="text" id="customerSearchInput" placeholder="Search customer..." onkeyup="filterCustomerOrders()" />
+                            <input type="text" id="customerSearchInput" placeholder="Search customer..."
+                                onkeyup="filterCustomerOrders()" />
                             <select id="statusFilter" onchange="filterCustomerOrders()">
                                 <option value="">All Statuses</option>
                                 <option value="pending">Pending</option>
@@ -493,7 +500,8 @@
                             <table id="portalOrdersTable" class="data-table">
                                 <thead>
                                     <tr>
-                                        <th><input type="checkbox" id="selectAllOrders" onchange="toggleAllOrders()"></th>
+                                        <th><input type="checkbox" id="selectAllOrders" onchange="toggleAllOrders()">
+                                        </th>
                                         <th>Order Date</th>
                                         <th>Customer</th>
                                         <th>Contact</th>
@@ -536,11 +544,12 @@
                             </button>
                         </div>
                     </div>
-                    
+
                     <div class="import-area">
                         <div class="import-options">
                             <div class="csv-upload">
-                                <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleCSVUpload(event)">
+                                <input type="file" id="csvFileInput" accept=".csv" style="display: none;"
+                                    onchange="handleCSVUpload(event)">
                                 <button onclick="triggerCSVUpload()" class="btn-secondary">
                                     <i class="fas fa-file-csv"></i> Upload CSV File
                                 </button>
@@ -552,7 +561,8 @@
                             </button>
                         </div>
                         <div id="manualInputArea" style="display: none;">
-                            <textarea id="orderData" placeholder="Paste your Google Sheets data here..." rows="8"></textarea>
+                            <textarea id="orderData" placeholder="Paste your Google Sheets data here..."
+                                rows="8"></textarea>
                             <button onclick="processOrders()" class="btn-primary">Process Orders</button>
                         </div>
                         <div id="csvPreview" style="display: none;">
@@ -711,7 +721,8 @@ Savings/Spaar rek</textarea>
                     <button class="btn-secondary" onclick="document.getElementById('supplierInvoiceInput').click()">
                         <i class="fas fa-file-invoice-dollar"></i> Update from Invoice
                     </button>
-                    <input type="file" id="supplierInvoiceInput" accept=".pdf" style="display: none;" onchange="handleSupplierInvoiceUpload(event)">
+                    <input type="file" id="supplierInvoiceInput" accept=".pdf" style="display: none;"
+                        onchange="handleSupplierInvoiceUpload(event)">
                 </div>
 
                 <div class="pricing-table-container">
@@ -747,7 +758,8 @@ Savings/Spaar rek</textarea>
                     <div class="upload-card">
                         <h3>📄 Import Butchery Invoice PDF</h3>
                         <div class="upload-area" id="pdfUploadArea">
-                            <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;" onchange="handlePDFUpload(event)">
+                            <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;"
+                                onchange="handlePDFUpload(event)">
                             <div class="upload-placeholder" onclick="triggerPDFUpload()">
                                 <i class="fas fa-cloud-upload-alt"></i>
                                 <p><strong>Click to import your butchery invoice PDF</strong></p>
@@ -755,7 +767,7 @@ Savings/Spaar rek</textarea>
                                 <small>Supported format: PDF only</small>
                             </div>
                         </div>
-                        
+
                         <div class="upload-info">
                             <h4>🔍 AI Analysis will check for:</h4>
                             <ul>
@@ -856,8 +868,10 @@ Savings/Spaar rek</textarea>
 
                 <div class="settings-card" style="grid-column: 1 / -1; margin-top: 30px;">
                     <h3 style="color: #dc3545;">⚠️ Data Management</h3>
-                    <p style="color: #666; margin-bottom: 20px;">Manage your application data, backups, and storage. <strong>Use with caution!</strong></p>
-                    
+                    <p style="color: #666; margin-bottom: 20px;">Manage your application data, backups, and storage.
+                        <strong>Use with caution!</strong>
+                    </p>
+
                     <div class="data-management-grid">
                         <div class="data-action-card">
                             <h4>📥 Backup Data</h4>
@@ -866,40 +880,44 @@ Savings/Spaar rek</textarea>
                                 <i class="fas fa-download"></i> Download Backup
                             </button>
                         </div>
-                        
+
                         <div class="data-action-card">
                             <h4>📤 Restore Data</h4>
                             <p>Upload and restore from a backup file</p>
-                            <input type="file" id="backupFileInput" accept=".json" style="display: none;" onchange="handleBackupUpload(event)">
+                            <input type="file" id="backupFileInput" accept=".json" style="display: none;"
+                                onchange="handleBackupUpload(event)">
                             <button onclick="triggerBackupUpload()" class="btn-secondary">
                                 <i class="fas fa-upload"></i> Restore Backup
                             </button>
                         </div>
-                        
+
                         <div class="data-action-card">
                             <h4>🗑️ Clear Local Data</h4>
-                            <p>Remove all data stored in browser<br><small>⚡ Pricing is protected and won't be cleared</small></p>
+                            <p>Remove all data stored in browser<br><small>⚡ Pricing is protected and won't be
+                                    cleared</small></p>
                             <button onclick="clearLocalData()" class="btn-danger">
                                 <i class="fas fa-trash"></i> Clear Local Data
                             </button>
                         </div>
-                        
+
                         <div class="data-action-card">
                             <h4>🗄️ Clear Database</h4>
-                            <p>Remove all data from Supabase database<br><small>⚡ Pricing is protected and won't be cleared</small></p>
+                            <p>Remove all data from Supabase database<br><small>⚡ Pricing is protected and won't be
+                                    cleared</small></p>
                             <button onclick="clearDatabaseData()" class="btn-danger">
                                 <i class="fas fa-database"></i> Clear Database
                             </button>
                         </div>
-                        
+
                         <div class="data-action-card">
                             <h4>🔄 Reset Everything</h4>
-                            <p>Clear all data (local + database) and reset app<br><small>⚡ Pricing is protected and won't be cleared</small></p>
+                            <p>Clear all data (local + database) and reset app<br><small>⚡ Pricing is protected and
+                                    won't be cleared</small></p>
                             <button onclick="resetEverything()" class="btn-danger">
                                 <i class="fas fa-exclamation-triangle"></i> Reset Everything
                             </button>
                         </div>
-                        
+
                         <div class="data-action-card">
                             <h4>📊 Data Status</h4>
                             <div id="dataStatus">
@@ -930,10 +948,12 @@ Savings/Spaar rek</textarea>
                     <h4 id="weightEditInvoiceTitle">Invoice Details</h4>
                     <p id="weightEditInvoiceInfo">Customer: | Date: | Status: Provisional</p>
                     <div class="edit-instructions">
-                        <p><strong>Instructions:</strong> Update the weights below to match actual delivered amounts. The total will recalculate automatically using your current rate card prices.</p>
+                        <p><strong>Instructions:</strong> Update the weights below to match actual delivered amounts.
+                            The total will recalculate automatically using your current rate card prices.</p>
                         <div class="edit-warning">
                             <i class="fas fa-exclamation-triangle"></i>
-                            <span>This will update the provisional invoice. You can still import final weights from the butchery PDF later for comparison.</span>
+                            <span>This will update the provisional invoice. You can still import final weights from the
+                                butchery PDF later for comparison.</span>
                         </div>
                     </div>
                 </div>
@@ -981,14 +1001,15 @@ Savings/Spaar rek</textarea>
     </div>
 
     <!-- Pricing Update Modal -->
-    <div id="pricingUpdateModal" class="modal">
+    <div id="pricingUpdateModal" class="modal" style="display: none;">
         <div class="modal-content large-modal">
             <div class="modal-header">
                 <h2>Update Pricing from Invoice</h2>
                 <button class="close-modal" onclick="closePricingUpdateModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <p>Review the extracted costs and proposed selling prices. Selling prices are calculated based on the previous margin percentage. You can manually override the final selling price.</p>
+                <p>Review the extracted costs and proposed selling prices. Selling prices are calculated based on the
+                    previous margin percentage. You can manually override the final selling price.</p>
                 <div class="table-container">
                     <table id="pricingUpdateTable" class="data-table">
                         <thead>
@@ -1026,7 +1047,7 @@ Savings/Spaar rek</textarea>
     </script>
     <!-- Load shared styles and components -->
     <link rel="stylesheet" href="shared-styles.css">
-    
+
     <!-- Security and Environment Configuration -->
     <script src="env-config-dev.js"></script>
     <script src="security-utils.js"></script>
@@ -1035,10 +1056,11 @@ Savings/Spaar rek</textarea>
     <script src="secure-storage.js"></script>
     <script src="config.js"></script>
     <script src="error-handler.js"></script>
-    
+
     <!-- Configuration now embedded directly in script.js for GitHub Pages -->
     <script src="utils.js"></script>
     <script src="shared-components.js"></script>
     <script src="script.js"></script>
 </body>
+
 </html>
