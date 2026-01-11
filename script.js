@@ -6001,6 +6001,9 @@ function editInvoiceWeights(invoiceId) {
     console.log('📝 Opened weight editing for invoice:', invoiceId);
 }
 
+// Fix for ReferenceError: refreshCustomerData not defined
+window.refreshCustomerData = safeRefreshCustomerData;
+
 function populateWeightEditTable() {
     const tableBody = document.getElementById('weightEditTableBody');
     const items = editingInvoiceData.items || [];
@@ -8129,7 +8132,10 @@ function extractPricingFromText(text) {
             }
         }
     });
-    return updates;
+});
+console.log(`✅ Extracted ${updates.length} pricing updates`);
+console.log('🔍 First 3 updates:', JSON.stringify(updates.slice(0, 3), null, 2));
+return updates;
 }
 
 function showPricingUpdateModal(updates) {
@@ -8142,22 +8148,34 @@ function showPricingUpdateModal(updates) {
     tbody.innerHTML = '';
 
     updates.forEach((update, index) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${update.name}</td>
-            <td>R${update.oldCost.toFixed(2)}</td>
-            <td class="font-bold text-blue-600">R${update.newCost.toFixed(2)}</td>
-            <td>R${update.oldSelling.toFixed(2)}</td>
-            <td>${(update.margin * 100).toFixed(1)}%</td>
-            <td>R${update.calcSelling.toFixed(2)}</td>
-            <td>
-                <input type="number" step="1.00" 
-                    value="${update.finalSelling.toFixed(2)}" 
-                    onchange="updateFinalPrice(${index}, this.value)"
-                    class="p-1 border rounded w-24">
-            </td>
-        `;
-        tbody.appendChild(row);
+        try {
+            const row = document.createElement('tr');
+            // Ensure values are numbers before toFixed
+            const oldCost = Number(update.oldCost) || 0;
+            const newCost = Number(update.newCost) || 0;
+            const oldSelling = Number(update.oldSelling) || 0;
+            const calcSelling = Number(update.calcSelling) || 0;
+            const finalSelling = Number(update.finalSelling) || 0;
+            const margin = Number(update.margin) || 0;
+
+            row.innerHTML = `
+                <td>${update.name}</td>
+                <td>R${oldCost.toFixed(2)}</td>
+                <td class="font-bold text-blue-600">R${newCost.toFixed(2)}</td>
+                <td>R${oldSelling.toFixed(2)}</td>
+                <td>${(margin * 100).toFixed(1)}%</td>
+                <td>R${calcSelling.toFixed(2)}</td>
+                <td>
+                    <input type="number" step="1.00" 
+                        value="${finalSelling.toFixed(2)}" 
+                        onchange="updateFinalPrice(${index}, this.value)"
+                        class="p-1 border rounded w-24">
+                </td>
+            `;
+            tbody.appendChild(row);
+        } catch (rowError) {
+            console.error('Error rendering row for update:', update, rowError);
+        }
     });
 
     if (modal) modal.style.display = 'block';
