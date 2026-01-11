@@ -39,18 +39,18 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
         if (attachments && attachments.length > 0) {
             formData.append('attachments', JSON.stringify(attachments));
         }
-        
+
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
             body: formData
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const result = await response.json();
-        
+
         if (result.status === 'success') {
             console.log('Email sent successfully via Google Apps Script to:', to);
             return true;
@@ -71,7 +71,9 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
  */
 function getCustomerPricing() {
     // Default pricing data (synchronized with admin system)
-    const adminPricing = {
+    // Default pricing data (synchronized with admin system)
+    // This serves as a fallback until database prices are loaded
+    const defaultPricing = {
         'HEEL HOENDER': { cost: 59.00, selling: 67.00, packaging: '' },
         'PLAT HOENDER (FLATTY\'S)': { cost: 69.00, selling: 79.00, packaging: 'VACUUM VERPAK' },
         'BRAAIPAKKE': { cost: 65.00, selling: 74.00, packaging: '1 Heel hoender opgesnye VACUUM VERPAK' },
@@ -94,10 +96,13 @@ function getCustomerPricing() {
         'SUIWER HEUNING': { cost: 60, selling: 70, packaging: '500g potjie', unit: 'per potjie' }
     };
 
+    // Use dynamic pricing if available, otherwise fallback
+    const pricingSource = window.dynamicPricing || defaultPricing;
+
     // Create customer-safe version with only selling prices and packaging info
     const customerPricing = {};
-    Object.keys(adminPricing).forEach(productName => {
-        const product = adminPricing[productName];
+    Object.keys(pricingSource).forEach(productName => {
+        const product = pricingSource[productName];
         // Defensive check to prevent runtime errors if admin pricing structure changes
         if (product && typeof product.selling === 'number') {
             customerPricing[productName] = {
@@ -134,7 +139,7 @@ function getProductDisplayInfo(productName) {
             description: 'Heel hoender opgesnye in braai stukke'
         },
         'HEEL HALWE HOENDERS': {
-            displayName: 'Heel Halwe Hoenders', 
+            displayName: 'Heel Halwe Hoenders',
             description: 'Heel hoender deurgesny in helftes'
         },
         'BORSSTUKKE MET BEEN EN VEL': {
@@ -178,7 +183,7 @@ function getProductDisplayInfo(productName) {
             description: 'Hoender boude porties'
         },
         'DIE DYE ALLEEN': {
-            displayName: 'Die Dye Alleen', 
+            displayName: 'Die Dye Alleen',
             description: 'Hoender dye porties'
         },
         'TITTES (borsstukke sonder been en vel)': {
@@ -198,7 +203,7 @@ function getProductDisplayInfo(productName) {
             description: 'Vars plaas eiers'
         }
     };
-    
+
     return displayMap[productName] || {
         displayName: productName,
         description: 'Vars hoender produk van die plaas'
@@ -234,7 +239,7 @@ function getEstimatedWeight(productName) {
         'INGELEGDE GROEN VYE': '375ml potjie',       // Not kg - per unit
         'SUIWER HEUNING': '500g potjie'              // Not kg - per unit
     };
-    
+
     return weightMap[productName] || '1.0kg';
 }
 
@@ -260,7 +265,7 @@ function getProductCategories() {
             description: 'Hoender dele en spesialiteit snitte',
             icon: 'fas fa-cut',
             products: [
-                'HEEL HALWE HOENDERS', 
+                'HEEL HALWE HOENDERS',
                 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)',
                 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
                 'BOUDE EN DYE',
@@ -283,12 +288,12 @@ function getProductCategories() {
             ]
         },
         'other': {
-            name: 'Ander Produkte', 
+            name: 'Ander Produkte',
             description: 'Newe produkte en byvoegings',
             icon: 'fas fa-plus-circle',
             products: [
                 'LEWER',
-                'NEKKIES', 
+                'NEKKIES',
                 'INGELEGDE GROEN VYE',
                 'SUIWER HEUNING'
             ]
@@ -407,17 +412,17 @@ function formatCurrency(amount) {
  */
 function formatPhoneNumber(phone) {
     if (!phone) return '';
-    
+
     // Remove all non-digit characters
     const digits = phone.replace(/\D/g, '');
-    
+
     // Format as South African number
     if (digits.length === 10 && digits.startsWith('0')) {
         return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
     } else if (digits.length === 11 && digits.startsWith('27')) {
         return `+27 ${digits.slice(2, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
     }
-    
+
     return phone; // Return original if can't format
 }
 
@@ -429,7 +434,7 @@ function formatPhoneNumber(phone) {
  */
 function validatePhoneNumber(phone) {
     if (!phone) return true; // Optional field
-    
+
     const phoneRegex = /^(\+27|0)[0-9]{9}$/;
     return phoneRegex.test(phone.replace(/\s/g, ''));
 }
@@ -442,7 +447,7 @@ function validatePhoneNumber(phone) {
  */
 function validateEmail(email) {
     if (!email) return false;
-    
+
     const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
     return emailRegex.test(email);
 }
@@ -469,17 +474,17 @@ function generateOrderId(prefix = 'ORD') {
  */
 function formatDate(date, options = {}) {
     if (!date) return '';
-    
+
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(dateObj.getTime())) return '';
-    
+
     const defaultOptions = {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
         timeZone: 'Africa/Johannesburg'
     };
-    
+
     return dateObj.toLocaleDateString('en-ZA', { ...defaultOptions, ...options });
 }
 
@@ -607,7 +612,7 @@ function getToastIcon(type) {
  */
 function sanitizeHtml(str) {
     if (typeof str !== 'string') return '';
-    
+
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
@@ -621,7 +626,7 @@ function sanitizeHtml(str) {
  */
 function calculateOrderTotal(items) {
     if (!Array.isArray(items)) return 0;
-    
+
     return items.reduce((total, item) => {
         const lineTotal = parseFloat(item.line_total) || 0;
         return total + lineTotal;
@@ -655,6 +660,21 @@ function isMobileDevice() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
+/**
+ * Update dynamic pricing from database
+ * @function updateDynamicPricing
+ * @param {Object} pricingData - Pricing object { 'PRODUCT': { selling: X, ... } }
+ */
+function updateDynamicPricing(pricingData) {
+    if (!pricingData || typeof pricingData !== 'object') {
+        console.error('Invalid pricing data passed to updateDynamicPricing');
+        return;
+    }
+    
+    window.dynamicPricing = pricingData;
+    console.log('✅ Dynamic pricing updated in shared utils');
+}
+
 // Export functions for Node.js environments (if applicable)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -670,6 +690,7 @@ if (typeof module !== 'undefined' && module.exports) {
         sanitizeHtml,
         calculateOrderTotal,
         groupBy,
-        isMobileDevice
+        isMobileDevice,
+        updateDynamicPricing
     };
 }

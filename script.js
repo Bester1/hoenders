@@ -15,7 +15,7 @@ function safeSetTableContent(tableBody, content, colspan = 1) {
     while (tableBody.firstChild) {
         tableBody.removeChild(tableBody.firstChild);
     }
-    
+
     if (typeof content === 'string') {
         // Create a single row with message
         const row = document.createElement('tr');
@@ -71,7 +71,7 @@ function estimateProductWeight(product, quantity) {
         'INGELEGDE GROEN VYE': 0.375, // Pickled figs ~375g per jar
         'SUIWER HEUNING': 0.5 // Honey ~500g per jar
     };
-    
+
     const baseWeight = weightEstimates[product] || 1.0; // Default 1kg if not found
     const sanitizedQuantity = SecurityUtils.sanitizeNumber(quantity, 1);
     return parseFloat((baseWeight * sanitizedQuantity).toFixed(2));
@@ -128,27 +128,14 @@ const productMapping = {
 };
 
 // March 2025 Braaikuikens - EXACT COST and SELLING prices from supplier
-let pricing = {
+// Products and Pricing (Loaded from Database)
+let pricing = {};
+let products = [];
+
+// Fallback pricing for initial load / offline mode (Optional, but good for safety)
+const DEFAULT_PRICING = {
     'HEEL HOENDER': { cost: 59.00, selling: 67.00, packaging: '' },
-    'PLAT HOENDER (FLATTY\'S)': { cost: 69.00, selling: 79.00, packaging: 'VACUUM VERPAK' },
-    'BRAAIPAKKE': { cost: 65.00, selling: 74.00, packaging: '1 Heel hoender opgesnye VACUUM VERPAK' },
-    'HEEL HALWE HOENDERS': { cost: 60.00, selling: 68.00, packaging: '1 Heel hoender deurgesny' },
-    'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)': { cost: 64.00, selling: 73.00, packaging: '2 borsstukke in pak' },
-    'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)': { cost: 64.00, selling: 73.00, packaging: '4 borsstukke in pak' },
-    'VLERKIES': { cost: 79.00, selling: 90.00, packaging: '8 IN PAK NIE ALTYD BESKIKBAAR' },
-    'BOUDE EN DYE': { cost: 71.00, selling: 81.00, packaging: '2 boude en 2 dye in pak' },
-    'GUNS Boud en dy aanmekaar': { cost: 71.00, selling: 81.00, packaging: '3 IN PAK' },
-    'LEWER': { cost: 27.00, selling: 31.00, packaging: 'In 500g bakkies verpak' },
-    'NEKKIES': { cost: 25.00, selling: 30.00, packaging: 'In 500g sakkies verpak NIE ALTYD BESKIKBAAR' },
-    'FILETTE (sonder vel)': { cost: 86.50, selling: 100.00, packaging: '4 fillets per pak' },
-    'STRIPS': { cost: 86.50, selling: 100.00, packaging: '± 500g per pak' },
-    'ONTBEENDE HOENDER': { cost: 110.00, selling: 125.00, packaging: 'VACUUM VERPAK' },
-    'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 166.00, selling: 193.00, packaging: 'Opsie 1: Vye, feta, cheddar, sweet chilly', unit: 'per kg' },
-    'GEVULDE HOENDER ROLLE OPSIE 2': { cost: 166.00, selling: 193.00, packaging: 'Peppadew, mozzarella, cheddar, pynappel', unit: 'per kg' },
-    'INGELEGDE GROEN VYE': { cost: 55, selling: 75, packaging: '375ml potjie', unit: 'per potjie' },
-    'HOENDER PATTIES': { cost: 105.00, selling: 120.00, packaging: '4 in pak (120-140g patty)', unit: 'per kg' },
-    'HOENDER KAASWORS': { cost: 140.00, selling: 148.00, packaging: '500gr VACUUM VERPAK', unit: 'per kg' },
-    'SUIWER HEUNING': { cost: 60, selling: 70, packaging: '500g potjie', unit: 'per potjie' }
+    // ... we can keep a small subset or rely on DB
 };
 
 // Secure Configuration and Database Connection with Fallback
@@ -226,7 +213,7 @@ async function initializeSecureConnections() {
 }
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
     try {
         // Initialize secure connections first
         const secureConnectionsReady = await initializeSecureConnections();
@@ -238,6 +225,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Continue with normal app initialization
         initializeApp();
         initializeDatabase();
+        await loadProducts(); // Load products from DB
         loadStoredData();
         updateDashboard();
         loadPricingTable();
@@ -265,11 +253,11 @@ function initializeApp() {
     // Set up navigation
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
+        link.addEventListener('click', function (e) {
             e.preventDefault();
             const targetSection = this.getAttribute('href').substring(1);
             showSection(targetSection);
-            
+
             // Update active nav
             navLinks.forEach(l => l.classList.remove('active'));
             this.classList.add('active');
@@ -413,17 +401,17 @@ async function testBasicConnectivity() {
 async function updateDatabaseSchema() {
     try {
         console.log('🔧 Checking database schema...');
-        
+
         // Check if email_template column exists by trying to select it
         const { error } = await supabaseClient
             .from('settings')
             .select('email_template')
             .limit(0);
-            
+
         if (error && (error.message.includes('column "email_template" does not exist') || error.code === '42703')) {
             console.log('⚠️ Email template column missing. Please run this SQL in Supabase SQL Editor:');
             console.log('%c ALTER TABLE settings ADD COLUMN email_template TEXT;', 'background: #f0f0f0; padding: 5px; font-family: monospace;');
-            
+
             // Show user-friendly notification
             const notification = document.createElement('div');
             notification.style.cssText = `
@@ -444,14 +432,14 @@ async function updateDatabaseSchema() {
                 </code>
             `;
             document.body.appendChild(notification);
-            
+
             // Auto-remove after 15 seconds
             setTimeout(() => {
                 if (notification.parentElement) {
                     notification.remove();
                 }
             }, 15000);
-            
+
             addActivity('Database schema needs update - see notification');
         } else if (!error) {
             console.log('✅ Database schema is up to date');
@@ -466,7 +454,7 @@ async function saveToDatabase() {
     if (isInitializing) {
         return true;
     }
-    
+
     // Check if Supabase client is available
     if (!supabaseClient) {
         console.log('Supabase client not available, saving to localStorage only');
@@ -489,14 +477,14 @@ async function saveToDatabase() {
                     orders: importData.orders,
                     invoices: importData.invoices
                 });
-            
+
             if (importError) {
                 console.error('Error saving import:', importError);
                 ErrorHandler.showNotification('Failed to save import data to database', 'error');
                 return false;
             }
         }
-        
+
         // Save settings (but NOT pricing - always use current default)
         const { error: settingsError } = await supabaseClient
             .from('settings')
@@ -507,13 +495,13 @@ async function saveToDatabase() {
                 email_queue: emailQueue,
                 analysis_history: analysisHistory
             });
-        
+
         if (settingsError) {
             console.error('Error saving settings:', settingsError);
             ErrorHandler.showNotification('Failed to save settings to database', 'error');
             return false;
         }
-        
+
         console.log('Data saved to Supabase successfully');
         return true;
     } catch (error) {
@@ -534,12 +522,12 @@ async function loadFromDatabase() {
         const { data: importsData, error: importsError } = await supabaseClient
             .from('imports')
             .select('*');
-        
+
         if (importsError) {
             console.error('Error loading imports:', importsError);
             return false;
         }
-        
+
         // Convert array to object
         imports = {};
         if (importsData) {
@@ -547,19 +535,19 @@ async function loadFromDatabase() {
                 imports[importData.id] = importData;
             });
         }
-        
+
         // Load settings
         const { data: settingsData, error: settingsError } = await supabaseClient
             .from('settings')
             .select('*')
             .eq('id', 'main')
             .single();
-        
+
         if (settingsError && settingsError.code !== 'PGRST116') {
             console.error('Error loading settings:', settingsError);
             return false;
         }
-        
+
         if (settingsData) {
             currentImportId = settingsData.current_import_id;
             // DON'T load pricing from database - always use current default values
@@ -567,12 +555,62 @@ async function loadFromDatabase() {
             emailQueue = settingsData.email_queue || [];
             analysisHistory = settingsData.analysis_history || [];
         }
-        
+
         console.log('Data loaded from Supabase successfully');
         return true;
     } catch (error) {
         console.error('Database load error:', error);
         return false;
+    }
+}
+
+// Load products from database
+async function loadProducts() {
+    console.log('Using loading products from Supabase...');
+    if (!supabaseClient) {
+        console.warn('Supabase client not ready, cannot load products');
+        return;
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('products')
+            .select('*')
+            .eq('active', true)
+            .order('name');
+
+        if (error) {
+            if (error.code === '42P01') {
+                console.warn('Products table does not exist yet. Please run migration.');
+                ErrorHandler.showNotification('Products table missing', 'warning');
+                // Fallback to defaults or empty if needed
+                return;
+            }
+            throw error;
+        }
+
+        products = data || [];
+        // Populate pricing object for backward compatibility
+        pricing = {};
+        products.forEach(p => {
+            pricing[p.name] = {
+                cost: p.cost_price,
+                selling: p.selling_price,
+                packaging: p.packaging,
+                unit: p.unit,
+                id: p.id
+            };
+        });
+
+        console.log(`✅ Loaded ${products.length} products from database`);
+
+        // Refresh UI components that depend on pricing
+        if (typeof loadPricingTable === 'function') loadPricingTable();
+        if (typeof loadCurrentRatesTable === 'function') loadCurrentRatesTable();
+
+    } catch (error) {
+        console.error('❌ Error loading products:', error);
+        ErrorHandler.showNotification('Failed to load products from database', 'error');
     }
 }
 
@@ -583,13 +621,13 @@ function switchOrderView(view) {
         tab.classList.remove('active');
     });
     event.target.closest('.order-tab').classList.add('active');
-    
+
     // Update view visibility
     document.querySelectorAll('.order-view').forEach(v => {
         v.style.display = 'none';
         v.classList.remove('active');
     });
-    
+
     if (view === 'portal') {
         document.getElementById('portalOrdersView').style.display = 'block';
         document.getElementById('portalOrdersView').classList.add('active');
@@ -616,25 +654,25 @@ function updatePortalOrdersDisplay() {
     const portalOrders = window.customerPortalOrders || [];
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
-    
+
     // Filter orders for current month
     const monthOrders = portalOrders.filter(order => {
         const orderDate = new Date(order.date);
         return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
     });
-    
+
     // Update stats
     document.getElementById('monthOrderCount').textContent = monthOrders.length;
     document.getElementById('monthCustomerCount').textContent = new Set(monthOrders.map(o => o.email)).size;
     document.getElementById('monthTotalAmount').textContent = 'R' + monthOrders.reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2);
     document.getElementById('orderStatusSummary').textContent = monthOrders.length > 0 ? 'Open for Orders' : 'Awaiting Orders';
-    
+
     // Update product summary
     updateProductSummary(monthOrders);
-    
+
     // Update customer orders table
     updatePortalOrdersTable(monthOrders);
-    
+
     // Set up checkbox event listeners
     setupOrderCheckboxes();
 }
@@ -642,7 +680,7 @@ function updatePortalOrdersDisplay() {
 // Update product summary for butchery
 function updateProductSummary(orders) {
     const productSummary = {};
-    
+
     orders.forEach(order => {
         // Handle both single product and multi-product orders
         if (order.products && Array.isArray(order.products)) {
@@ -671,13 +709,13 @@ function updateProductSummary(orders) {
             productSummary[order.product].customers.add(order.email);
         }
     });
-    
+
     const summaryBody = document.getElementById('productSummaryBody');
     if (Object.keys(productSummary).length === 0) {
         summaryBody.innerHTML = '<tr><td colspan="4" class="no-data">No orders yet this month</td></tr>';
         return;
     }
-    
+
     summaryBody.innerHTML = Object.entries(productSummary)
         .sort((a, b) => b[1].quantity - a[1].quantity)
         .map(([product, data]) => `
@@ -693,17 +731,17 @@ function updateProductSummary(orders) {
 // Update portal orders table
 function updatePortalOrdersTable(orders) {
     const tableBody = document.getElementById('portalOrdersTableBody');
-    
+
     if (orders.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="8" class="no-data">No customer portal orders yet</td></tr>';
         return;
     }
-    
+
     tableBody.innerHTML = orders.map(order => {
-        const productDisplay = order.products && Array.isArray(order.products) 
-            ? `${order.products.length} items` 
+        const productDisplay = order.products && Array.isArray(order.products)
+            ? `${order.products.length} items`
             : order.product;
-            
+
         return `
             <tr>
                 <td><input type="checkbox" class="order-checkbox" value="${order.orderId}"></td>
@@ -730,18 +768,18 @@ async function exportToExcelForButchery() {
     const portalOrders = window.customerPortalOrders || [];
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
-    
+
     // Filter orders for current month
     const monthOrders = portalOrders.filter(order => {
         const orderDate = new Date(order.date);
         return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
     });
-    
+
     if (monthOrders.length === 0) {
         alert('No orders to export for this month');
         return;
     }
-    
+
     // Get all unique products from all orders
     const allProducts = new Set();
     monthOrders.forEach(order => {
@@ -753,28 +791,28 @@ async function exportToExcelForButchery() {
             allProducts.add(order.product);
         }
     });
-    
+
     // Sort products alphabetically for consistent column order
     const productList = Array.from(allProducts).sort();
     console.log('📊 Products for butchery spreadsheet:', productList);
-    
+
     // Create CSV header: Email, Customer Name, Address, Phone, then individual product columns
     let csvContent = 'Email,Customer Name,Address,Phone';
-    
+
     // Add each product as a separate column header
     productList.forEach(product => {
         csvContent += `,"${product}"`;
     });
     csvContent += '\n';
-    
+
     // Create one row per customer with product quantities in appropriate columns
     monthOrders.forEach(order => {
         // Start with customer info columns
         let rowData = `"${order.email}","${order.name}","${order.address || ''}","${order.phone || ''}"`;
-        
+
         // Collect all products and quantities for this customer
         const customerProducts = {};
-        
+
         if (order.products && Array.isArray(order.products)) {
             order.products.forEach(item => {
                 const productName = item.product;
@@ -786,24 +824,24 @@ async function exportToExcelForButchery() {
             const quantity = order.quantity || 0;
             customerProducts[productName] = (customerProducts[productName] || 0) + quantity;
         }
-        
+
         // Add quantity for each product column (E, F, G, H, etc.)
         productList.forEach(product => {
             const quantity = customerProducts[product] || 0;
             rowData += `,${quantity}`;
         });
-        
+
         csvContent += rowData + '\n';
-        
+
         // Log customer order for debugging
         const customerProductCount = Object.keys(customerProducts).length;
         console.log(`📋 Customer: ${order.name} - ${customerProductCount} different products:`, customerProducts);
     });
-    
+
     // Add summary section
     csvContent += '\n\nPRODUCT SUMMARY FOR BUTCHERY\n';
     csvContent += 'Product,Total Quantity,Number of Customers\n';
-    
+
     const productSummary = {};
     monthOrders.forEach(order => {
         if (order.products && Array.isArray(order.products)) {
@@ -828,13 +866,13 @@ async function exportToExcelForButchery() {
             productSummary[order.product].customers.add(order.email);
         }
     });
-    
+
     Object.entries(productSummary)
         .sort((a, b) => b[1].quantity - a[1].quantity)
         .forEach(([product, data]) => {
             csvContent += `"${product}",${data.quantity},${data.customers.size}\n`;
         });
-    
+
     // Download the CSV file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -842,7 +880,7 @@ async function exportToExcelForButchery() {
     link.download = `Butchery_Orders_${monthName}.csv`;
     link.href = URL.createObjectURL(blob);
     link.click();
-    
+
     addActivity(`Exported ${monthOrders.length} orders for butchery`);
 }
 
@@ -853,7 +891,7 @@ async function generateAllPortalInvoices() {
         alert('Please select orders to generate invoices for');
         return;
     }
-    
+
     let successCount = 0;
     for (const checkbox of checkboxes) {
         const orderId = checkbox.value;
@@ -864,7 +902,7 @@ async function generateAllPortalInvoices() {
             console.error(`Failed to generate invoice for order ${orderId}:`, error);
         }
     }
-    
+
     alert(`Generated ${successCount} invoices successfully`);
     addActivity(`Generated ${successCount} invoices for portal orders`);
 }
@@ -881,17 +919,17 @@ function filterCustomerOrders() {
     const searchInput = document.getElementById('customerSearchInput').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter').value;
     const rows = document.querySelectorAll('#portalOrdersTableBody tr');
-    
+
     rows.forEach(row => {
         if (row.querySelector('.no-data')) return;
-        
+
         const customerName = row.cells[2].textContent.toLowerCase();
         const customerEmail = row.cells[3].textContent.toLowerCase();
         const status = row.cells[6].textContent.toLowerCase();
-        
+
         const matchesSearch = customerName.includes(searchInput) || customerEmail.includes(searchInput);
         const matchesStatus = !statusFilter || status.includes(statusFilter);
-        
+
         row.style.display = matchesSearch && matchesStatus ? '' : 'none';
     });
 }
@@ -901,7 +939,7 @@ function updateOrderCounts() {
     const allOrders = getCurrentOrders();
     const portalOrders = window.customerPortalOrders || [];
     const importOrders = allOrders.filter(o => o.source !== 'Customer Portal');
-    
+
     document.getElementById('portalOrderCount').textContent = portalOrders.length;
     document.getElementById('importOrderCount').textContent = importOrders.length;
     document.getElementById('allOrderCount').textContent = allOrders.length;
@@ -915,11 +953,11 @@ async function loadCustomerPortalOrders() {
         console.log('⏳ Portal orders already loading, skipping...');
         return;
     }
-    
+
     isLoadingPortalOrders = true;
     try {
         console.log('🔄 Loading customer portal orders...');
-        
+
         // First try with the customers and order_items join
         let { data: ordersData, error: ordersError } = await supabaseClient
             .from('orders')
@@ -940,21 +978,21 @@ async function loadCustomerPortalOrders() {
                 )
             `)
             .eq('source', 'customer_portal');
-        
+
         if (ordersError) {
             console.warn('⚠️ Join query failed, trying simple query:', ordersError);
-            
+
             // Fallback to simple query without join
             const { data: simpleData, error: simpleError } = await supabaseClient
                 .from('orders')
                 .select('*')
                 .eq('source', 'customer_portal');
-                
+
             if (simpleError) {
                 console.error('❌ Error loading customer portal orders:', simpleError);
                 return;
             }
-            
+
             ordersData = simpleData;
             console.log('✅ Loaded orders with simple query (no customer join)');
         }
@@ -962,7 +1000,7 @@ async function loadCustomerPortalOrders() {
         if (ordersData && ordersData.length > 0) {
             console.log(`📦 Found ${ordersData.length} customer portal orders`);
             console.log('📋 Sample order data:', ordersData[0]);
-            
+
             // Transform customer portal orders to match admin panel format
             window.customerPortalOrders = ordersData.map(order => ({
                 orderId: order.order_id,    // Display field - use order_id from database
@@ -994,13 +1032,13 @@ async function loadCustomerPortalOrders() {
                     };
                 }) : []
             }));
-            
+
             console.log('✅ Successfully loaded customer portal orders:', window.customerPortalOrders.length);
         } else {
             window.customerPortalOrders = [];
             console.log('ℹ️ No customer portal orders found in database');
         }
-        
+
     } catch (error) {
         console.error('❌ Failed to load customer portal orders:', error);
         window.customerPortalOrders = [];
@@ -1145,7 +1183,7 @@ CREATE POLICY "Customers can view order items" ON order_items FOR SELECT USING (
             </div>
         </div>
     `;
-    
+
     showModal(setupHTML);
 }
 
@@ -1155,9 +1193,9 @@ async function migrateToDatabase() {
         // Check if there's data in localStorage
         const storedImports = localStorage.getItem('plaasHoendersImports');
         if (!storedImports) return false;
-        
+
         console.log('Migrating data from localStorage to Supabase...');
-        
+
         // Load all localStorage data
         const localImports = JSON.parse(storedImports);
         const localCurrentImportId = localStorage.getItem('plaasHoendersCurrentImportId');
@@ -1165,7 +1203,7 @@ async function migrateToDatabase() {
         const localEmailQueue = JSON.parse(localStorage.getItem('plaasHoendersEmailQueue') || '[]');
         const localPricing = JSON.parse(localStorage.getItem('plaasHoendersPricing') || '{}');
         const localAnalysisHistory = JSON.parse(localStorage.getItem('plaasHoendersAnalysisHistory') || '[]');
-        
+
         // Set global variables
         imports = localImports;
         currentImportId = localCurrentImportId;
@@ -1173,14 +1211,14 @@ async function migrateToDatabase() {
         emailQueue = localEmailQueue;
         if (Object.keys(localPricing).length > 0) pricing = localPricing;
         analysisHistory = localAnalysisHistory;
-        
+
         // Save to database
         const success = await saveToDatabase();
-        
+
         if (success) {
             console.log('Data migration completed successfully');
             addActivity('Data migrated to Supabase database');
-            
+
             // Optionally clear localStorage after successful migration
             // You can uncomment these lines if you want to clean up localStorage
             // localStorage.removeItem('plaasHoendersImports');
@@ -1190,10 +1228,10 @@ async function migrateToDatabase() {
             // localStorage.removeItem('plaasHoendersPricing');
             localStorage.removeItem('plaasHoendersGmailConfig');
             // localStorage.removeItem('plaasHoendersAnalysisHistory');
-            
+
             return true;
         }
-        
+
         return false;
     } catch (error) {
         console.error('Migration error:', error);
@@ -1205,7 +1243,7 @@ async function migrateToDatabase() {
 function updateEmailStatus() {
     const statusElement = document.getElementById('emailStatusText');
     const statusIcon = document.querySelector('.email-status i');
-    
+
     if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== 'YOUR_SCRIPT_URL_HERE') {
         statusElement.textContent = 'Google Apps Script Ready';
         statusIcon.style.color = '#4CAF50';
@@ -1224,7 +1262,7 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
 
     try {
         showLoadingState(true, 'Sending email...');
-        
+
         // Use form data to avoid CORS preflight request
         const formData = new FormData();
         formData.append('to', to);
@@ -1234,20 +1272,20 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
         if (attachments && attachments.length > 0) {
             formData.append('attachments', JSON.stringify(attachments));
         }
-        
+
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
             body: formData
         });
 
         showLoadingState(false);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const result = await response.json();
-        
+
         if (result.status === 'success') {
             console.log('Email sent successfully via Google Apps Script');
             addActivity(`Email sent to ${to}`);
@@ -1269,17 +1307,17 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
 // Email queue management
 function addToEmailQueue(orderData) {
     // Check if email is valid before adding to queue
-    const isValidEmail = orderData.email && 
-                        orderData.email.includes('@') && 
-                        !orderData.email.includes('@placeholder.com') &&
-                        !orderData.email.includes('@email.com');
-    
+    const isValidEmail = orderData.email &&
+        orderData.email.includes('@') &&
+        !orderData.email.includes('@placeholder.com') &&
+        !orderData.email.includes('@email.com');
+
     if (!isValidEmail) {
         console.log(`⚠️ Skipping email queue for ${orderData.name} - invalid email: ${orderData.email}`);
         console.log(`📝 Invoice generated but customer needs valid email address for sending`);
         return;
     }
-    
+
     const emailData = {
         id: Date.now(),
         to: orderData.email,
@@ -1289,7 +1327,7 @@ function addToEmailQueue(orderData) {
         status: 'pending',
         timestamp: new Date().toISOString()
     };
-    
+
     console.log(`✅ Added ${orderData.name} (${orderData.email}) to email queue`);
     emailQueue.push(emailData);
     updateEmailQueueDisplay();
@@ -1303,25 +1341,25 @@ function addInvoiceToEmailQueue(invoiceId) {
         alert('Invoice not found');
         return;
     }
-    
+
     // Check if customer email is valid
-    const isValidEmail = invoice.customerEmail && 
-                        invoice.customerEmail.includes('@') && 
-                        !invoice.customerEmail.includes('@placeholder.com') &&
-                        !invoice.customerEmail.includes('@email.com');
-    
+    const isValidEmail = invoice.customerEmail &&
+        invoice.customerEmail.includes('@') &&
+        !invoice.customerEmail.includes('@placeholder.com') &&
+        !invoice.customerEmail.includes('@email.com');
+
     if (!isValidEmail) {
         alert(`Cannot add to email queue: Invalid email address (${invoice.customerEmail || 'missing'})`);
         return;
     }
-    
+
     // Check if already in queue
     const alreadyQueued = emailQueue.find(email => email.orderData && email.orderData.invoiceId === invoiceId);
     if (alreadyQueued) {
         alert('This invoice is already in the email queue');
         return;
     }
-    
+
     // Create order data object for email generation
     const orderData = {
         name: invoice.customerName,
@@ -1333,7 +1371,7 @@ function addInvoiceToEmailQueue(invoiceId) {
         invoiceId: invoice.invoiceId,
         total: invoice.total
     };
-    
+
     // Add to queue
     const emailData = {
         id: Date.now(),
@@ -1344,11 +1382,11 @@ function addInvoiceToEmailQueue(invoiceId) {
         status: 'pending',
         timestamp: new Date().toISOString()
     };
-    
+
     emailQueue.push(emailData);
     updateEmailQueueDisplay();
     saveToStorage();
-    
+
     console.log(`✅ Manually added invoice ${invoiceId} to email queue for ${invoice.customerName}`);
     alert(`Successfully added invoice to email queue for ${invoice.customerName}`);
 }
@@ -1356,17 +1394,17 @@ function addInvoiceToEmailQueue(invoiceId) {
 // Multi-product version for PDF imports
 function addToEmailQueueMultiProduct(orderData) {
     // Check if email is valid before adding to queue
-    const isValidEmail = orderData.email && 
-                        orderData.email.includes('@') && 
-                        !orderData.email.includes('@placeholder.com') &&
-                        !orderData.email.includes('@email.com');
-    
+    const isValidEmail = orderData.email &&
+        orderData.email.includes('@') &&
+        !orderData.email.includes('@placeholder.com') &&
+        !orderData.email.includes('@email.com');
+
     if (!isValidEmail) {
         console.log(`⚠️ Skipping email queue for ${orderData.name} - invalid email: ${orderData.email}`);
         console.log(`📝 Invoice generated but customer needs valid email address for sending`);
         return;
     }
-    
+
     const emailData = {
         id: Date.now(),
         to: orderData.email,
@@ -1376,7 +1414,7 @@ function addToEmailQueueMultiProduct(orderData) {
         status: 'pending',
         timestamp: new Date().toISOString()
     };
-    
+
     console.log(`✅ Added ${orderData.name} to email queue: ${orderData.email}`);
     emailQueue.push(emailData);
     updateEmailQueueDisplay();
@@ -1392,23 +1430,23 @@ function generateEmailSubject(orderData) {
 
 function generateEmailBody(orderData) {
     const template = document.getElementById('emailTemplate').value;
-    
+
     // Find the invoice for this order
     const invoice = invoices.find(inv => inv.orderId === orderData.orderId);
     let invoiceDetails = '';
-    
+
     if (invoice && invoice.items) {
         // Generate detailed invoice table
         invoiceDetails = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
         invoiceDetails += '<tr style="background-color: #f0f0f0;"><th>Description</th><th>Quantity</th>';
-        
+
         // Show weight column if ANY item has weight data
         const hasWeightData = invoice.items.some(item => item.weight && item.weight > 0);
         if (hasWeightData) {
             invoiceDetails += '<th>KG</th>';
         }
         invoiceDetails += '<th>Unit Price</th><th>Total</th></tr>';
-        
+
         invoice.items.forEach(item => {
             invoiceDetails += '<tr>';
             invoiceDetails += `<td>${item.product || item.originalDescription}</td>`;
@@ -1420,7 +1458,7 @@ function generateEmailBody(orderData) {
             invoiceDetails += `<td>R${(item.total || 0).toFixed(2)}</td>`;
             invoiceDetails += '</tr>';
         });
-        
+
         // Calculate correct colspan based on whether we have weight data
         const colspan = hasWeightData ? '4' : '3';
         invoiceDetails += `<tr style="font-weight: bold; background-color: #f9f9f9;"><td colspan="${colspan}">Subtotal</td><td>R${invoice.subtotal.toFixed(2)}</td></tr>`;
@@ -1436,7 +1474,7 @@ function generateEmailBody(orderData) {
         invoiceDetails += `Quantity: ${orderData.quantity}<br>`;
         invoiceDetails += `Total: R${orderData.total}<br>`;
     }
-    
+
     return template
         .replace('{customerName}', orderData.name)
         .replace('{orderNumber}', orderData.orderId)
@@ -1454,23 +1492,23 @@ function generateEmailSubjectMultiProduct(orderData) {
 
 function generateEmailBodyMultiProduct(orderData) {
     const template = document.getElementById('emailTemplate').value;
-    
+
     // Find the invoice for this order
     const invoice = invoices.find(inv => inv.orderId === orderData.orderId);
     let invoiceDetails = '';
-    
+
     if (invoice && invoice.items) {
         // Generate detailed invoice table
         invoiceDetails = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
         invoiceDetails += '<tr style="background-color: #f0f0f0;"><th>Description</th><th>Quantity</th>';
-        
+
         // Show weight column if ANY item has weight data
         const hasWeightData = invoice.items.some(item => item.weight && item.weight > 0);
         if (hasWeightData) {
             invoiceDetails += '<th>KG</th>';
         }
         invoiceDetails += '<th>Unit Price</th><th>Total</th></tr>';
-        
+
         invoice.items.forEach(item => {
             invoiceDetails += '<tr>';
             invoiceDetails += `<td>${item.product || item.originalDescription}</td>`;
@@ -1482,7 +1520,7 @@ function generateEmailBodyMultiProduct(orderData) {
             invoiceDetails += `<td>R${(item.total || 0).toFixed(2)}</td>`;
             invoiceDetails += '</tr>';
         });
-        
+
         // Calculate correct colspan based on whether we have weight data
         const colspan = hasWeightData ? '4' : '3';
         invoiceDetails += `<tr style="font-weight: bold; background-color: #f9f9f9;"><td colspan="${colspan}">Subtotal</td><td>R${invoice.subtotal.toFixed(2)}</td></tr>`;
@@ -1501,7 +1539,7 @@ function generateEmailBodyMultiProduct(orderData) {
         });
         invoiceDetails += `<strong>Total: R${orderData.total.toFixed(2)}</strong>`;
     }
-    
+
     return template
         .replace('{customerName}', orderData.name)
         .replace('{orderNumber}', orderData.orderId)
@@ -1558,7 +1596,7 @@ async function sendQueuedEmails() {
 
 function updateEmailQueueDisplay() {
     const queueContainer = document.getElementById('emailQueue');
-    
+
     if (emailQueue.length === 0) {
         queueContainer.innerHTML = '<p class="no-data">No emails in queue</p>';
         updateQueueStats();
@@ -1633,13 +1671,13 @@ async function testEmail() {
 
         const subject = generateEmailSubject(testOrder);
         const body = generateEmailBody(testOrder);
-        
+
         await sendEmailViaGoogleScript(testEmailAddress, subject, body);
-        
+
         // Remove test invoice after sending
         const testIndex = invoices.findIndex(inv => inv.invoiceId === testInvoice.invoiceId);
         if (testIndex > -1) invoices.splice(testIndex, 1);
-        
+
         alert('Test email sent successfully with invoice template!');
         addActivity(`Test email sent to ${testEmailAddress} with invoice template`);
     } catch (error) {
@@ -1658,7 +1696,7 @@ function processOrders() {
     try {
         const lines = orderData.split('\n');
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        
+
         const newOrders = [];
         for (let i = 1; i < lines.length; i++) {
             if (lines[i].trim()) {
@@ -1674,7 +1712,7 @@ function processOrders() {
                     specialInstructions: values[headers.indexOf('special instructions')] || '',
                     status: 'pending'
                 };
-                
+
                 // Calculate pricing
                 const productPricing = pricing[order.product];
                 if (productPricing) {
@@ -1684,19 +1722,19 @@ function processOrders() {
                     order.unitPrice = 100; // Default price
                     order.total = order.unitPrice * order.quantity;
                 }
-                
+
                 newOrders.push(order);
             }
         }
-        
+
         orders.push(...newOrders);
         updateOrdersTable();
         updateDashboard();
         saveToStorage();
-        
+
         document.getElementById('orderData').value = '';
         addActivity(`Processed ${newOrders.length} new orders`);
-        
+
         alert(`Successfully processed ${newOrders.length} orders!`);
     } catch (error) {
         alert('Error processing orders. Please check the data format.');
@@ -1707,16 +1745,16 @@ function processOrders() {
 function updateOrdersTable() {
     const tableBody = document.getElementById('ordersTableBody');
     const currentOrders = getCurrentOrders();
-    
+
     if (currentOrders.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="12" class="no-data">No orders loaded</td></tr>';
         return;
     }
-    
+
     const tableHTML = currentOrders.map(order => {
         // Handle both old single-product and new multi-product orders
         let productDisplay, quantityDisplay;
-        
+
         if (order.products && order.products.length > 0) {
             // New multi-product format
             if (order.products.length === 1) {
@@ -1731,7 +1769,7 @@ function updateOrdersTable() {
             productDisplay = order.product || 'N/A';
             quantityDisplay = order.quantity || 0;
         }
-        
+
         return `
             <tr class="order-row">
                 <td>${order.orderId}</td>
@@ -1753,47 +1791,47 @@ function updateOrdersTable() {
             </tr>
         `;
     }).join('');
-    
+
     tableBody.innerHTML = tableHTML;
 }
 
 // Invoice generation
 async function generateInvoice(orderId) {
     const currentOrders = getCurrentOrders();
-    
+
     // Check if this is a customer portal order (new single-record format)
     // Always use orderId for lookup since that's what the UI passes
     const customerPortalOrder = currentOrders.find(o => o.orderId === orderId && (o.source === 'Customer Portal' || o.source === 'customer_portal'));
-    
+
     let order, invoiceItems = [], subtotal = 0;
-    
+
     if (customerPortalOrder) {
         // New Customer Portal Order: Single order record + separate order_items
         console.log('🛒 Processing new Customer Portal order format');
         order = customerPortalOrder;
-        
+
         try {
             // Fetch detailed items from order_items table
             // Use the actual database order_id from the customer portal order
             const dbOrderId = customerPortalOrder.order_id || orderId;
             console.log(`🔍 Looking for order items with order_id: ${dbOrderId} (original orderId: ${orderId})`);
-            
+
             // First check if we can query the order_items table at all
             const { data: allItems, error: allItemsError } = await supabaseClient
                 .from('order_items')
                 .select('order_id')
                 .limit(5);
-            
+
             console.log('🗃️ Sample order_items in database:', allItems);
             if (allItemsError) {
                 console.error('❌ Error querying order_items table:', allItemsError);
             }
-            
+
             const { data: orderItems, error: itemsError } = await supabaseClient
                 .from('order_items')
                 .select('*')
                 .eq('order_id', dbOrderId);
-            
+
             if (itemsError) {
                 console.error('❌ Error loading order items:', itemsError);
                 // Get the original cart items from the saved order data
@@ -1804,11 +1842,11 @@ async function generateInvoice(orderId) {
                         const productName = getProductNameFromKey(productKey);
                         const pricing = getCustomerPricing();
                         const productPricing = pricing[productName];
-                        
+
                         if (productPricing) {
                             const estimatedWeight = estimateProductWeight(productName, quantity);
                             const lineTotal = productPricing.selling * estimatedWeight;
-                            
+
                             return {
                                 product: productName,
                                 quantity: quantity,
@@ -1843,21 +1881,21 @@ async function generateInvoice(orderId) {
                     specialInstructions: ''
                 }));
             }
-            
+
             subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
         } catch (error) {
             console.error('❌ Error fetching order items:', error);
             return;
         }
-        
+
     } else {
         // Regular order (single order or multi-product format)
         order = currentOrders.find(o => o.orderId === orderId);
         if (!order) return;
-        
+
         // For imported orders, we need currentImportId, but customer portal orders don't need it
         if (order.source !== 'Customer Portal' && !currentImportId) return;
-        
+
         if (order.products && order.products.length > 0) {
             // New multi-product format - ALWAYS use current selling prices
             invoiceItems = order.products.map(product => {
@@ -1865,7 +1903,7 @@ async function generateInvoice(orderId) {
                 const unitPrice = currentPricing ? currentPricing.selling : product.unitPrice;
                 const weight = product.weight || (product.quantity * 2.0); // Default 2kg per item if not specified
                 const total = unitPrice * weight; // Recalculate with current selling price
-                
+
                 return {
                     product: product.product,
                     quantity: product.quantity,
@@ -1882,7 +1920,7 @@ async function generateInvoice(orderId) {
             const unitPrice = currentPricing ? currentPricing.selling : order.unitPrice;
             const estimatedWeight = estimateProductWeight(order.product, order.quantity);
             const total = unitPrice * estimatedWeight; // Recalculate with current selling price
-            
+
             invoiceItems = [{
                 product: order.product,
                 quantity: order.quantity,
@@ -1893,7 +1931,7 @@ async function generateInvoice(orderId) {
             subtotal = total;
         }
     }
-    
+
     const invoice = {
         invoiceId: 'INV-' + Date.now(),
         orderId: order.orderId,           // Display field - for UI
@@ -1909,25 +1947,25 @@ async function generateInvoice(orderId) {
         total: subtotal, // Total = subtotal (no VAT)
         status: order.source === 'Customer Portal' ? 'provisional' : 'generated'
     };
-    
+
     // Add invoice to both global and import-specific collections
     invoices.push(invoice);
-    
+
     // Only add to import-specific collection if there's an associated import
     // Customer Portal orders don't have imports
     if (currentImportId && imports[currentImportId]) {
         imports[currentImportId].invoices.push(invoice);
     }
-    
+
     order.status = 'invoiced';
-    
+
     updateOrdersTable();
     updateInvoicesDisplay();
     updateDashboard();
     saveToStorage();
-    
+
     addActivity(`Invoice ${invoice.invoiceId} generated for ${order.name} (${invoiceItems.length} items)`);
-    
+
     // Add to email queue
     addToEmailQueue(order);
 }
@@ -1939,52 +1977,52 @@ function generateAllInvoices() {
         alert('Please select an import for invoicing.');
         return;
     }
-    
+
     const selectedImport = imports[invoiceImportId];
     const pendingOrders = selectedImport.orders.filter(o => o.status === 'pending');
-    
+
     if (pendingOrders.length === 0) {
         alert('No pending orders to invoice in this import.');
         return;
     }
-    
+
     // Temporarily set the import as current for invoice generation
     const originalImportId = currentImportId;
     currentImportId = invoiceImportId;
-    
+
     pendingOrders.forEach(async order => await generateInvoice(order.orderId));
-    
+
     // Restore original current import
     currentImportId = originalImportId;
-    
+
     // Update the invoice display for the selected import
     updateInvoicesDisplay(invoiceImportId);
-    
+
     alert(`Generated ${pendingOrders.length} invoices for "${selectedImport.name}" and added to email queue.`);
 }
 
 function updateInvoicesDisplay(importId = null) {
     const container = document.getElementById('invoicesGrid');
-    
+
     // Show invoices for a specific import or all invoices
     let displayInvoices = invoices;
     if (importId && imports[importId]) {
         displayInvoices = imports[importId].invoices;
     }
-    
+
     if (displayInvoices.length === 0) {
         container.innerHTML = '<p class="no-data">No invoices generated yet</p>';
         return;
     }
-    
+
     const invoicesHTML = displayInvoices.map(invoice => {
         const itemsCount = invoice.items ? invoice.items.length : 1;
-        const itemsSummary = invoice.items && invoice.items.length > 1 
-            ? `${itemsCount} items` 
-            : invoice.items && invoice.items[0] 
-                ? invoice.items[0].product 
+        const itemsSummary = invoice.items && invoice.items.length > 1
+            ? `${itemsCount} items`
+            : invoice.items && invoice.items[0]
+                ? invoice.items[0].product
                 : 'Items';
-        
+
         return `
             <div class="invoice-card">
                 <div class="invoice-header">
@@ -1995,16 +2033,16 @@ function updateInvoicesDisplay(importId = null) {
                     <p><strong>Customer:</strong> ${invoice.customerName}</p>
                     <p><strong>Date:</strong> ${invoice.date}</p>
                     <p><strong>Items:</strong> ${itemsSummary}</p>
-                    ${invoice.items && invoice.items[0] && invoice.items[0].weight ? 
-                        `<p><strong>Weight:</strong> ${invoice.items.reduce((sum, item) => sum + (item.weight || 0), 0).toFixed(2)}kg</p>` : ''}
+                    ${invoice.items && invoice.items[0] && invoice.items[0].weight ?
+                `<p><strong>Weight:</strong> ${invoice.items.reduce((sum, item) => sum + (item.weight || 0), 0).toFixed(2)}kg</p>` : ''}
                     <p><strong>Subtotal:</strong> R${invoice.subtotal.toFixed(2)}</p>
                     ${invoice.tax > 0 ? `<p><strong>VAT (15%):</strong> R${invoice.tax.toFixed(2)}</p>` : ''}
                     <p><strong>Total:</strong> R${invoice.total.toFixed(2)}</p>
                 </div>
                 <div class="invoice-actions">
                     <button onclick="previewInvoice('${invoice.invoiceId}')" class="btn-small btn-primary">Preview</button>
-                    ${invoice.status === 'provisional' || invoice.status === 'draft' ? 
-                        `<button onclick="editInvoiceWeights('${invoice.invoiceId}')" class="btn-small btn-secondary">
+                    ${invoice.status === 'provisional' || invoice.status === 'draft' ?
+                `<button onclick="editInvoiceWeights('${invoice.invoiceId}')" class="btn-small btn-secondary">
                             <i class="fas fa-edit"></i> Edit Weights
                         </button>` : ''}
                     <button onclick="downloadInvoice('${invoice.invoiceId}')" class="btn-small btn-secondary">Download PDF</button>
@@ -2015,14 +2053,14 @@ function updateInvoicesDisplay(importId = null) {
             </div>
         `;
     }).join('');
-    
+
     container.innerHTML = invoicesHTML;
 }
 
 // Pricing management
 function loadPricingTable() {
     const tableBody = document.getElementById('pricingTableBody');
-    
+
     const pricingHTML = Object.entries(pricing).map(([product, prices]) => {
         const margin = Math.round(((prices.selling - prices.cost) / prices.cost) * 100);
         return `
@@ -2038,37 +2076,37 @@ function loadPricingTable() {
             </tr>
         `;
     }).join('');
-    
+
     tableBody.innerHTML = pricingHTML;
 }
 
 function addNewProduct() {
     const product = prompt('Enter product name:');
     if (!product) return;
-    
+
     const costInput = prompt('Enter cost price:');
     const sellingInput = prompt('Enter selling price:');
-    
+
     const cost = SecurityUtils.sanitizeNumber(costInput);
     const selling = SecurityUtils.sanitizeNumber(sellingInput);
-    
+
     if (cost <= 0 || selling <= 0) {
         ErrorHandler.showNotification('Invalid price entered. Please enter positive numbers.', 'error');
         return;
     }
     const packaging = prompt('Enter packaging details:') || 'Standard packaging';
-    
+
     if (isNaN(cost) || isNaN(selling)) {
         alert('Please enter valid prices.');
         return;
     }
-    
+
     pricing[product] = {
         cost: cost,
         selling: selling,
         packaging: packaging
     };
-    
+
     loadPricingTable();
     saveToStorage();
     addActivity(`Added new product: ${product}`);
@@ -2086,17 +2124,17 @@ function updateDashboard() {
 function addActivity(message) {
     const activityList = document.getElementById('recentActivity');
     const time = new Date().toLocaleTimeString();
-    
+
     const activityItem = document.createElement('div');
     activityItem.className = 'activity-item';
     activityItem.innerHTML = `<span class="activity-time">${time}</span> ${message}`;
-    
+
     if (activityList.querySelector('.no-data')) {
         activityList.innerHTML = '';
     }
-    
+
     activityList.insertBefore(activityItem, activityList.firstChild);
-    
+
     // Keep only last 10 activities
     const activities = activityList.querySelectorAll('.activity-item');
     if (activities.length > 10) {
@@ -2110,10 +2148,10 @@ function showSection(sectionId) {
     document.querySelectorAll('.content-section').forEach(section => {
         section.classList.remove('active');
     });
-    
+
     // Show target section
     document.getElementById(sectionId).classList.add('active');
-    
+
     // Update page title
     const titles = {
         dashboard: 'Dashboard',
@@ -2124,7 +2162,7 @@ function showSection(sectionId) {
         'pdf-analysis': 'AI PDF Analysis',
         settings: 'Settings'
     };
-    
+
     document.getElementById('page-title').textContent = titles[sectionId] || 'Dashboard';
 }
 
@@ -2136,13 +2174,13 @@ async function saveToStorage() {
     if (saveTimeout) {
         clearTimeout(saveTimeout);
     }
-    
+
     // Set new timeout to batch saves
     saveTimeout = setTimeout(async () => {
         try {
             // Try to save to database first
             const databaseSaved = await saveToDatabase();
-            
+
             if (!databaseSaved) {
                 // Fallback to localStorage if database fails
                 console.log('Falling back to localStorage');
@@ -2162,10 +2200,10 @@ async function saveToStorage() {
 async function loadStoredData() {
     // Try to load from database first
     const databaseLoaded = await loadFromDatabase();
-    
+
     // Load customer portal orders regardless of database connection
     await loadCustomerPortalOrders();
-    
+
     if (!databaseLoaded) {
         // Fallback to localStorage if database fails
         console.log('Falling back to localStorage');
@@ -2175,7 +2213,7 @@ async function loadStoredData() {
         const storedEmailQueue = localStorage.getItem('plaasHoendersEmailQueue');
         // const storedPricing = localStorage.getItem('plaasHoendersPricing'); // Not used - always use default pricing
         const storedAnalysisHistory = localStorage.getItem('plaasHoendersAnalysisHistory');
-        
+
         if (storedImports) imports = JSON.parse(storedImports);
         if (storedCurrentImportId) currentImportId = storedCurrentImportId;
         if (storedInvoices) invoices = JSON.parse(storedInvoices);
@@ -2184,22 +2222,22 @@ async function loadStoredData() {
         // if (storedPricing) pricing = JSON.parse(storedPricing);
         if (storedAnalysisHistory) analysisHistory = JSON.parse(storedAnalysisHistory);
     }
-    
+
     updateOrdersTable();
     updateInvoicesDisplay();
     updateEmailQueueDisplay();
     updateAnalysisHistoryDisplay();
     updateImportSelector();
     updateInvoiceImportSelector();
-    
+
     // Update order counts for new tabs
     updateOrderCounts();
-    
+
     // If we're on the orders section, refresh portal orders
     if (document.querySelector('#orders.active')) {
         refreshPortalOrders();
     }
-    
+
     // Load saved email template
     await loadEmailTemplate();
 }
@@ -2216,7 +2254,7 @@ function saveSettings() {
         accountNumber: document.getElementById('accountNumber').value,
         branchCode: document.getElementById('branchCode').value
     };
-    
+
     localStorage.setItem('plaasHoendersSettings', JSON.stringify(settings));
     addActivity('Settings saved successfully');
     alert('Settings saved successfully!');
@@ -2228,11 +2266,11 @@ async function saveEmailTemplate() {
         subject: document.getElementById('emailSubject').value,
         body: document.getElementById('emailTemplate').value
     };
-    
+
     try {
         // Save to localStorage (existing functionality)
         localStorage.setItem('plaasHoendersEmailTemplate', JSON.stringify(template));
-        
+
         // Save to Supabase database
         if (supabaseClient) {
             const { error: settingsError } = await supabaseClient
@@ -2241,7 +2279,7 @@ async function saveEmailTemplate() {
                     id: 'main',
                     email_template: template
                 });
-            
+
             if (settingsError) {
                 console.error('Error saving email template to database:', settingsError);
                 addActivity('Email template updated (localStorage only - database error)');
@@ -2249,7 +2287,7 @@ async function saveEmailTemplate() {
                 return;
             }
         }
-        
+
         addActivity('Email template updated and saved to database');
         alert('Email template saved successfully!');
     } catch (error) {
@@ -2261,7 +2299,7 @@ async function saveEmailTemplate() {
 
 async function loadEmailTemplate() {
     let template = null;
-    
+
     try {
         // Try to load from database first
         if (supabaseClient) {
@@ -2270,7 +2308,7 @@ async function loadEmailTemplate() {
                 .select('email_template')
                 .eq('id', 'main')
                 .maybeSingle(); // Use maybeSingle instead of single to handle missing records
-            
+
             if (!settingsError && settingsData && settingsData.email_template) {
                 template = settingsData.email_template;
                 console.log('✅ Email template loaded from database');
@@ -2281,7 +2319,7 @@ async function loadEmailTemplate() {
     } catch (error) {
         console.error('Error loading email template from database:', error);
     }
-    
+
     // Fall back to localStorage if database loading failed
     if (!template) {
         const storedTemplate = localStorage.getItem('plaasHoendersEmailTemplate');
@@ -2294,16 +2332,16 @@ async function loadEmailTemplate() {
             }
         }
     }
-    
+
     // Apply template to UI elements
     if (template) {
         const subjectElement = document.getElementById('emailSubject');
         const bodyElement = document.getElementById('emailTemplate');
-        
+
         if (subjectElement && template.subject) {
             subjectElement.value = template.subject;
         }
-        
+
         if (bodyElement && template.body) {
             bodyElement.value = template.body;
         }
@@ -2319,14 +2357,14 @@ function exportData() {
         // pricing: pricing, // DON'T export pricing - always use current default
         exportDate: new Date().toISOString()
     };
-    
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `gro-chicken-data-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
-    
+
     addActivity('Data exported successfully');
 }
 
@@ -2338,10 +2376,10 @@ function importOrders() {
 function updateImportSelector() {
     const selector = document.getElementById('importSelector');
     if (!selector) return;
-    
+
     // Clear existing options
     selector.innerHTML = '<option value="">Select an import...</option>';
-    
+
     // Add imports
     Object.values(imports).forEach(importData => {
         const option = document.createElement('option');
@@ -2352,17 +2390,17 @@ function updateImportSelector() {
         }
         selector.appendChild(option);
     });
-    
+
     updateImportStats();
 }
 
 function updateInvoiceImportSelector() {
     const selector = document.getElementById('invoiceImportSelector');
     if (!selector) return;
-    
+
     // Clear existing options
     selector.innerHTML = '<option value="">Select import for invoicing...</option>';
-    
+
     // Add imports
     Object.values(imports).forEach(importData => {
         const option = document.createElement('option');
@@ -2375,16 +2413,16 @@ function updateInvoiceImportSelector() {
 function updateImportStats() {
     const statsElement = document.getElementById('importStats');
     if (!statsElement) return;
-    
+
     if (!currentImportId || !imports[currentImportId]) {
         statsElement.innerHTML = '<span class="stat">No import selected</span>';
         return;
     }
-    
+
     const currentImport = imports[currentImportId];
     const totalRevenue = currentImport.orders.reduce((sum, order) => sum + order.total, 0);
     const invoicedCount = currentImport.invoices.length;
-    
+
     statsElement.innerHTML = `
         <span class="stat">${currentImport.orders.length} orders</span>
         <span class="stat">R${totalRevenue.toFixed(2)} total</span>
@@ -2398,7 +2436,7 @@ function switchImport(importId) {
     updateOrdersTable();
     updateImportStats();
     updateDashboard();
-    
+
     if (importId) {
         addActivity(`Switched to import: ${imports[importId].name}`);
     }
@@ -2409,20 +2447,20 @@ function switchInvoiceImport(importId) {
     const nameElement = document.getElementById('invoiceImportName');
     const statsElement = document.getElementById('invoiceImportStats');
     const generateBtn = document.getElementById('generateAllBtn');
-    
+
     if (!importId || !imports[importId]) {
         infoElement.style.display = 'none';
         generateBtn.disabled = true;
         updateInvoicesDisplay();
         return;
     }
-    
+
     const selectedImport = imports[importId];
     infoElement.style.display = 'block';
     nameElement.textContent = selectedImport.name;
     statsElement.textContent = `${selectedImport.orders.length} orders, ${selectedImport.invoices.length} invoices`;
     generateBtn.disabled = false;
-    
+
     // Update invoices display to show only this import's invoices
     updateInvoicesDisplay(importId);
 }
@@ -2437,9 +2475,9 @@ function showImportManager() {
                 </div>
                 <div class="modal-body">
                     <div class="imports-list">
-                        ${Object.values(imports).length === 0 ? 
-                            '<p class="no-data">No imports yet. Create your first import by uploading a CSV file.</p>' :
-                            Object.values(imports).map(importData => `
+                        ${Object.values(imports).length === 0 ?
+            '<p class="no-data">No imports yet. Create your first import by uploading a CSV file.</p>' :
+            Object.values(imports).map(importData => `
                                 <div class="import-item">
                                     <div class="import-header">
                                         <h4>${importData.name}</h4>
@@ -2458,13 +2496,13 @@ function showImportManager() {
                                     </div>
                                 </div>
                             `).join('')
-                        }
+        }
                     </div>
                 </div>
             </div>
         </div>
     `;
-    
+
     showModal(managerHTML);
 }
 
@@ -2483,22 +2521,22 @@ function deleteImport(importId) {
     if (!confirm(`Are you sure you want to delete the import "${importData.name}"?\n\nThis will permanently delete:\n- ${importData.orders.length} orders\n- ${importData.invoices.length} invoices\n\nThis action cannot be undone.`)) {
         return;
     }
-    
+
     // Remove from imports
     delete imports[importId];
-    
+
     // If this was the current import, clear it
     if (currentImportId === importId) {
         currentImportId = null;
     }
-    
+
     // Update displays
     updateImportSelector();
     updateInvoiceImportSelector();
     updateOrdersTable();
     updateDashboard();
     saveToStorage();
-    
+
     addActivity(`Deleted import: ${importData.name}`);
     closeModal();
     showImportManager(); // Refresh the manager
@@ -2508,9 +2546,9 @@ function deleteImport(importId) {
 function handleCSVUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         const content = e.target.result;
         parseCSVFile(content, file.name);
     };
@@ -2522,21 +2560,21 @@ function parseCSVFile(content, filename) {
         const lines = content.trim().split('\n');
         csvHeaders = parseCSVLine(lines[0]);
         csvData = [];
-        
+
         for (let i = 1; i < lines.length; i++) {
             if (lines[i].trim()) {
                 const values = parseCSVLine(lines[i]);
                 csvData.push(values);
             }
         }
-        
+
         // Show preview
         document.getElementById('csvFileName').textContent = filename;
         document.getElementById('previewFileName').textContent = filename;
         document.getElementById('previewRowCount').textContent = csvData.length;
         document.getElementById('csvPreview').style.display = 'block';
         document.getElementById('manualInputArea').style.display = 'none';
-        
+
         addActivity(`CSV file loaded: ${filename} with ${csvData.length} rows`);
     } catch (error) {
         alert('Error parsing CSV file. Please check the file format.');
@@ -2548,10 +2586,10 @@ function parseCSVLine(line) {
     const result = [];
     let current = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < line.length; i++) {
         const char = line[i];
-        
+
         if (char === '"') {
             inQuotes = !inQuotes;
         } else if (char === ',' && !inQuotes) {
@@ -2561,7 +2599,7 @@ function parseCSVLine(line) {
             current += char;
         }
     }
-    
+
     result.push(current.trim());
     return result;
 }
@@ -2571,49 +2609,49 @@ function processCSVFile() {
         alert('No CSV data to process.');
         return;
     }
-    
+
     // Ask for import name
     const importName = prompt('Enter a name for this import:', `Import ${new Date().toLocaleDateString()}`);
     if (!importName) return;
-    
+
     try {
         const newOrders = [];
         const skippedRows = [];
-        
+
         // Find column indices
         const emailIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('email'));
         const nameIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('name'));
         const phoneIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('tel'));
         const addressIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('adress') || h.toLowerCase().includes('address'));
-        
+
         // Process each row
         csvData.forEach((row, rowIndex) => {
             const email = row[emailIndex] || '';
             const name = row[nameIndex] || '';
             const phone = row[phoneIndex] || '';
             const address = row[addressIndex] || '';
-            
+
             // Skip rows without essential info
             if (!email || !name) {
                 skippedRows.push(rowIndex + 2); // +2 for header and 0-index
                 return;
             }
-            
+
             // Collect all products for this customer
             const customerProducts = [];
             let totalOrderValue = 0;
-            
+
             csvHeaders.forEach((header, colIndex) => {
                 // Skip non-product columns
                 if (colIndex <= addressIndex) return;
-                
+
                 const quantity = row[colIndex];
                 if (quantity && !isNaN(parseInt(quantity))) {
                     const mappedProduct = productMapping[header];
                     if (mappedProduct && pricing[mappedProduct]) {
                         const productPricing = pricing[mappedProduct];
                         const itemTotal = productPricing.selling * parseInt(quantity);
-                        
+
                         customerProducts.push({
                             product: mappedProduct,
                             quantity: parseInt(quantity),
@@ -2621,12 +2659,12 @@ function processCSVFile() {
                             total: itemTotal,
                             specialInstructions: extractSpecialInstructions(row[colIndex])
                         });
-                        
+
                         totalOrderValue += itemTotal;
                     }
                 }
             });
-            
+
             // Create one order per customer with all their products
             if (customerProducts.length > 0) {
                 const order = {
@@ -2640,16 +2678,16 @@ function processCSVFile() {
                     total: totalOrderValue,
                     status: 'pending'
                 };
-                
+
                 newOrders.push(order);
             }
         });
-        
+
         if (newOrders.length === 0) {
             alert('No valid orders found in the CSV file.');
             return;
         }
-        
+
         // Create new import
         const importId = 'import-' + Date.now();
         imports[importId] = {
@@ -2659,28 +2697,28 @@ function processCSVFile() {
             orders: newOrders,
             invoices: []
         };
-        
+
         // Set as current import
         currentImportId = importId;
-        
+
         // Update displays
         updateImportSelector();
         updateInvoiceImportSelector();
         updateOrdersTable();
         updateDashboard();
         saveToStorage();
-        
+
         // Clear upload state
         clearCSVUpload();
-        
+
         let message = `Successfully created import "${importName}" with ${newOrders.length} orders!`;
         if (skippedRows.length > 0) {
             message += `\nSkipped ${skippedRows.length} rows with missing data.`;
         }
-        
+
         addActivity(message);
         alert(message);
-        
+
     } catch (error) {
         alert('Error processing CSV orders. Please check the data format.');
         console.error(error);
@@ -2701,7 +2739,7 @@ function extractSpecialInstructions(value) {
 function toggleManualInput() {
     const manualArea = document.getElementById('manualInputArea');
     const csvPreview = document.getElementById('csvPreview');
-    
+
     if (manualArea.style.display === 'none') {
         manualArea.style.display = 'block';
         csvPreview.style.display = 'none';
@@ -2724,16 +2762,16 @@ function viewOrderDetails(orderId) {
     const currentOrders = getCurrentOrders();
     const order = currentOrders.find(o => o.orderId === orderId);
     if (!order) return;
-    
+
     // Handle both single product and multi-product orders
-    const products = order.products || [{ 
-        product: order.product, 
-        quantity: order.quantity, 
+    const products = order.products || [{
+        product: order.product,
+        quantity: order.quantity,
         weight: order.weight,
         unitPrice: order.total / (order.quantity || 1),
         total: order.total
     }];
-    
+
     const detailsHTML = `
         <div class="order-details-modal">
             <div class="modal-content">
@@ -2781,28 +2819,28 @@ function viewOrderDetails(orderId) {
             </div>
         </div>
     `;
-    
+
     showModal(detailsHTML);
 }
 
 function previewInvoice(invoiceId) {
     // Look for invoice in current import first, then global invoices
     let invoice;
-    
+
     if (currentImportId && imports[currentImportId] && imports[currentImportId].invoices) {
         invoice = imports[currentImportId].invoices.find(i => i.invoiceId === invoiceId);
     }
-    
+
     // Fallback to global invoices
     if (!invoice) {
         invoice = invoices.find(i => i.invoiceId === invoiceId);
     }
-    
+
     if (!invoice) {
         alert('Invoice not found');
         return;
     }
-    
+
     const previewHTML = `
         <div class="invoice-preview-modal">
             <div class="modal-content large">
@@ -2875,7 +2913,7 @@ function previewInvoice(invoiceId) {
             </div>
         </div>
     `;
-    
+
     showModal(previewHTML);
 }
 
@@ -2884,9 +2922,9 @@ function showModal(content) {
     modal.className = 'modal-overlay';
     modal.innerHTML = content;
     document.body.appendChild(modal);
-    
+
     // Close modal when clicking outside
-    modal.addEventListener('click', function(e) {
+    modal.addEventListener('click', function (e) {
         if (e.target === modal) {
             closeModal();
         }
@@ -2909,7 +2947,7 @@ function editProduct(product) {
     const newCost = parseFloat(prompt(`Enter new cost price for ${product}:`, currentProduct.cost));
     const newSelling = parseFloat(prompt(`Enter new selling price for ${product}:`, currentProduct.selling));
     const newPackaging = prompt(`Enter packaging details for ${product}:`, currentProduct.packaging);
-    
+
     if (!isNaN(newCost) && !isNaN(newSelling)) {
         pricing[product] = {
             cost: newCost,
@@ -2934,11 +2972,11 @@ function deleteProduct(product) {
 function removeFromQueue(emailId) {
     const email = emailQueue.find(e => e.id == emailId);
     const emailAddress = email ? email.to : 'unknown';
-    
+
     emailQueue = emailQueue.filter(e => e.id != emailId);
     updateEmailQueueDisplay();
     saveToStorage();
-    
+
     console.log(`✅ Removed email to ${emailAddress} from queue`);
     addActivity(`Removed email to ${emailAddress} from queue`);
 }
@@ -2956,12 +2994,12 @@ async function retryEmail(emailId) {
 function updateQueueStats() {
     const statsElement = document.getElementById('queueStats');
     if (!statsElement) return;
-    
+
     const total = emailQueue.length;
     const pending = emailQueue.filter(e => e.status === 'pending').length;
     const sent = emailQueue.filter(e => e.status === 'sent').length;
     const failed = emailQueue.filter(e => e.status === 'failed').length;
-    
+
     if (total === 0) {
         statsElement.textContent = 'No emails in queue';
     } else {
@@ -2972,12 +3010,12 @@ function updateQueueStats() {
 // Bulk Queue Management Functions
 function clearSentEmails() {
     const sentCount = emailQueue.filter(e => e.status === 'sent').length;
-    
+
     if (sentCount === 0) {
         alert('No sent emails to clear');
         return;
     }
-    
+
     const confirmed = confirm(`Remove ${sentCount} sent emails from the queue?`);
     if (confirmed) {
         emailQueue = emailQueue.filter(e => e.status !== 'sent');
@@ -2990,12 +3028,12 @@ function clearSentEmails() {
 
 function clearFailedEmails() {
     const failedCount = emailQueue.filter(e => e.status === 'failed').length;
-    
+
     if (failedCount === 0) {
         alert('No failed emails to clear');
         return;
     }
-    
+
     const confirmed = confirm(`Remove ${failedCount} failed emails from the queue?`);
     if (confirmed) {
         emailQueue = emailQueue.filter(e => e.status !== 'failed');
@@ -3011,15 +3049,15 @@ function clearAllEmails() {
         alert('Email queue is already empty');
         return;
     }
-    
+
     const total = emailQueue.length;
     const pending = emailQueue.filter(e => e.status === 'pending').length;
-    
+
     let confirmMessage = `Remove all ${total} emails from the queue?`;
     if (pending > 0) {
         confirmMessage += `\n\nWarning: This includes ${pending} pending emails that haven't been sent yet!`;
     }
-    
+
     const confirmed = confirm(confirmMessage);
     if (confirmed) {
         emailQueue = [];
@@ -3034,18 +3072,18 @@ function refreshEmailQueueForInvoice(invoiceId) {
     // Find the invoice
     const updatedInvoice = invoices.find(inv => inv.invoiceId === invoiceId);
     if (!updatedInvoice) return;
-    
+
     // Find email queue items for this order - check both orderId fields
-    const queueItemsToUpdate = emailQueue.filter(email => 
+    const queueItemsToUpdate = emailQueue.filter(email =>
         email.orderData && (
             email.orderData.orderId === updatedInvoice.orderId ||
             email.orderData.orderId === updatedInvoice.order_id
         )
     );
-    
+
     if (queueItemsToUpdate.length > 0) {
         console.log(`🔄 Refreshing ${queueItemsToUpdate.length} email queue items for invoice ${invoiceId}`);
-        
+
         queueItemsToUpdate.forEach(email => {
             // Regenerate email body with updated invoice data
             if (email.orderData.products && email.orderData.products.length > 1) {
@@ -3055,7 +3093,7 @@ function refreshEmailQueueForInvoice(invoiceId) {
             }
             console.log(`✅ Updated email body for ${email.to}`);
         });
-        
+
         updateEmailQueueDisplay();
         saveToStorage();
         addActivity(`Updated ${queueItemsToUpdate.length} queued emails with new invoice weights`);
@@ -3070,16 +3108,16 @@ function refreshEmailQueueForInvoice(invoiceId) {
 
 function setupPDFDragDrop() {
     const uploadArea = document.getElementById('pdfUploadArea');
-    
+
     uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
         uploadArea.classList.add('drag-over');
     });
-    
+
     uploadArea.addEventListener('dragleave', () => {
         uploadArea.classList.remove('drag-over');
     });
-    
+
     uploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
         uploadArea.classList.remove('drag-over');
@@ -3100,9 +3138,9 @@ function triggerPDFUpload() {
             document.addEventListener('DOMContentLoaded', triggerPDFUpload);
             return;
         }
-        
+
         let fileInput = document.getElementById('pdfFileInput');
-        
+
         // If element doesn't exist, create it
         if (!fileInput) {
             console.log('Creating PDF file input element...');
@@ -3112,7 +3150,7 @@ function triggerPDFUpload() {
             fileInput.accept = '.pdf';
             fileInput.style.display = 'none';
             fileInput.onchange = handlePDFUpload;
-            
+
             // Append to upload area
             const uploadArea = document.getElementById('pdfUploadArea');
             if (uploadArea) {
@@ -3123,7 +3161,7 @@ function triggerPDFUpload() {
                 console.log('✅ PDF file input created and added to body');
             }
         }
-        
+
         fileInput.click();
         console.log('📁 PDF file dialog opened');
     } catch (error) {
@@ -3168,18 +3206,18 @@ async function handlePDFUpload(event) {
         alert('Please select a PDF file.');
         return;
     }
-    
+
     showLoadingState(true);
-    
+
     try {
         // Convert PDF to text/image for analysis
         const fileReader = new FileReader();
-        fileReader.onload = async function(e) {
+        fileReader.onload = async function (e) {
             const arrayBuffer = e.target.result;
             await analyzePDFContent(arrayBuffer, file.name);
         };
         fileReader.readAsArrayBuffer(file);
-        
+
     } catch (error) {
         console.error('Error processing PDF:', error);
         alert('Error processing PDF. Please try again.');
@@ -3190,27 +3228,27 @@ async function handlePDFUpload(event) {
 async function analyzePDFContent(arrayBuffer, filename) {
     try {
         console.log('🔍 Starting REAL PDF analysis...');
-        
+
         // Load the PDF document
-        const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
         const pdfDoc = await loadingTask.promise;
         const numPages = pdfDoc.numPages;
-        
+
         console.log(`📄 PDF loaded: ${numPages} pages found`);
-        
+
         const extractedCustomers = [];
-        
+
         // Process each page
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
             console.log(`📄 Processing page ${pageNum}/${numPages}...`);
-            
+
             const page = await pdfDoc.getPage(pageNum);
             const textContent = await page.getTextContent();
-            
+
             // Extract text from page - preserve newlines for better structure
             let pageText = '';
             let lastY = -1;
-            
+
             textContent.items.forEach(item => {
                 // Add newline if Y position changed significantly (new line)
                 if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
@@ -3219,7 +3257,7 @@ async function analyzePDFContent(arrayBuffer, filename) {
                 pageText += item.str + ' ';
                 lastY = item.transform[5];
             });
-            
+
             // Parse customer and items from page text
             const customerData = parseInvoicePage(pageText, pageNum);
             if (customerData) {
@@ -3227,29 +3265,29 @@ async function analyzePDFContent(arrayBuffer, filename) {
                 console.log(`✅ Found customer: ${customerData.reference} on page ${pageNum}`);
             }
         }
-        
+
         console.log(`✅ Extracted ${extractedCustomers.length} customers from PDF`);
-        
+
         // Check if this is a scanned PDF (no text extracted)
         if (extractedCustomers.length === 0) {
             console.log('⚠️ Scanned PDF detected - switching to AI/OCR processing...');
-            
+
             // Process with AI instead of manual bullshit
             await processScannedPDFWithAI(pdfDoc, filename, numPages);
             return;
         }
-        
+
         // Create analysis result in expected format
         const analysisResult = createAnalysisResult(extractedCustomers, filename);
-        
+
         // Display results
         displayAnalysisResults(analysisResult, filename);
-        
+
         // Save to history
         saveAnalysisToHistory(analysisResult, filename);
-        
+
         showLoadingState(false);
-        
+
     } catch (error) {
         console.error('Error analyzing PDF:', error);
         alert('Error analyzing PDF. Please try again.');
@@ -3262,21 +3300,21 @@ function parseInvoicePage(pageText, pageNumber) {
     try {
         // Debug: Log the first 1000 characters of page text to see structure
         console.log(`📄 Page ${pageNumber} text sample:`, pageText.substring(0, 1000));
-        
+
         // Also check if "Reference" exists anywhere in the text (case insensitive)
         const hasReference = pageText.toLowerCase().includes('reference');
         console.log(`📄 Page ${pageNumber} contains "reference": ${hasReference}`);
-        
+
         // Look for Reference field - based on the actual PDF text format
         let customerReference = null;
-        
+
         // From the logs, we can see the pattern is:
         // "Reference [Customer Name]" directly in the text
         // Let's extract it properly
-        
+
         // First, try to find "Reference" followed by the customer name
         const referenceMatch = pageText.match(/Reference\s+((?:[A-Z][a-z]+(?:\s+[A-Z][a-z]*)*(?:\s*-\s*[A-Z][a-z]*)?)|(?:[A-Z]+(?:\s+[A-Z]+)*))/);
-        
+
         if (referenceMatch) {
             customerReference = referenceMatch[1].trim();
             console.log(`✅ Found Reference match: "${customerReference}"`);
@@ -3293,7 +3331,7 @@ function parseInvoicePage(pageText, pageNumber) {
                         console.log(`✅ Found Reference in same line: "${customerReference}"`);
                         break;
                     }
-                    
+
                     // Check the next few lines for a name
                     for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
                         const nextLine = lines[j].trim();
@@ -3309,7 +3347,7 @@ function parseInvoicePage(pageText, pageNumber) {
                 }
             }
         }
-        
+
         // If still not found, debug what we're getting
         if (!customerReference) {
             console.log(`🔍 Debug - looking for Reference in text:`, pageText.substring(0, 500));
@@ -3320,48 +3358,48 @@ function parseInvoicePage(pageText, pageNumber) {
                 console.log(`✅ Found Reference with flexible pattern: "${customerReference}"`);
             }
         }
-        
+
         if (!customerReference) {
             console.log(`⚠️ No Reference found on page ${pageNumber}`);
             console.log(`Full page text for debugging:`, pageText);
             return null;
         }
         console.log(`📋 Found customer: ${customerReference} on page ${pageNumber}`);
-        
+
         // Extract table data - CORRECTED for butchery's column mistakes:
         // Header says: Item | Description | Quantity | Unit Price | Amount ZAR
         // Reality is:  Description | Count | Weight | Unit Price | Total
         // So: "Item"=description, "Description"=count, "Quantity"=weight
         const items = [];
-        
+
         // Look for table rows after headers - HANDLE MULTI-LINE PRODUCT NAMES
         const lines = pageText.split('\n');
         let inTableData = false;
         let pendingDescription = '';
-        
+
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
-            
+
             // Skip empty lines
             if (!line) continue;
-            
+
             // Check if we're at table headers
             if (line.toLowerCase().includes('item') && line.toLowerCase().includes('description') && line.toLowerCase().includes('quantity')) {
                 inTableData = true;
                 continue;
             }
-            
+
             // Skip table separator lines or subtotal/total lines
-            if (line.includes('---') || line.toLowerCase().includes('subtotal') || 
+            if (line.includes('---') || line.toLowerCase().includes('subtotal') ||
                 line.toLowerCase().includes('total vat') || line.toLowerCase().includes('total zar')) {
                 inTableData = false; // Stop processing when we hit totals
                 continue;
             }
-            
+
             // If we're in table data, try to parse the line
             if (inTableData) {
                 const parts = line.split(/\s+/);
-                
+
                 // Check if this line has the 4 number pattern at the end (quantity, weight, price, total)
                 if (parts.length >= 4) {
                     const lastFour = parts.slice(-4);
@@ -3369,17 +3407,17 @@ function parseInvoicePage(pageText, pageNumber) {
                     const weight = parseFloat(lastFour[1]);
                     const unitPrice = parseFloat(lastFour[2]);
                     const total = parseFloat(lastFour[3]);
-                    
+
                     // Check if the last 4 parts are all valid numbers
                     if (!isNaN(quantity) && !isNaN(weight) && !isNaN(unitPrice) && !isNaN(total)) {
                         // This line has the numbers - extract the description part
                         const descriptionParts = parts.slice(0, -4);
                         const currentDescription = descriptionParts.join(' ');
-                        
+
                         // Combine with any pending description from previous lines
-                        const fullDescription = pendingDescription ? 
+                        const fullDescription = pendingDescription ?
                             `${pendingDescription} ${currentDescription}`.trim() : currentDescription;
-                        
+
                         if (fullDescription) {
                             items.push({
                                 description: fullDescription,
@@ -3388,10 +3426,10 @@ function parseInvoicePage(pageText, pageNumber) {
                                 price: unitPrice,       // Price per unit (88.50, 60.00)
                                 total: total           // Total amount (264.62, 60.00, 243.00)
                             });
-                            
+
                             console.log(`📦 Found item: ${fullDescription} - Count: ${quantity}, Weight: ${weight}kg, Price: R${unitPrice}, Total: R${total}`);
                         }
-                        
+
                         // Reset pending description
                         pendingDescription = '';
                     } else {
@@ -3412,7 +3450,7 @@ function parseInvoicePage(pageText, pageNumber) {
                 }
             }
         }
-        
+
         if (items.length === 0) {
             console.log(`⚠️ No items found for ${customerReference} on page ${pageNumber}`);
             // Try alternative regex pattern for the corrected format
@@ -3430,18 +3468,18 @@ function parseInvoicePage(pageText, pageNumber) {
                 console.log(`📦 Alt parsing found: ${description} - Count: ${quantity}, Weight: ${weight}kg`);
             }
         }
-        
+
         if (items.length === 0) {
             console.log(`⚠️ Still no items found for ${customerReference} on page ${pageNumber}`);
             return null;
         }
-        
+
         return {
             reference: customerReference,
             pageNumber: pageNumber,
             items: items
         };
-        
+
     } catch (error) {
         console.error(`Error parsing page ${pageNumber}:`, error);
         return null;
@@ -3450,17 +3488,17 @@ function parseInvoicePage(pageText, pageNumber) {
 
 // Create analysis result in expected format
 function createAnalysisResult(extractedCustomers, filename) {
-    const allItems = extractedCustomers.flatMap(customer => 
+    const allItems = extractedCustomers.flatMap(customer =>
         customer.items.map(item => ({
             ...item,
             customerReference: customer.reference,
             pageNumber: customer.pageNumber
         }))
     );
-    
+
     const subtotal = allItems.reduce((sum, item) => sum + item.total, 0);
     const total = subtotal; // NO VAT
-    
+
     return {
         timestamp: new Date().toISOString(),
         filename: filename,
@@ -3492,206 +3530,206 @@ async function simulateAIAnalysis(filename) {
         console.log('Found 25 pages, extracting table data from each page...');
         await new Promise(resolve => setTimeout(resolve, 1500));
         console.log('Extracted all items from PDF pages, analyzing data...');
-    
+
         console.log('Step 1: Creating extractedCustomers array...');
-        
+
         // Simulate MULTI-CUSTOMER PDF - Each page is different customer invoice
         // In real implementation, this would process all 25 pages and extract customer + items per page
         const extractedCustomers = [
-        {
-            reference: 'JEAN DREYER',
-            pageNumber: 1,
-            items: [
-                {
-                    description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
-                    quantity: 4,
-                    weight: 8.47,
-                    price: 65,
-                    total: 550.55
-                },
-                {
-                    description: 'Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg',
-                    quantity: 2,
-                    weight: 1.6,
-                    price: 79,
-                    total: 126.40
-                }
-            ]
-        },
-        {
-            reference: 'MARIE SMITH',
-            pageNumber: 2,
-            items: [
-                {
-                    description: 'Vlerkies R90/kg 8 in n pak',
-                    quantity: 3,
-                    weight: 1.8,
-                    price: 90,
-                    total: 162.00
-                }
-            ]
-        },
-        {
-            reference: 'PIETER VAN WYK',
-            pageNumber: 3,
-            items: [
-                {
-                    description: 'Fillets sonder vel R100/kg +-900gr 4 fillets per pak',
-                    quantity: 1,
-                    weight: 0.9,
-                    price: 100,
-                    total: 90.00
-                },
-                {
-                    description: 'Lewer - In 500 g bakkies verpak R31/kg',
-                    quantity: 2,
-                    weight: 1.0,
-                    price: 31,
-                    total: 31.00
-                }
-            ]
-        },
-        {
-            reference: 'ANNA WILLIAMS',
-            pageNumber: 4,
-            items: [
-                {
-                    description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
-                    quantity: 2,
-                    weight: 3.8,
-                    price: 65,
-                    total: 247.00
-                }
-            ]
-        },
-        {
-            reference: 'JOHN TAYLOR',
-            pageNumber: 5,
-            items: [
-                {
-                    description: 'Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg',
-                    quantity: 3,
-                    weight: 2.4,
-                    price: 79,
-                    total: 189.60
-                },
-                {
-                    description: 'Vlerkies R90/kg 8 in n pak',
-                    quantity: 1,
-                    weight: 0.6,
-                    price: 90,
-                    total: 54.00
-                }
-            ]
-        },
-        {
-            reference: 'SUSAN BROWN',
-            pageNumber: 6,
-            items: [
-                {
-                    description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
-                    quantity: 1,
-                    weight: 1.9,
-                    price: 65,
-                    total: 123.50
-                }
-            ]
-        },
-        {
-            reference: 'DAVID JONES',
-            pageNumber: 7,
-            items: [
-                {
-                    description: 'Fillets sonder vel R100/kg +-900gr 4 fillets per pak',
-                    quantity: 2,
-                    weight: 1.8,
-                    price: 100,
-                    total: 180.00
-                }
-            ]
-        }
-        // Simulating 7 customers for now instead of full 25 for testing
-    ];
-    
+            {
+                reference: 'JEAN DREYER',
+                pageNumber: 1,
+                items: [
+                    {
+                        description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
+                        quantity: 4,
+                        weight: 8.47,
+                        price: 65,
+                        total: 550.55
+                    },
+                    {
+                        description: 'Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg',
+                        quantity: 2,
+                        weight: 1.6,
+                        price: 79,
+                        total: 126.40
+                    }
+                ]
+            },
+            {
+                reference: 'MARIE SMITH',
+                pageNumber: 2,
+                items: [
+                    {
+                        description: 'Vlerkies R90/kg 8 in n pak',
+                        quantity: 3,
+                        weight: 1.8,
+                        price: 90,
+                        total: 162.00
+                    }
+                ]
+            },
+            {
+                reference: 'PIETER VAN WYK',
+                pageNumber: 3,
+                items: [
+                    {
+                        description: 'Fillets sonder vel R100/kg +-900gr 4 fillets per pak',
+                        quantity: 1,
+                        weight: 0.9,
+                        price: 100,
+                        total: 90.00
+                    },
+                    {
+                        description: 'Lewer - In 500 g bakkies verpak R31/kg',
+                        quantity: 2,
+                        weight: 1.0,
+                        price: 31,
+                        total: 31.00
+                    }
+                ]
+            },
+            {
+                reference: 'ANNA WILLIAMS',
+                pageNumber: 4,
+                items: [
+                    {
+                        description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
+                        quantity: 2,
+                        weight: 3.8,
+                        price: 65,
+                        total: 247.00
+                    }
+                ]
+            },
+            {
+                reference: 'JOHN TAYLOR',
+                pageNumber: 5,
+                items: [
+                    {
+                        description: 'Boude en dye, 2 boude en 2 dye in pak.+-800gr R79/kg',
+                        quantity: 3,
+                        weight: 2.4,
+                        price: 79,
+                        total: 189.60
+                    },
+                    {
+                        description: 'Vlerkies R90/kg 8 in n pak',
+                        quantity: 1,
+                        weight: 0.6,
+                        price: 90,
+                        total: 54.00
+                    }
+                ]
+            },
+            {
+                reference: 'SUSAN BROWN',
+                pageNumber: 6,
+                items: [
+                    {
+                        description: 'Heel Hoender - Full Chicken 1.5kg - 2.2kg R65/kg',
+                        quantity: 1,
+                        weight: 1.9,
+                        price: 65,
+                        total: 123.50
+                    }
+                ]
+            },
+            {
+                reference: 'DAVID JONES',
+                pageNumber: 7,
+                items: [
+                    {
+                        description: 'Fillets sonder vel R100/kg +-900gr 4 fillets per pak',
+                        quantity: 2,
+                        weight: 1.8,
+                        price: 100,
+                        total: 180.00
+                    }
+                ]
+            }
+            // Simulating 7 customers for now instead of full 25 for testing
+        ];
+
         console.log('Step 2: extractedCustomers created with', extractedCustomers.length, 'customers');
-        
+
         // Flatten all items for display but keep customer structure
         console.log('Step 3: Creating allItems array...');
-        const allItems = extractedCustomers.flatMap(customer => 
-        customer.items.map(item => ({
-            ...item,
-            customerReference: customer.reference,
-            pageNumber: customer.pageNumber
-        }))
-    );
-    
+        const allItems = extractedCustomers.flatMap(customer =>
+            customer.items.map(item => ({
+                ...item,
+                customerReference: customer.reference,
+                pageNumber: customer.pageNumber
+            }))
+        );
+
         console.log('Step 4: allItems created with', allItems.length, 'items');
-        
+
         const subtotal = allItems.reduce((sum, item) => sum + item.total, 0);
         // NO VAT - butchery invoice doesn't have VAT
         const total = subtotal;
-        
+
         console.log('Step 5: Calculated totals - subtotal:', subtotal);
-        
+
         // Simulate AI analysis results with extracted data
         console.log('Step 6: Creating mockAnalysis object...');
         const mockAnalysis = {
-        timestamp: new Date().toISOString(),
-        filename: filename,
-        extractedData: {
-            customers: extractedCustomers, // Multiple customers with their items
-            allItems: allItems, // Flattened items for display
-            subtotal: subtotal,
-            total: total, // NO VAT on butchery invoices
-            customerCount: extractedCustomers.length,
-            multiCustomer: true
-        },
-        summary: {
-            totalItems: allItems.length,
-            customersFound: extractedCustomers.length,
-            pagesProcessed: 25, // Simulate 25-page PDF
-            errorsFound: Math.floor(Math.random() * 2),
-            warningsFound: Math.floor(Math.random() * 2),
-            totalValue: total.toFixed(2)
-        },
-        findings: [
-            {
-                type: 'error',
-                severity: 'high',
-                item: 'HEEL HOENDER',
-                issue: 'Price mismatch: Invoice shows R65.00/kg, expected R67.00/kg',
-                expectedPrice: 67,
-                actualPrice: 65,
-                difference: -2
+            timestamp: new Date().toISOString(),
+            filename: filename,
+            extractedData: {
+                customers: extractedCustomers, // Multiple customers with their items
+                allItems: allItems, // Flattened items for display
+                subtotal: subtotal,
+                total: total, // NO VAT on butchery invoices
+                customerCount: extractedCustomers.length,
+                multiCustomer: true
             },
-            {
-                type: 'warning',
-                severity: 'medium',
-                item: 'BOUDE EN DYE',
-                issue: 'Weight per quantity seems low (0.83kg per piece)',
-                expected: '0.8kg per piece',
-                actual: '0.83kg per piece'
+            summary: {
+                totalItems: allItems.length,
+                customersFound: extractedCustomers.length,
+                pagesProcessed: 25, // Simulate 25-page PDF
+                errorsFound: Math.floor(Math.random() * 2),
+                warningsFound: Math.floor(Math.random() * 2),
+                totalValue: total.toFixed(2)
             },
-            {
-                type: 'info',
-                severity: 'low',
-                item: 'GUNS',
-                issue: 'Pricing matches rate card - R79.00/kg',
-                status: 'correct'
-            }
-        ]
-    };
-    
+            findings: [
+                {
+                    type: 'error',
+                    severity: 'high',
+                    item: 'HEEL HOENDER',
+                    issue: 'Price mismatch: Invoice shows R65.00/kg, expected R67.00/kg',
+                    expectedPrice: 67,
+                    actualPrice: 65,
+                    difference: -2
+                },
+                {
+                    type: 'warning',
+                    severity: 'medium',
+                    item: 'BOUDE EN DYE',
+                    issue: 'Weight per quantity seems low (0.83kg per piece)',
+                    expected: '0.8kg per piece',
+                    actual: '0.83kg per piece'
+                },
+                {
+                    type: 'info',
+                    severity: 'low',
+                    item: 'GUNS',
+                    issue: 'Pricing matches rate card - R79.00/kg',
+                    status: 'correct'
+                }
+            ]
+        };
+
         console.log('Step 7: mockAnalysis object created successfully');
         console.log('Step 8: Final logging...');
-        
+
         console.log('📊 Analysis complete:', {
             customersFound: extractedCustomers.length,
             customers: extractedCustomers.map(c => c.reference),
             totalItems: allItems.length,
             multiCustomer: mockAnalysis.extractedData.multiCustomer
         });
-        
+
         return mockAnalysis;
     } catch (error) {
         console.error('❌ Error in simulateAIAnalysis:', error);
@@ -3731,12 +3769,12 @@ function displayAnalysisResults(analysis, filename) {
         const resultsContainer = document.getElementById('analysisResults');
         const summaryContainer = document.getElementById('resultsSummary');
         const detailsContainer = document.getElementById('resultsDetails');
-        
+
         if (!resultsContainer || !summaryContainer || !detailsContainer) {
             console.error('❌ Required DOM elements not found');
             return;
         }
-        
+
         console.log('📋 Displaying analysis results:', {
             hasAnalysis: !!analysis,
             hasExtractedData: !!analysis?.extractedData,
@@ -3745,23 +3783,23 @@ function displayAnalysisResults(analysis, filename) {
             multiCustomer: analysis?.extractedData?.multiCustomer,
             allData: analysis
         });
-        
+
         // Store analysis for import functionality
         lastPDFAnalysis = { ...analysis, filename };
-    
+
         // Make sure we're on the PDF analysis section
         const currentSection = document.querySelector('.content-section.active');
-        
+
         if (currentSection && currentSection.id !== 'pdf-analysis') {
             console.log('🔄 Switching to PDF analysis section');
             showSection('pdf-analysis');
         }
-        
+
         // Show results section
         resultsContainer.style.display = 'block';
-    
-    // Create summary
-    const summaryHTML = `
+
+        // Create summary
+        const summaryHTML = `
         <div class="analysis-summary">
             <div class="summary-header">
                 <h4>📄 ${filename}</h4>
@@ -3795,13 +3833,13 @@ function displayAnalysisResults(analysis, filename) {
             </div>
         </div>
     `;
-    
-    // Create extracted data display - check if multi-customer or single customer
-    let extractedDataHTML;
-    
-    if (analysis.extractedData.multiCustomer && analysis.extractedData.customers) {
-        // Multi-customer display
-        extractedDataHTML = `
+
+        // Create extracted data display - check if multi-customer or single customer
+        let extractedDataHTML;
+
+        if (analysis.extractedData.multiCustomer && analysis.extractedData.customers) {
+            // Multi-customer display
+            extractedDataHTML = `
             <div class="extracted-data-section">
                 <h4>📋 Extracted Invoice Data (${analysis.extractedData.customerCount} Customers)</h4>
                 <p class="section-description">Multi-page PDF with different customers per page - ready to import as separate orders:</p>
@@ -3893,9 +3931,9 @@ function displayAnalysisResults(analysis, filename) {
             </div>
         </div>
     `;
-    } else {
-        // Single customer display (fallback)
-        extractedDataHTML = `
+        } else {
+            // Single customer display (fallback)
+            extractedDataHTML = `
             <div class="extracted-data-section">
                 <h4>📋 Extracted Invoice Data</h4>
                 <p class="section-description">This data was extracted from the butchery PDF and can be imported as orders:</p>
@@ -3966,14 +4004,14 @@ function displayAnalysisResults(analysis, filename) {
                 </div>
             </div>
         `;
-    }
-    
+        }
+
         summaryContainer.innerHTML = summaryHTML;
         detailsContainer.innerHTML = extractedDataHTML;
-        
+
         // Scroll to results
         resultsContainer.scrollIntoView({ behavior: 'smooth' });
-        
+
         console.log('✅ Analysis results displayed successfully');
     } catch (error) {
         console.error('❌ Error displaying analysis results:', error);
@@ -3987,44 +4025,44 @@ async function importPDFAsOrders(filename) {
         alert('No PDF data available for import. Please analyze a PDF first.');
         return;
     }
-    
+
     // Check if this is multi-customer data
     if (!lastPDFAnalysis.extractedData.multiCustomer || !lastPDFAnalysis.extractedData.customers) {
         alert('This PDF does not contain multi-customer data. Please use the single-customer import process.');
         return;
     }
-    
+
     const customers = lastPDFAnalysis.extractedData.customers;
     const totalCustomers = customers.length;
     const totalItems = lastPDFAnalysis.extractedData.allItems.length;
-    
+
     // Confirm import
     const confirmMessage = `Import ${totalItems} items for ${totalCustomers} customers from ${filename}?`;
     if (!confirm(confirmMessage)) return;
-    
+
     try {
         // Process each customer separately
         const allOrders = [];
         const customerProcessingResults = [];
-        
+
         console.log(`🔍 Processing ${customers.length} customers from PDF:`, customers.map(c => c.reference));
-        
+
         for (const customer of customers) {
             const referenceName = customer.reference;
             console.log(`📄 Processing customer: ${referenceName} (Page ${customer.pageNumber}) with ${customer.items.length} items`);
-            
+
             // Find existing customer details from previous orders
             const existingCustomer = findExistingCustomer(referenceName);
-            
+
             let customerName, customerEmail, customerPhone, customerAddress;
-            
+
             if (existingCustomer) {
                 // Use existing customer details
                 customerName = existingCustomer.name;
                 customerEmail = existingCustomer.email;
                 customerPhone = existingCustomer.phone;
                 customerAddress = existingCustomer.address;
-                
+
                 customerProcessingResults.push({
                     reference: referenceName,
                     status: 'existing_customer',
@@ -4037,9 +4075,9 @@ async function importPDFAsOrders(filename) {
                 customerEmail = `${referenceName.toLowerCase().replace(/\s+/g, '.')}@placeholder.com`;
                 customerPhone = '000 000 0000';
                 customerAddress = 'Address not provided - please update';
-                
+
                 console.log(`⚠️ New customer "${referenceName}" created with placeholder email: ${customerEmail}`);
-                
+
                 customerProcessingResults.push({
                     reference: referenceName,
                     status: 'new_customer',
@@ -4048,17 +4086,17 @@ async function importPDFAsOrders(filename) {
                     needsEmailUpdate: true
                 });
             }
-            
+
             // Create ONE order per customer with multiple items (better approach)
             const products = customer.items.map(item => {
                 const mappedProduct = findMappedProduct(item.description);
-                
+
                 // ONLY use your rate card pricing - NEVER use butchery prices
                 if (mappedProduct && pricing[mappedProduct]) {
                     const unitPrice = pricing[mappedProduct].selling;
                     const total = unitPrice * item.weight; // Your price × delivered weight
                     console.log(`💰 Applied rate card pricing for ${mappedProduct}: R${unitPrice}/kg × ${item.weight}kg = R${total.toFixed(2)}`);
-                    
+
                     return {
                         product: mappedProduct,
                         originalDescription: item.description,
@@ -4073,7 +4111,7 @@ async function importPDFAsOrders(filename) {
                     return null; // This will filter out the item
                 }
             }).filter(product => product !== null); // Remove skipped items
-            
+
             const customerOrder = {
                 orderId: `ORD-PDF-${Date.now()}-P${customer.pageNumber}`,
                 date: new Date().toISOString().split('T')[0],
@@ -4088,17 +4126,17 @@ async function importPDFAsOrders(filename) {
                 pageNumber: customer.pageNumber,
                 source: 'PDF'
             };
-            
+
             allOrders.push(customerOrder);
             console.log(`✅ Created 1 order with ${customer.items.length} items for ${referenceName}`);
         }
-        
+
         console.log(`📋 Total orders created: ${allOrders.length} for ${customers.length} customers`);
-        
+
         // Create new import
         const importId = 'PDF-' + Date.now();
         const importName = `Multi-Customer PDF: ${filename} (${totalCustomers} customers, ${new Date().toLocaleString()})`;
-        
+
         // Create import
         imports[importId] = {
             id: importId,
@@ -4111,41 +4149,41 @@ async function importPDFAsOrders(filename) {
             invoices: [],
             customerProcessingResults: customerProcessingResults
         };
-        
+
         // Set as current import
         currentImportId = importId;
-        
+
         // Generate invoices with proper weight data
         for (const order of allOrders) {
             generateInvoiceFromPDFDataMultiProduct(order);
         }
-        
+
         // Update displays
         updateImportSelector();
         updateOrdersTable();
         updateInvoicesDisplay();
         updateDashboard();
         saveToStorage();
-        
+
         // Show success message with customer breakdown
         const existingCustomers = customerProcessingResults.filter(r => r.status === 'existing_customer');
         const newCustomers = customerProcessingResults.filter(r => r.status === 'new_customer');
-        
+
         const customerSummary = customerProcessingResults.map(r => {
             const status = r.status === 'existing_customer' ? '✅ existing' : '⚠️ new (needs email)';
             return `${r.name}: ${r.itemCount} items (${status})`;
         }).join('\n');
-        
-        const emailMessage = newCustomers.length > 0 
+
+        const emailMessage = newCustomers.length > 0
             ? `\n\n📧 EMAIL STATUS:\n• ${existingCustomers.length} customers ready for email (existing details)\n• ${newCustomers.length} customers need email addresses updated\n• Only customers with valid emails added to email queue`
             : `\n\n📧 All customers ready for email sending!`;
-        
+
         alert(`Successfully imported ${allOrders.length} orders for ${totalCustomers} customers from PDF!\n\n${customerSummary}\n\nInvoices generated with proper weight columns.${emailMessage}\n\nSwitch to Orders or Invoices tab to view.`);
         addActivity(`Imported ${allOrders.length} orders for ${totalCustomers} customers from PDF: ${filename}`);
-        
+
         // Switch to orders view
         showSection('orders');
-        
+
     } catch (error) {
         console.error('Error importing PDF data:', error);
         alert(`Error importing PDF data: ${error.message}`);
@@ -4158,29 +4196,29 @@ function showStockReconciliation(filename) {
         alert('No PDF data available for reconciliation.');
         return;
     }
-    
+
     console.log('🔍 Checking stock differences between ordered and delivered...');
-    
+
     // Find all existing orders for each customer in the PDF
     const reconciliationData = [];
-    
+
     for (const customer of lastPDFAnalysis.extractedData.customers) {
         const referenceName = customer.reference;
         const existingCustomer = findExistingCustomer(referenceName);
-        
+
         if (existingCustomer) {
             // Find all orders for this customer
             const customerOrders = [];
             for (const importData of Object.values(imports)) {
-                const matchingOrders = importData.orders.filter(order => 
+                const matchingOrders = importData.orders.filter(order =>
                     order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
                 );
                 customerOrders.push(...matchingOrders);
             }
-            
+
             // Compare ordered vs delivered for each product
             const productComparison = {};
-            
+
             // Get what was originally ordered
             for (const order of customerOrders) {
                 const productKey = order.product || order.originalDescription;
@@ -4194,7 +4232,7 @@ function showStockReconciliation(filename) {
                 productComparison[productKey].ordered.quantity += order.quantity || 0;
                 productComparison[productKey].ordered.weight += order.weight || 0;
             }
-            
+
             // Get what was actually delivered (from PDF)
             for (const item of customer.items) {
                 const productKey = findMappedProduct(item.description);
@@ -4208,11 +4246,11 @@ function showStockReconciliation(filename) {
                 productComparison[productKey].delivered.quantity += item.quantity || 0;
                 productComparison[productKey].delivered.weight += item.weight || 0;
             }
-            
+
             reconciliationData.push({
                 customer: referenceName,
                 products: Object.values(productComparison),
-                hasStockDifferences: Object.values(productComparison).some(p => 
+                hasStockDifferences: Object.values(productComparison).some(p =>
                     Math.abs(p.ordered.quantity - p.delivered.quantity) > 0.1 ||
                     Math.abs(p.ordered.weight - p.delivered.weight) > 0.1
                 )
@@ -4230,7 +4268,7 @@ function showStockReconciliation(filename) {
             });
         }
     }
-    
+
     // Display reconciliation results
     displayStockReconciliation(reconciliationData, filename);
 }
@@ -4238,7 +4276,7 @@ function showStockReconciliation(filename) {
 // Display stock reconciliation results
 function displayStockReconciliation(reconciliationData, filename) {
     const detailsContainer = document.getElementById('resultsDetails');
-    
+
     const reconciliationHTML = `
         <div class="reconciliation-section">
             <h4>⚖️ Stock Reconciliation: ${filename}</h4>
@@ -4266,11 +4304,11 @@ function displayStockReconciliation(reconciliationData, filename) {
                         </thead>
                         <tbody>
                             ${customer.products.map(product => {
-                                const qtyDiff = product.delivered.quantity - product.ordered.quantity;
-                                const weightDiff = product.delivered.weight - product.ordered.weight;
-                                const hasDifference = Math.abs(qtyDiff) > 0.1 || Math.abs(weightDiff) > 0.1;
-                                
-                                return `
+        const qtyDiff = product.delivered.quantity - product.ordered.quantity;
+        const weightDiff = product.delivered.weight - product.ordered.weight;
+        const hasDifference = Math.abs(qtyDiff) > 0.1 || Math.abs(weightDiff) > 0.1;
+
+        return `
                                     <tr class="${hasDifference ? 'has-difference' : ''}">
                                         <td>${product.product}</td>
                                         <td>${product.ordered.quantity}</td>
@@ -4284,7 +4322,7 @@ function displayStockReconciliation(reconciliationData, filename) {
                                         </td>
                                     </tr>
                                 `;
-                            }).join('')}
+    }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -4300,9 +4338,9 @@ function displayStockReconciliation(reconciliationData, filename) {
             </div>
         </div>
     `;
-    
+
     detailsContainer.innerHTML = reconciliationHTML;
-    
+
     // Scroll to results
     document.getElementById('analysisResults').scrollIntoView({ behavior: 'smooth' });
 }
@@ -4313,22 +4351,22 @@ function acceptDeliveredQuantities(filename) {
         alert('No PDF data available.');
         return;
     }
-    
+
     const customers = lastPDFAnalysis.extractedData.customers;
     const totalCustomers = customers.length;
-    
+
     // Confirm the action
     if (!confirm(`Generate invoices for ${totalCustomers} customers based on ACTUAL delivered quantities from butchery?\n\nThis will create invoices using the exact weights and quantities delivered, not what was originally ordered.`)) {
         return;
     }
-    
+
     try {
         // Import as orders (this will create the proper structure)
         importPDFAsOrders(filename);
-        
+
         console.log('✅ Invoices generated based on actual delivered quantities from butchery');
         addActivity(`Generated invoices for ${totalCustomers} customers based on delivered quantities from ${filename}`);
-        
+
     } catch (error) {
         console.error('Error accepting delivered quantities:', error);
         alert(`Error generating invoices: ${error.message}`);
@@ -4341,36 +4379,36 @@ function flagStockIssues(filename) {
         alert('No PDF data available.');
         return;
     }
-    
+
     // Create a stock issues report
     const stockIssues = [];
-    
+
     for (const customer of lastPDFAnalysis.extractedData.customers) {
         const referenceName = customer.reference;
         const existingCustomer = findExistingCustomer(referenceName);
-        
+
         if (existingCustomer) {
             // Find all orders for this customer
             const customerOrders = [];
             for (const importData of Object.values(imports)) {
-                const matchingOrders = importData.orders.filter(order => 
+                const matchingOrders = importData.orders.filter(order =>
                     order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
                 );
                 customerOrders.push(...matchingOrders);
             }
-            
+
             // Check for stock differences
             for (const item of customer.items) {
                 const productKey = findMappedProduct(item.description);
-                const matchingOrder = customerOrders.find(order => 
+                const matchingOrder = customerOrders.find(order =>
                     (order.product && order.product.toLowerCase().includes(productKey.toLowerCase())) ||
                     (order.originalDescription && order.originalDescription.toLowerCase().includes(item.description.toLowerCase()))
                 );
-                
+
                 if (matchingOrder) {
                     const qtyDiff = item.quantity - (matchingOrder.quantity || 0);
                     const weightDiff = item.weight - (matchingOrder.weight || 0);
-                    
+
                     if (Math.abs(qtyDiff) > 0.1 || Math.abs(weightDiff) > 0.1) {
                         stockIssues.push({
                             customer: referenceName,
@@ -4385,23 +4423,23 @@ function flagStockIssues(filename) {
             }
         }
     }
-    
+
     if (stockIssues.length === 0) {
         alert('No significant stock differences found. All quantities appear to match expectations.');
         return;
     }
-    
+
     // Generate stock issues report
-    const reportContent = stockIssues.map(issue => 
+    const reportContent = stockIssues.map(issue =>
         `${issue.customer}: ${issue.product}\n` +
         `  Ordered: ${issue.ordered.quantity} qty, ${issue.ordered.weight}kg\n` +
         `  Delivered: ${issue.delivered.quantity} qty, ${issue.delivered.weight}kg\n` +
         `  Difference: ${issue.difference.quantity > 0 ? '+' : ''}${issue.difference.quantity} qty, ${issue.difference.weight > 0 ? '+' : ''}${issue.difference.weight.toFixed(2)}kg (${issue.issueType})\n`
     ).join('\n');
-    
+
     // Show the report
     alert(`STOCK ISSUES DETECTED (${stockIssues.length} issues):\n\n${reportContent}\n\nReview these discrepancies before processing invoices.`);
-    
+
     // Log for record keeping
     console.log('📋 Stock Issues Report:', stockIssues);
     addActivity(`Flagged ${stockIssues.length} stock issues from ${filename} for review`);
@@ -4410,17 +4448,17 @@ function flagStockIssues(filename) {
 // Helper function to find existing customer from previous orders
 function findExistingCustomer(customerName) {
     console.log(`🔍 Looking for existing customer: "${customerName}"`);
-    
+
     // FIRST: Search through customer portal orders (most likely source)
     const portalOrders = window.customerPortalOrders || [];
     console.log(`📱 Checking ${portalOrders.length} customer portal orders`);
-    
+
     for (const order of portalOrders) {
         if (!order.name) continue;
-        
+
         const orderName = order.name.toLowerCase().trim();
         const searchName = customerName.toLowerCase().trim();
-        
+
         // Try exact match first
         if (orderName === searchName) {
             console.log(`✅ PORTAL - Exact match found: "${order.name}" === "${customerName}"`);
@@ -4431,7 +4469,7 @@ function findExistingCustomer(customerName) {
                 address: order.address
             };
         }
-        
+
         // Try contains match
         if (orderName.includes(searchName) || searchName.includes(orderName)) {
             console.log(`✅ PORTAL - Partial match found: "${order.name}" ~= "${customerName}"`);
@@ -4442,11 +4480,11 @@ function findExistingCustomer(customerName) {
                 address: order.address
             };
         }
-        
+
         // Try matching individual words (first name, last name) - EXACT word matches only
         const orderWords = orderName.split(/\s+/);
         const searchWords = searchName.split(/\s+/);
-        
+
         for (const searchWord of searchWords) {
             if (searchWord.length > 2 && orderWords.some(orderWord => orderWord === searchWord)) {
                 console.log(`✅ PORTAL - Exact word match found: "${order.name}" contains exact word "${searchWord}" from "${customerName}"`);
@@ -4459,43 +4497,43 @@ function findExistingCustomer(customerName) {
             }
         }
     }
-    
+
     // SECOND: Search through imported orders (fallback)
     for (const importData of Object.values(imports)) {
         console.log(`📂 Checking import: ${importData.name} (${importData.orders.length} orders)`);
-        
+
         const matchingOrder = importData.orders.find(order => {
             if (!order.name) return false;
-            
+
             const orderName = order.name.toLowerCase().trim();
             const searchName = customerName.toLowerCase().trim();
-            
+
             // Try exact match first
             if (orderName === searchName) {
                 console.log(`✅ IMPORT - Exact match found: "${order.name}" === "${customerName}"`);
                 return true;
             }
-            
+
             // Try contains match
             if (orderName.includes(searchName) || searchName.includes(orderName)) {
                 console.log(`✅ IMPORT - Partial match found: "${order.name}" ~= "${customerName}"`);
                 return true;
             }
-            
+
             // Try matching individual words (first name, last name) - EXACT word matches only
             const orderWords = orderName.split(/\s+/);
             const searchWords = searchName.split(/\s+/);
-            
+
             for (const searchWord of searchWords) {
                 if (searchWord.length > 2 && orderWords.some(orderWord => orderWord === searchWord)) {
                     console.log(`✅ IMPORT - Exact word match found: "${order.name}" contains exact word "${searchWord}" from "${customerName}"`);
                     return true;
                 }
             }
-            
+
             return false;
         });
-        
+
         if (matchingOrder) {
             console.log(`✅ Customer match found in imports: "${matchingOrder.name}" (${matchingOrder.email})`);
             return {
@@ -4506,9 +4544,9 @@ function findExistingCustomer(customerName) {
             };
         }
     }
-    
+
     console.log(`❌ No existing customer found for: "${customerName}"`);
-    
+
     // Debug: List all existing customer names for comparison
     console.log('📋 Available customer names from portal:');
     portalOrders.forEach(order => {
@@ -4516,7 +4554,7 @@ function findExistingCustomer(customerName) {
             console.log(`  - "${order.name}" (${order.email || 'no email'})`);
         }
     });
-    
+
     console.log('📋 Available customer names from imports:');
     for (const importData of Object.values(imports)) {
         importData.orders.forEach(order => {
@@ -4525,14 +4563,14 @@ function findExistingCustomer(customerName) {
             }
         });
     }
-    
+
     return null;
 }
 
 // Helper function to find mapped product name
 function findMappedProduct(description) {
     const desc = description.toLowerCase().trim();
-    
+
     // Special handling for pak variations
     if (desc.includes('4') && (desc.includes('bors') || desc.includes('pak'))) {
         return 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)';
@@ -4540,22 +4578,22 @@ function findMappedProduct(description) {
     if (desc.includes('2') && (desc.includes('bors') || desc.includes('pak'))) {
         return 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)';
     }
-    
+
     // Try to find matching product from description
     for (const [key, value] of Object.entries(productMapping)) {
-        if (desc.includes(key.toLowerCase()) || 
+        if (desc.includes(key.toLowerCase()) ||
             desc.includes(value.toLowerCase())) {
             return value;
         }
     }
-    
+
     // Try to match against pricing keys
     for (const product of Object.keys(pricing)) {
         if (desc.includes(product.toLowerCase())) {
             return product;
         }
     }
-    
+
     // Default: try to extract product name from description
     const cleanDescription = description.split(' R')[0].trim(); // Remove price part
     return cleanDescription.toUpperCase();
@@ -4578,17 +4616,17 @@ function generateInvoiceFromPDFDataMultiProduct(order) {
         status: 'generated',
         source: 'PDF'
     };
-    
+
     // Add to collections
     invoices.push(invoice);
-    
+
     // Only add to import-specific collection if there's an associated import
     if (currentImportId && imports[currentImportId]) {
         imports[currentImportId].invoices.push(invoice);
     }
-    
+
     order.status = 'invoiced';
-    
+
     // Add to email queue (adapted for multi-product)
     addToEmailQueueMultiProduct(order);
 }
@@ -4617,17 +4655,17 @@ function generateInvoiceFromPDFData(order) {
         status: 'generated',
         source: 'PDF'
     };
-    
+
     // Add to collections
     invoices.push(invoice);
-    
+
     // Only add to import-specific collection if there's an associated import
     if (currentImportId && imports[currentImportId]) {
         imports[currentImportId].invoices.push(invoice);
     }
-    
+
     order.status = 'invoiced';
-    
+
     // Add to email queue
     addToEmailQueue(order);
 }
@@ -4638,9 +4676,9 @@ function previewImportData(filename) {
         alert('No PDF data available for preview.');
         return;
     }
-    
+
     const data = lastPDFAnalysis.extractedData;
-    
+
     if (data.multiCustomer && data.customers) {
         // Multi-customer preview
         const customerPreviews = data.customers.map((customer, index) => {
@@ -4648,13 +4686,13 @@ function previewImportData(filename) {
             return `
 CUSTOMER ${index + 1}: ${customer.reference} (Page ${customer.pageNumber})
 Items: ${customer.items.length}
-${customer.items.map((item, i) => 
-    `  ${i+1}. ${item.description}
+${customer.items.map((item, i) =>
+                `  ${i + 1}. ${item.description}
      Qty: ${item.quantity} | KG: ${item.weight} | Price: R${item.price} | Total: R${(item.total || 0).toFixed(2)}`
-).join('\n')}
+            ).join('\n')}
 Customer Total: R${customerTotal.toFixed(2)}`;
         }).join('\n\n' + '='.repeat(60) + '\n');
-        
+
         const preview = `
 MULTI-CUSTOMER PDF PREVIEW: ${filename}
 
@@ -4674,7 +4712,7 @@ SUMMARY:
 
 Click "Import All Customers as Orders" to proceed.
         `;
-        
+
         alert(preview);
     } else {
         // Single customer preview (fallback)
@@ -4685,16 +4723,16 @@ Customer: ${data.customerInfo?.name || 'Customer from PDF'}
 Items to import: ${data.items?.length || 0}
 
 Items:
-${(data.items || []).map((item, i) => 
-    `${i+1}. ${item.description}
+${(data.items || []).map((item, i) =>
+            `${i + 1}. ${item.description}
    Quantity: ${item.quantity} | Weight: ${item.weight}kg | Price: R${item.price} | Total: R${(item.total || 0).toFixed(2)}`
-).join('\n\n')}
+        ).join('\n\n')}
 
 TOTAL: R${data.total.toFixed(2)} (No VAT)
 
 Click "Import as Orders" to create these orders with proper invoice generation.
         `;
-        
+
         alert(preview);
     }
 }
@@ -4707,26 +4745,26 @@ function saveAnalysisToHistory(analysis, filename) {
         summary: analysis.summary,
         findings: analysis.findings
     };
-    
+
     analysisHistory.unshift(historyItem);
-    
+
     // Keep only last 10 analyses
     if (analysisHistory.length > 10) {
         analysisHistory = analysisHistory.slice(0, 10);
     }
-    
+
     updateAnalysisHistoryDisplay();
     saveToStorage();
 }
 
 function updateAnalysisHistoryDisplay() {
     const historyContainer = document.getElementById('analysisHistoryList');
-    
+
     if (analysisHistory.length === 0) {
         historyContainer.innerHTML = '<p class="no-data">No analysis history yet</p>';
         return;
     }
-    
+
     const historyHTML = analysisHistory.map(item => `
         <div class="history-item">
             <div class="history-header">
@@ -4746,14 +4784,14 @@ function updateAnalysisHistoryDisplay() {
             </div>
         </div>
     `).join('');
-    
+
     historyContainer.innerHTML = historyHTML;
 }
 
 function loadCurrentRatesTable() {
     const tableBody = document.getElementById('currentRatesTable');
     if (!tableBody) return;
-    
+
     const ratesHTML = Object.entries(pricing).map(([product, rates]) => {
         const margin = Math.round(((rates.selling - rates.cost) / rates.cost) * 100);
         return `
@@ -4765,7 +4803,7 @@ function loadCurrentRatesTable() {
             </tr>
         `;
     }).join('');
-    
+
     tableBody.innerHTML = ratesHTML;
 }
 
@@ -4774,15 +4812,15 @@ function showScannedPDFInterface(filename, numPages) {
     const resultsContainer = document.getElementById('analysisResults');
     const summaryContainer = document.getElementById('resultsSummary');
     const detailsContainer = document.getElementById('resultsDetails');
-    
+
     // Make sure we're on the PDF analysis section
     const currentSection = document.querySelector('.content-section.active');
     if (currentSection && currentSection.id !== 'pdf-analysis') {
         showSection('pdf-analysis');
     }
-    
+
     resultsContainer.style.display = 'block';
-    
+
     // Create summary for scanned PDF
     const summaryHTML = `
         <div class="analysis-summary">
@@ -4802,7 +4840,7 @@ function showScannedPDFInterface(filename, numPages) {
             </div>
         </div>
     `;
-    
+
     const detailsHTML = `
         <div class="scanned-pdf-notice">
             <h3>📸 Scanned PDF Detected</h3>
@@ -4837,7 +4875,7 @@ function showScannedPDFInterface(filename, numPages) {
             </div>
         </div>
     `;
-    
+
     summaryContainer.innerHTML = summaryHTML;
     detailsContainer.innerHTML = detailsHTML;
 }
@@ -4847,31 +4885,31 @@ async function processScannedPDFWithAI(pdfDoc, filename, numPages) {
     try {
         console.log('🤖 Starting AI/OCR processing...');
         showLoadingState(true, 'Processing with AI/OCR...');
-        
+
         const extractedCustomers = [];
-        
+
         // Process each page with OCR
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
             console.log(`🔍 OCR processing page ${pageNum}/${numPages}...`);
-            
+
             const page = await pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
-            
+
             // Create canvas to render PDF page as image
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             canvas.height = viewport.height;
             canvas.width = viewport.width;
-            
+
             // Render PDF page to canvas
             await page.render({
                 canvasContext: context,
                 viewport: viewport
             }).promise;
-            
+
             // Convert canvas to image and run OCR
             const imageDataURL = canvas.toDataURL();
-            
+
             console.log(`🔤 Running OCR on page ${pageNum}...`);
             const ocrResult = await Tesseract.recognize(imageDataURL, 'eng', {
                 logger: m => {
@@ -4880,10 +4918,10 @@ async function processScannedPDFWithAI(pdfDoc, filename, numPages) {
                     }
                 }
             });
-            
+
             const pageText = ocrResult.data.text;
             console.log(`📄 OCR extracted ${pageText.length} characters from page ${pageNum}`);
-            
+
             // Parse customer data from OCR text
             const customerData = parseInvoicePage(pageText, pageNum);
             if (customerData) {
@@ -4891,20 +4929,20 @@ async function processScannedPDFWithAI(pdfDoc, filename, numPages) {
                 console.log(`✅ Found customer: ${customerData.reference} on page ${pageNum}`);
             }
         }
-        
+
         console.log(`🎉 AI/OCR extracted ${extractedCustomers.length} customers from PDF`);
-        
+
         if (extractedCustomers.length === 0) {
             throw new Error('No customer data could be extracted from the scanned PDF');
         }
-        
+
         // Create analysis result and display
         const analysisResult = createAnalysisResult(extractedCustomers, filename);
         displayAnalysisResults(analysisResult, filename);
         saveAnalysisToHistory(analysisResult, filename);
-        
+
         showLoadingState(false);
-        
+
     } catch (error) {
         console.error('❌ AI/OCR processing failed:', error);
         showLoadingState(false);
@@ -4991,15 +5029,15 @@ async function downloadBackup() {
 
         // Create downloadable file
         const dataStr = JSON.stringify(backupData, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-        
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
         const exportFileDefaultName = `plaas-hoenders-backup-${new Date().toISOString().split('T')[0]}.json`;
-        
+
         const linkElement = document.createElement('a');
         linkElement.setAttribute('href', dataUri);
         linkElement.setAttribute('download', exportFileDefaultName);
         linkElement.click();
-        
+
         addActivity('Data backup downloaded successfully');
         alert('Backup downloaded successfully!');
     } catch (error) {
@@ -5021,7 +5059,7 @@ async function handleBackupUpload(event) {
         });
 
         const backupData = JSON.parse(fileContent);
-        
+
         // Validate backup data
         if (!backupData.version || !backupData.timestamp) {
             throw new Error('Invalid backup file format');
@@ -5055,12 +5093,12 @@ async function handleBackupUpload(event) {
 
         addActivity('Data restored from backup successfully');
         alert('Data restored successfully!');
-        
+
     } catch (error) {
         console.error('Restore failed:', error);
         alert('Failed to restore backup: ' + error.message);
     }
-    
+
     // Clear file input
     event.target.value = '';
 }
@@ -5137,7 +5175,7 @@ async function resetEverything() {
     try {
         // Clear database
         await clearDatabaseData();
-        
+
         // Clear local storage
         await clearLocalData();
 
@@ -5155,7 +5193,7 @@ async function resetEverything() {
         updateDashboard();
         document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="11" class="no-data">No orders loaded</td></tr>';
         document.getElementById('invoicesGrid').innerHTML = '<p class="no-data">No invoices generated yet</p>';
-        
+
         addActivity('Complete application reset performed');
         alert('Application reset completed successfully!');
         refreshDataStatus();
@@ -5202,7 +5240,7 @@ async function testDatabaseConnection() {
         const { error } = await supabaseClient
             .from('imports')
             .select('count', { count: 'exact', head: true });
-        
+
         if (error) throw error;
         document.getElementById('databaseDataStatus').textContent = 'Connected ✓';
     } catch (error) {
@@ -5216,19 +5254,19 @@ async function testDatabaseConnection() {
 function getAnalyticsProductName(originalName) {
     // First try the productMapping
     for (const [key, value] of Object.entries(productMapping)) {
-        if (originalName.toLowerCase().includes(key.toLowerCase()) || 
+        if (originalName.toLowerCase().includes(key.toLowerCase()) ||
             originalName.toLowerCase().includes(value.toLowerCase())) {
             return value;
         }
     }
-    
+
     // Try to match against pricing keys directly
     for (const product of Object.keys(pricing)) {
         if (originalName.toLowerCase().includes(product.toLowerCase())) {
             return product;
         }
     }
-    
+
     // Return original name if no mapping found
     return originalName;
 }
@@ -5244,10 +5282,10 @@ function refreshAnalytics() {
 function updateSalesAnalytics() {
     const allOrders = getAllOrders();
     const allInvoices = getAllInvoices();
-    
+
     // Calculate total revenue from invoices
     const totalRevenue = allInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0);
-    
+
     // Calculate monthly revenue (current month)
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
@@ -5257,7 +5295,7 @@ function updateSalesAnalytics() {
             return invoiceDate.getMonth() === currentMonth && invoiceDate.getFullYear() === currentYear;
         })
         .reduce((sum, invoice) => sum + (invoice.total || 0), 0);
-    
+
     // Calculate weekly revenue (last 7 days)
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
@@ -5267,12 +5305,12 @@ function updateSalesAnalytics() {
             return invoiceDate >= weekAgo;
         })
         .reduce((sum, invoice) => sum + (invoice.total || 0), 0);
-    
+
     // Update UI
     document.getElementById('totalRevenue').textContent = `R${totalRevenue.toFixed(2)}`;
     document.getElementById('monthlyRevenue').textContent = `R${monthlyRevenue.toFixed(2)}`;
     document.getElementById('weeklyRevenue').textContent = `R${weeklyRevenue.toFixed(2)}`;
-    
+
     // Update chart placeholder
     const chartContainer = document.getElementById('revenueChart');
     if (chartContainer) {
@@ -5288,32 +5326,32 @@ function updateSalesAnalytics() {
 
 function updateCustomerAnalytics() {
     const allOrders = getAllOrders();
-    
+
     // Get unique customers
     const uniqueCustomers = new Set();
     const customerOrders = {};
     const customerRevenue = {};
-    
+
     allOrders.forEach(order => {
         if (order.name && order.name.trim()) {
             const customerName = order.name.trim();
             uniqueCustomers.add(customerName);
-            
+
             if (!customerOrders[customerName]) {
                 customerOrders[customerName] = 0;
                 customerRevenue[customerName] = 0;
             }
-            
+
             customerOrders[customerName]++;
             customerRevenue[customerName] += order.total || 0;
         }
     });
-    
+
     // Calculate active customers this month
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     const activeCustomers = new Set();
-    
+
     allOrders.forEach(order => {
         if (order.name && order.name.trim()) {
             const orderDate = new Date(order.createdAt || order.timestamp || Date.now());
@@ -5322,23 +5360,23 @@ function updateCustomerAnalytics() {
             }
         }
     });
-    
+
     // Calculate average order value
     const totalRevenue = Object.values(customerRevenue).reduce((sum, revenue) => sum + revenue, 0);
     const totalOrders = allOrders.length;
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    
+
     // Update UI
     document.getElementById('totalCustomers').textContent = uniqueCustomers.size.toString();
     document.getElementById('activeCustomers').textContent = activeCustomers.size.toString();
     document.getElementById('avgOrderValue').textContent = `R${avgOrderValue.toFixed(2)}`;
-    
+
     // Generate top customers list
     const topCustomersContainer = document.getElementById('topCustomers');
     const sortedCustomers = Object.entries(customerRevenue)
-        .sort(([,a], [,b]) => b - a)
+        .sort(([, a], [, b]) => b - a)
         .slice(0, 5);
-    
+
     let topCustomersHTML = '<h4>Top Customers</h4>';
     if (sortedCustomers.length > 0) {
         sortedCustomers.forEach(([name, revenue]) => {
@@ -5353,24 +5391,24 @@ function updateCustomerAnalytics() {
     } else {
         topCustomersHTML += '<div class="analytics-empty">No customer data available</div>';
     }
-    
+
     topCustomersContainer.innerHTML = topCustomersHTML;
 }
 
 function updateProductAnalytics() {
     const allOrders = getAllOrders();
     const allInvoices = getAllInvoices();
-    
+
     // Collect product data from invoices (more detailed)
     const productStats = {};
     let totalItems = 0;
-    
+
     allInvoices.forEach(invoice => {
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
                 const originalProductName = item.product || item.originalDescription || 'Unknown Product';
                 const mappedProductName = getAnalyticsProductName(originalProductName);
-                
+
                 if (!productStats[originalProductName]) {
                     productStats[originalProductName] = {
                         quantity: 0,
@@ -5380,10 +5418,10 @@ function updateProductAnalytics() {
                         mappedName: mappedProductName
                     };
                 }
-                
+
                 productStats[originalProductName].quantity += item.quantity || 0;
                 productStats[originalProductName].revenue += item.total || 0;
-                
+
                 // Calculate cost using mapped product name
                 const pricingInfo = pricing[mappedProductName];
                 if (pricingInfo && item.weight) {
@@ -5393,13 +5431,13 @@ function updateProductAnalytics() {
                 } else {
                     console.log(`❌ No cost data found for "${originalProductName}" → "${mappedProductName}"`);
                 }
-                
+
                 productStats[originalProductName].orders++;
                 totalItems++;
             });
         }
     });
-    
+
     // Fallback to orders if no invoice data
     if (totalItems === 0) {
         allOrders.forEach(order => {
@@ -5413,7 +5451,7 @@ function updateProductAnalytics() {
                         orders: 0
                     };
                 }
-                
+
                 productStats[productName].quantity += order.quantity || 0;
                 productStats[productName].revenue += order.total || 0;
                 productStats[productName].orders++;
@@ -5421,27 +5459,27 @@ function updateProductAnalytics() {
             }
         });
     }
-    
+
     // Calculate metrics
     const productCount = Object.keys(productStats).length;
     const bestSeller = Object.entries(productStats)
-        .sort(([,a], [,b]) => b.quantity - a.quantity)[0];
-    
+        .sort(([, a], [, b]) => b.quantity - a.quantity)[0];
+
     const totalCost = Object.values(productStats).reduce((sum, stats) => sum + stats.cost, 0);
     const totalRevenue = Object.values(productStats).reduce((sum, stats) => sum + stats.revenue, 0);
     const avgMargin = totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue * 100) : 0;
-    
+
     // Update UI
     document.getElementById('totalProducts').textContent = productCount.toString();
     document.getElementById('bestSeller').textContent = bestSeller ? bestSeller[0] : '-';
     document.getElementById('avgMargin').textContent = `${avgMargin.toFixed(1)}%`;
-    
+
     // Generate product performance list
     const productPerformanceContainer = document.getElementById('productPerformance');
     const sortedProducts = Object.entries(productStats)
-        .sort(([,a], [,b]) => b.revenue - a.revenue)
+        .sort(([, a], [, b]) => b.revenue - a.revenue)
         .slice(0, 5);
-    
+
     let productHTML = '<h4>Product Performance</h4>';
     if (sortedProducts.length > 0) {
         sortedProducts.forEach(([name, stats]) => {
@@ -5456,26 +5494,26 @@ function updateProductAnalytics() {
     } else {
         productHTML += '<div class="analytics-empty">No product data available</div>';
     }
-    
+
     productPerformanceContainer.innerHTML = productHTML;
 }
 
 function updateProfitAnalytics() {
     const allInvoices = getAllInvoices();
-    
+
     let totalRevenue = 0;
     let totalCost = 0;
     const productProfits = {};
-    
+
     allInvoices.forEach(invoice => {
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
                 const originalProductName = item.product || item.originalDescription || 'Unknown Product';
                 const mappedProductName = getAnalyticsProductName(originalProductName);
                 const itemRevenue = item.total || 0;
-                
+
                 totalRevenue += itemRevenue;
-                
+
                 // Calculate cost using mapped product name
                 const pricingInfo = pricing[mappedProductName];
                 let itemCost = 0;
@@ -5486,7 +5524,7 @@ function updateProfitAnalytics() {
                 } else {
                     console.log(`❌ Profit calc - No cost data for: "${originalProductName}" → "${mappedProductName}"`);
                 }
-                
+
                 if (!productProfits[originalProductName]) {
                     productProfits[originalProductName] = {
                         revenue: 0,
@@ -5496,31 +5534,31 @@ function updateProfitAnalytics() {
                         mappedName: mappedProductName
                     };
                 }
-                
+
                 productProfits[originalProductName].revenue += itemRevenue;
                 productProfits[originalProductName].cost += itemCost;
                 productProfits[originalProductName].profit = productProfits[originalProductName].revenue - productProfits[originalProductName].cost;
-                productProfits[originalProductName].margin = productProfits[originalProductName].revenue > 0 ? 
+                productProfits[originalProductName].margin = productProfits[originalProductName].revenue > 0 ?
                     (productProfits[originalProductName].profit / productProfits[originalProductName].revenue * 100) : 0;
             });
         }
     });
-    
+
     const totalProfit = totalRevenue - totalCost;
     const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue * 100) : 0;
     const costRevenueRatio = totalCost > 0 ? `1:${(totalRevenue / totalCost).toFixed(1)}` : '1:0';
-    
+
     // Update UI
     document.getElementById('totalProfit').textContent = `R${totalProfit.toFixed(2)}`;
     document.getElementById('profitMargin').textContent = `${profitMargin.toFixed(1)}%`;
     document.getElementById('costRevenue').textContent = costRevenueRatio;
-    
+
     // Generate profit breakdown table
     const profitBreakdownContainer = document.getElementById('profitBreakdown');
     const sortedProfits = Object.entries(productProfits)
-        .sort(([,a], [,b]) => b.profit - a.profit)
+        .sort(([, a], [, b]) => b.profit - a.profit)
         .slice(0, 10);
-    
+
     let profitHTML = '<h4>Profit Breakdown by Product</h4>';
     if (sortedProfits.length > 0) {
         profitHTML += `
@@ -5536,7 +5574,7 @@ function updateProfitAnalytics() {
                 </thead>
                 <tbody>
         `;
-        
+
         sortedProfits.forEach(([name, stats]) => {
             const profitClass = stats.profit >= 0 ? 'profit-positive' : 'profit-negative';
             profitHTML += `
@@ -5549,19 +5587,19 @@ function updateProfitAnalytics() {
                 </tr>
             `;
         });
-        
+
         profitHTML += '</tbody></table>';
     } else {
         profitHTML += '<div class="analytics-empty">No profit data available</div>';
     }
-    
+
     profitBreakdownContainer.innerHTML = profitHTML;
 }
 
 function exportAnalyticsData() {
     const allOrders = getAllOrders();
     const allInvoices = getAllInvoices();
-    
+
     // Prepare comprehensive analytics data
     const analyticsData = {
         exportDate: new Date().toISOString(),
@@ -5577,12 +5615,12 @@ function exportAnalyticsData() {
         productAnalytics: generateProductAnalyticsData(),
         profitAnalytics: generateProfitAnalyticsData()
     };
-    
+
     // Create and download file
     const dataStr = JSON.stringify(analyticsData, null, 2);
-    const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `plaas-hoenders-analytics-${new Date().toISOString().split('T')[0]}.json`;
@@ -5590,7 +5628,7 @@ function exportAnalyticsData() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
+
     addActivity('Analytics data exported');
     alert('Analytics data exported successfully!');
 }
@@ -5598,7 +5636,7 @@ function exportAnalyticsData() {
 function generateCustomerAnalyticsData() {
     const allOrders = getAllOrders();
     const customerData = {};
-    
+
     allOrders.forEach(order => {
         if (order.name && order.name.trim()) {
             const customerName = order.name.trim();
@@ -5613,11 +5651,11 @@ function generateCustomerAnalyticsData() {
                     products: {}
                 };
             }
-            
+
             const data = customerData[customerName];
             data.totalOrders++;
             data.totalRevenue += order.total || 0;
-            
+
             const orderDate = new Date(order.createdAt || order.timestamp || Date.now());
             if (!data.firstOrder || orderDate < new Date(data.firstOrder)) {
                 data.firstOrder = orderDate.toISOString();
@@ -5625,7 +5663,7 @@ function generateCustomerAnalyticsData() {
             if (!data.lastOrder || orderDate > new Date(data.lastOrder)) {
                 data.lastOrder = orderDate.toISOString();
             }
-            
+
             if (order.product) {
                 if (!data.products[order.product]) {
                     data.products[order.product] = 0;
@@ -5634,25 +5672,25 @@ function generateCustomerAnalyticsData() {
             }
         }
     });
-    
+
     // Calculate average order values
     Object.values(customerData).forEach(data => {
         data.averageOrderValue = data.totalOrders > 0 ? data.totalRevenue / data.totalOrders : 0;
     });
-    
+
     return Object.values(customerData);
 }
 
 function generateProductAnalyticsData() {
     const allInvoices = getAllInvoices();
     const productData = {};
-    
+
     allInvoices.forEach(invoice => {
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
                 const originalProductName = item.product || item.originalDescription || 'Unknown Product';
                 const mappedProductName = getAnalyticsProductName(originalProductName);
-                
+
                 if (!productData[originalProductName]) {
                     productData[originalProductName] = {
                         name: originalProductName,
@@ -5666,13 +5704,13 @@ function generateProductAnalyticsData() {
                         margin: 0
                     };
                 }
-                
+
                 const data = productData[originalProductName];
                 data.totalQuantity += item.quantity || 0;
                 data.totalWeight += item.weight || 0;
                 data.totalRevenue += item.total || 0;
                 data.ordersCount++;
-                
+
                 // Calculate cost using mapped product name
                 const pricingInfo = pricing[mappedProductName];
                 if (pricingInfo && item.weight) {
@@ -5685,27 +5723,27 @@ function generateProductAnalyticsData() {
             });
         }
     });
-    
+
     // Calculate derived metrics
     Object.values(productData).forEach(data => {
         data.averagePrice = data.totalWeight > 0 ? data.totalRevenue / data.totalWeight : 0;
         data.margin = data.totalRevenue > 0 ? ((data.totalRevenue - data.totalCost) / data.totalRevenue * 100) : 0;
     });
-    
+
     return Object.values(productData);
 }
 
 function generateProfitAnalyticsData() {
     const allInvoices = getAllInvoices();
-    
+
     let totalRevenue = 0;
     let totalCost = 0;
     const monthlyProfits = {};
-    
+
     allInvoices.forEach(invoice => {
         const invoiceDate = new Date(invoice.createdAt || invoice.timestamp || Date.now());
         const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
-        
+
         if (!monthlyProfits[monthKey]) {
             monthlyProfits[monthKey] = {
                 month: monthKey,
@@ -5715,17 +5753,17 @@ function generateProfitAnalyticsData() {
                 margin: 0
             };
         }
-        
+
         const invoiceRevenue = invoice.total || 0;
         totalRevenue += invoiceRevenue;
         monthlyProfits[monthKey].revenue += invoiceRevenue;
-        
+
         if (invoice.items && invoice.items.length > 0) {
             invoice.items.forEach(item => {
                 const originalProductName = item.product || item.originalDescription || 'Unknown Product';
                 const mappedProductName = getAnalyticsProductName(originalProductName);
                 const pricingInfo = pricing[mappedProductName];
-                
+
                 if (pricingInfo && item.weight) {
                     const itemCost = pricingInfo.cost * item.weight;
                     totalCost += itemCost;
@@ -5734,13 +5772,13 @@ function generateProfitAnalyticsData() {
             });
         }
     });
-    
+
     // Calculate monthly profit and margin
     Object.values(monthlyProfits).forEach(data => {
         data.profit = data.revenue - data.cost;
         data.margin = data.revenue > 0 ? (data.profit / data.revenue * 100) : 0;
     });
-    
+
     return {
         totalRevenue,
         totalCost,
@@ -5785,11 +5823,11 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupOrderCheckboxes() {
     const checkboxes = document.querySelectorAll('.order-checkbox');
     const selectAll = document.getElementById('selectAllOrders');
-    
+
     checkboxes.forEach(checkbox => {
         checkbox.addEventListener('change', updateBulkActions);
     });
-    
+
     if (selectAll) {
         selectAll.addEventListener('change', toggleAllOrdersBulk);
     }
@@ -5799,7 +5837,7 @@ function updateBulkActions() {
     const checkboxes = document.querySelectorAll('.order-checkbox:checked');
     const bulkActions = document.getElementById('bulkActions');
     const selectedCount = document.getElementById('selectedCount');
-    
+
     if (checkboxes.length > 0) {
         bulkActions.style.display = 'flex';
         selectedCount.textContent = `${checkboxes.length} selected`;
@@ -5811,11 +5849,11 @@ function updateBulkActions() {
 function toggleAllOrders() {
     const selectAll = document.getElementById('selectAllOrders');
     const checkboxes = document.querySelectorAll('.order-checkbox');
-    
+
     checkboxes.forEach(checkbox => {
         checkbox.checked = selectAll.checked;
     });
-    
+
     updateBulkActions();
 }
 
@@ -5830,10 +5868,10 @@ function generateSelectedInvoices() {
         alert('Please select orders first');
         return;
     }
-    
+
     let successCount = 0;
     let errorCount = 0;
-    
+
     selectedIds.forEach(orderId => {
         try {
             generateInvoice(orderId);
@@ -5843,7 +5881,7 @@ function generateSelectedInvoices() {
             errorCount++;
         }
     });
-    
+
     alert(`Generated ${successCount} invoices successfully${errorCount > 0 ? `, ${errorCount} failed` : ''}`);
     updateBulkActions();
 }
@@ -5854,20 +5892,20 @@ async function markSelectedStatus(status) {
         alert('Please select orders first');
         return;
     }
-    
+
     try {
         // Update status in database for customer portal orders
         const { error } = await supabaseClient
             .from('orders')
             .update({ status: status })
             .in('order_id', selectedIds);
-            
+
         if (error) {
             console.error('Error updating order status:', error);
             alert(`Error updating order status: ${error.message}`);
             return;
         }
-        
+
         // Update local data
         if (window.customerPortalOrders) {
             window.customerPortalOrders.forEach(order => {
@@ -5876,11 +5914,11 @@ async function markSelectedStatus(status) {
                 }
             });
         }
-        
+
         // Refresh display
         refreshPortalOrders();
         alert(`Updated ${selectedIds.length} orders to ${status} status`);
-        
+
     } catch (error) {
         console.error('Error updating order status:', error);
         alert(`Error updating order status: ${error.message}`);
@@ -5893,35 +5931,35 @@ async function deleteSelectedOrders() {
         alert('Please select orders first');
         return;
     }
-    
+
     if (!confirm(`Are you sure you want to delete ${selectedIds.length} selected orders? This cannot be undone.`)) {
         return;
     }
-    
+
     try {
         // Delete from database
         const { error } = await supabaseClient
             .from('orders')
             .delete()
             .in('order_id', selectedIds);
-            
+
         if (error) {
             console.error('Error deleting orders:', error);
             alert(`Error deleting orders: ${error.message}`);
             return;
         }
-        
+
         // Remove from local data
         if (window.customerPortalOrders) {
             window.customerPortalOrders = window.customerPortalOrders.filter(
                 order => !selectedIds.includes(order.orderId)
             );
         }
-        
+
         // Refresh display
         refreshPortalOrders();
         alert(`Deleted ${selectedIds.length} orders successfully`);
-        
+
     } catch (error) {
         console.error('Error deleting orders:', error);
         alert(`Error deleting orders: ${error.message}`);
@@ -5939,51 +5977,51 @@ function editInvoiceWeights(invoiceId) {
         alert('Invoice not found');
         return;
     }
-    
+
     // Check if invoice can be edited
     if (invoice.status !== 'provisional' && invoice.status !== 'draft') {
         alert('Only provisional or draft invoices can have weights edited');
         return;
     }
-    
+
     currentEditingInvoice = invoiceId;
     editingInvoiceData = JSON.parse(JSON.stringify(invoice)); // Deep copy
-    
+
     // Update modal header
     document.getElementById('weightEditInvoiceTitle').textContent = `${invoice.invoiceId}`;
-    document.getElementById('weightEditInvoiceInfo').textContent = 
+    document.getElementById('weightEditInvoiceInfo').textContent =
         `Customer: ${invoice.customerName} | Date: ${invoice.date} | Status: ${invoice.status.toUpperCase()}`;
-    
+
     // Populate the table
     populateWeightEditTable();
-    
+
     // Show modal
     document.getElementById('weightEditModal').style.display = 'flex';
-    
+
     console.log('📝 Opened weight editing for invoice:', invoiceId);
 }
 
 function populateWeightEditTable() {
     const tableBody = document.getElementById('weightEditTableBody');
     const items = editingInvoiceData.items || [];
-    
+
     console.log('🔍 Weight Edit Debug Info:');
     console.log('📊 editingInvoiceData:', editingInvoiceData);
     console.log('📦 items array:', items);
     console.log('📈 items length:', items.length);
-    
+
     if (items.length === 0) {
         console.error('❌ No items found in invoice for weight editing');
         console.log('🔍 Full invoice data:', JSON.stringify(editingInvoiceData, null, 2));
     }
-    
+
     let tableHTML = '';
-    
+
     items.forEach((item, index) => {
         const originalWeight = item.weight || 0;
         const unitPrice = item.unitPrice || 0;
         const newTotal = originalWeight * unitPrice;
-        
+
         tableHTML += `
             <tr data-item-index="${index}">
                 <td><strong>${item.product}</strong></td>
@@ -6004,7 +6042,7 @@ function populateWeightEditTable() {
             </tr>
         `;
     });
-    
+
     tableBody.innerHTML = tableHTML;
     updateEditTotals();
 }
@@ -6013,15 +6051,15 @@ function updateItemWeight(itemIndex, newWeight) {
     const weight = parseFloat(newWeight) || 0;
     const item = editingInvoiceData.items[itemIndex];
     const originalWeight = item.weight;
-    
+
     // Update the item weight in our editing data
     editingInvoiceData.items[itemIndex].weight = weight;
     editingInvoiceData.items[itemIndex].total = weight * item.unitPrice;
-    
+
     // Update the total display for this item
     const newTotal = weight * item.unitPrice;
     document.getElementById(`itemTotal-${itemIndex}`).textContent = `R${newTotal.toFixed(2)}`;
-    
+
     // Highlight changed weights
     const input = document.querySelector(`input[data-item-index="${itemIndex}"]`);
     if (Math.abs(weight - originalWeight) > 0.001) {
@@ -6029,7 +6067,7 @@ function updateItemWeight(itemIndex, newWeight) {
     } else {
         input.classList.remove('weight-changed');
     }
-    
+
     // Update totals
     updateEditTotals();
 }
@@ -6039,17 +6077,17 @@ function updateEditTotals() {
     const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0);
     const tax = 0; // No VAT for provisional invoices
     const total = subtotal + tax;
-    
+
     // Update the invoice data
     editingInvoiceData.subtotal = subtotal;
     editingInvoiceData.tax = tax;
     editingInvoiceData.total = total;
-    
+
     // Update display
     document.getElementById('weightEditSubtotal').textContent = `R${subtotal.toFixed(2)}`;
     document.getElementById('weightEditVAT').textContent = `R${tax.toFixed(2)}`;
     document.getElementById('weightEditTotal').textContent = `R${total.toFixed(2)}`;
-    
+
     // Show/hide VAT line
     const vatLine = document.getElementById('weightEditVATLine');
     vatLine.style.display = tax > 0 ? 'flex' : 'none';
@@ -6060,24 +6098,24 @@ function saveWeightEdits() {
         alert('No invoice data to save');
         return;
     }
-    
+
     // Check if any weights were actually changed
     const originalInvoice = invoices.find(inv => inv.invoiceId === currentEditingInvoice);
     let hasChanges = false;
-    
+
     editingInvoiceData.items.forEach((editedItem, index) => {
         const originalItem = originalInvoice.items[index];
         if (Math.abs(editedItem.weight - originalItem.weight) > 0.001) {
             hasChanges = true;
         }
     });
-    
+
     if (!hasChanges) {
         alert('No weight changes to save');
         closeWeightEditModal();
         return;
     }
-    
+
     // Update the original invoice
     const invoiceIndex = invoices.findIndex(inv => inv.invoiceId === currentEditingInvoice);
     if (invoiceIndex !== -1) {
@@ -6085,7 +6123,7 @@ function saveWeightEdits() {
         invoices[invoiceIndex] = JSON.parse(JSON.stringify(editingInvoiceData));
         invoices[invoiceIndex].lastModified = new Date().toISOString();
         invoices[invoiceIndex].status = 'draft'; // Mark as draft after manual editing
-        
+
         // Also update in the import-specific collection
         if (currentImportId && imports[currentImportId]) {
             const importInvoiceIndex = imports[currentImportId].invoices.findIndex(
@@ -6096,32 +6134,32 @@ function saveWeightEdits() {
                 imports[currentImportId].invoices[importInvoiceIndex].status = 'draft';
             }
         }
-        
+
         // Save to storage
         saveToStorage();
-        
+
         // Update displays
         updateInvoicesDisplay();
         updateDashboard();
-        
+
         // Log changes
         const changedItems = editingInvoiceData.items.filter((item, index) => {
             const originalItem = originalInvoice.items[index];
             return Math.abs(item.weight - originalItem.weight) > 0.001;
         });
-        
+
         console.log(`✅ Updated weights for ${changedItems.length} items in invoice ${currentEditingInvoice}`);
         changedItems.forEach(item => {
             console.log(`📦 ${item.product}: ${item.weight}kg (R${item.total.toFixed(2)})`);
         });
-        
+
         addActivity(`Manual weight update: ${currentEditingInvoice} (${changedItems.length} items changed)`);
-        
+
         // Refresh any email queue items for this order to use updated invoice data
         refreshEmailQueueForInvoice(currentEditingInvoice);
-        
+
         alert(`Successfully updated weights for ${changedItems.length} items. Invoice status changed to DRAFT.`);
-        
+
         closeWeightEditModal();
     } else {
         alert('Error: Could not find invoice to update');
@@ -6135,14 +6173,14 @@ function closeWeightEditModal() {
 }
 
 // Close modal when clicking outside
-document.getElementById('weightEditModal')?.addEventListener('click', function(e) {
+document.getElementById('weightEditModal')?.addEventListener('click', function (e) {
     if (e.target === this) {
         closeWeightEditModal();
     }
 });
 
 // Close modal with Escape key
-document.addEventListener('keydown', function(e) {
+document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && document.getElementById('weightEditModal').style.display === 'flex') {
         closeWeightEditModal();
     }
@@ -6159,10 +6197,10 @@ async function safeLoadCustomerData(options = {}) {
     const startTime = Date.now();
     let errors = [];
     let warnings = [];
-    
+
     try {
         console.log('🔄 Starting safe customer data loading...');
-        
+
         // Check if customer management is enabled
         if (!window.CustomerFeatureFlags || !window.CustomerFeatureFlags.isEnabled()) {
             console.log('⚠️ Customer management feature is disabled');
@@ -6175,7 +6213,7 @@ async function safeLoadCustomerData(options = {}) {
                 loadTime: Date.now() - startTime
             };
         }
-        
+
         // Validate feature flags
         if (!window.CustomerFeatureFlags || typeof window.CustomerFeatureFlags !== 'object') {
             errors.push('Invalid CustomerFeatureFlags configuration');
@@ -6189,12 +6227,12 @@ async function safeLoadCustomerData(options = {}) {
                 loadTime: Date.now() - startTime
             };
         }
-        
+
         // Check if we should use gradual rollout
         if (window.CustomerFeatureFlags.config?.gradualRollout?.enabled) {
             const rolloutPercentage = window.CustomerFeatureFlags.config.gradualRollout.percentage || 100;
             const randomValue = Math.random() * 100;
-            
+
             if (randomValue > rolloutPercentage) {
                 console.log(`🎯 Gradual rollout: Customer excluded (${rolloutPercentage}% active, got ${randomValue.toFixed(1)}%)`);
                 warnings.push(`Gradual rollout: Customer excluded (${rolloutPercentage}% active)`);
@@ -6209,17 +6247,17 @@ async function safeLoadCustomerData(options = {}) {
             }
             console.log(`🎯 Gradual rollout: Customer included (${rolloutPercentage}% active, got ${randomValue.toFixed(1)}%)`);
         }
-        
+
         // Attempt to load customer data with multiple fallback strategies
         let customerData = null;
         let loadAttempts = [];
-        
+
         // Strategy 1: Load from customer portal database
         try {
             console.log('📱 Attempting to load from customer portal database...');
             const portalData = await safeLoadCustomerPortalData();
             loadAttempts.push({ strategy: 'portal', success: portalData.success, data: portalData.data });
-            
+
             if (portalData.success && portalData.data) {
                 customerData = portalData.data;
                 console.log('✅ Successfully loaded customer data from portal');
@@ -6231,14 +6269,14 @@ async function safeLoadCustomerData(options = {}) {
             errors.push(`Portal loading failed: ${error.message}`);
             loadAttempts.push({ strategy: 'portal', success: false, error: error.message });
         }
-        
+
         // Strategy 2: Load from import data if no portal data
         if (!customerData) {
             try {
                 console.log('📂 Attempting to load from import data...');
                 const importData = await safeLoadCustomerImportData();
                 loadAttempts.push({ strategy: 'import', success: importData.success, data: importData.data });
-                
+
                 if (importData.success && importData.data) {
                     customerData = importData.data;
                     console.log('✅ Successfully loaded customer data from imports');
@@ -6251,14 +6289,14 @@ async function safeLoadCustomerData(options = {}) {
                 loadAttempts.push({ strategy: 'import', success: false, error: error.message });
             }
         }
-        
+
         // Strategy 3: Create minimal customer data structure if no data found
         if (!customerData) {
             try {
                 console.log('📝 Creating minimal customer data structure...');
                 const minimalData = await safeCreateMinimalCustomerData();
                 loadAttempts.push({ strategy: 'minimal', success: minimalData.success, data: minimalData.data });
-                
+
                 if (minimalData.success && minimalData.data) {
                     customerData = minimalData.data;
                     console.log('✅ Successfully created minimal customer data');
@@ -6272,30 +6310,30 @@ async function safeLoadCustomerData(options = {}) {
                 loadAttempts.push({ strategy: 'minimal', success: false, error: error.message });
             }
         }
-        
+
         // Check performance thresholds
         const loadTime = Date.now() - startTime;
         const maxLoadTime = window.CustomerFeatureFlags.config?.performance?.maxLoadTime || 5000;
-        
+
         if (loadTime > maxLoadTime) {
             warnings.push(`Load time exceeded threshold: ${loadTime}ms (max: ${maxLoadTime}ms)`);
             console.warn(`⚠️ Load time exceeded threshold: ${loadTime}ms`);
         }
-        
+
         // Check error rate thresholds
         const maxErrorRate = window.CustomerFeatureFlags.config?.safety?.maxErrorRate || 0.1;
         const errorRate = errors.length / Math.max(loadAttempts.length, 1);
-        
+
         if (errorRate > maxErrorRate) {
             console.warn(`⚠️ Error rate too high: ${(errorRate * 100).toFixed(1)}% (max: ${(maxErrorRate * 100).toFixed(1)}%)`);
-            
+
             // Auto-disable feature if error rate is too high
             if (window.CustomerFeatureFlags.config?.safety?.autoDisableOnHighErrorRate) {
                 console.error('🚨 Auto-disabling customer management due to high error rate');
                 if (window.CustomerFeatureFlags.disableFeature) {
                     window.CustomerFeatureFlags.disableFeature();
                 }
-                
+
                 return {
                     success: false,
                     data: null,
@@ -6309,7 +6347,7 @@ async function safeLoadCustomerData(options = {}) {
                 };
             }
         }
-        
+
         // Determine fallback strategy
         let fallbackStrategy = 'analytics';
         if (!customerData) {
@@ -6319,7 +6357,7 @@ async function safeLoadCustomerData(options = {}) {
                 fallbackStrategy = 'warning';
             }
         }
-        
+
         const result = {
             success: !!customerData,
             data: customerData,
@@ -6337,13 +6375,13 @@ async function safeLoadCustomerData(options = {}) {
                 performance: loadTime <= 1000 ? 'good' : loadTime <= 3000 ? 'acceptable' : 'poor'
             }
         };
-        
+
         console.log('✅ Safe customer data loading completed:', result);
         return result;
-        
+
     } catch (error) {
         console.error('❌ Critical error in safeLoadCustomerData:', error);
-        
+
         // Always return a safe fallback result
         return {
             success: false,
@@ -6369,7 +6407,7 @@ async function safeLoadCustomerData(options = {}) {
 async function safeLoadCustomerPortalData() {
     const startTime = Date.now();
     const errors = [];
-    
+
     try {
         // Check if Supabase client is available
         if (!supabaseClient) {
@@ -6381,12 +6419,12 @@ async function safeLoadCustomerPortalData() {
                 loadTime: Date.now() - startTime
             };
         }
-        
+
         // Validate required database tables exist
         const { data: customersData, error: customersError } = await supabaseClient
             .from('customers')
             .select('count', { count: 'exact', head: true });
-            
+
         if (customersError) {
             errors.push(`Customers table error: ${customersError.message}`);
             console.error('❌ Customers table error:', customersError);
@@ -6397,7 +6435,7 @@ async function safeLoadCustomerPortalData() {
                 loadTime: Date.now() - startTime
             };
         }
-        
+
         // Load customer portal orders with proper error handling
         const { data: ordersData, error: ordersError } = await supabaseClient
             .from('orders')
@@ -6405,7 +6443,7 @@ async function safeLoadCustomerPortalData() {
             .eq('source', 'customer_portal')
             .order('created_at', { ascending: false })
             .limit(100); // Limit to prevent memory issues
-            
+
         if (ordersError) {
             errors.push(`Orders query error: ${ordersError.message}`);
             console.error('❌ Orders query error:', ordersError);
@@ -6416,7 +6454,7 @@ async function safeLoadCustomerPortalData() {
                 loadTime: Date.now() - startTime
             };
         }
-        
+
         // Transform orders to customer data format
         const customerData = {
             source: 'customer_portal',
@@ -6426,7 +6464,7 @@ async function safeLoadCustomerPortalData() {
             totalOrders: ordersData ? ordersData.length : 0,
             lastUpdated: new Date().toISOString()
         };
-        
+
         // Extract unique customers from orders
         const customerMap = new Map();
         if (ordersData && ordersData.length > 0) {
@@ -6452,23 +6490,23 @@ async function safeLoadCustomerPortalData() {
                 }
             });
         }
-        
+
         customerData.customers = Array.from(customerMap.values());
         customerData.totalCustomers = customerData.customers.length;
-        
+
         console.log(`✅ Successfully loaded ${customerData.totalCustomers} customers from portal`);
-        
+
         return {
             success: true,
             data: customerData,
             errors: errors,
             loadTime: Date.now() - startTime
         };
-        
+
     } catch (error) {
         console.error('❌ Error loading customer portal data:', error);
         errors.push(`Portal loading error: ${error.message}`);
-        
+
         return {
             success: false,
             data: null,
@@ -6485,7 +6523,7 @@ async function safeLoadCustomerPortalData() {
 async function safeLoadCustomerImportData() {
     const startTime = Date.now();
     const errors = [];
-    
+
     try {
         // Check if we have import data available
         if (!imports || Object.keys(imports).length === 0) {
@@ -6497,7 +6535,7 @@ async function safeLoadCustomerImportData() {
                 loadTime: Date.now() - startTime
             };
         }
-        
+
         // Collect customer data from all imports
         const customerData = {
             source: 'imports',
@@ -6507,9 +6545,9 @@ async function safeLoadCustomerImportData() {
             totalOrders: 0,
             lastUpdated: new Date().toISOString()
         };
-        
+
         const customerMap = new Map();
-        
+
         Object.values(imports).forEach(importData => {
             if (importData.orders && importData.orders.length > 0) {
                 importData.orders.forEach(order => {
@@ -6519,7 +6557,7 @@ async function safeLoadCustomerImportData() {
                         importId: importData.id,
                         importName: importData.name
                     });
-                    
+
                     // Extract customer information
                     const customerKey = order.email || order.name;
                     if (customerKey && !customerMap.has(customerKey)) {
@@ -6544,11 +6582,11 @@ async function safeLoadCustomerImportData() {
                 });
             }
         });
-        
+
         customerData.customers = Array.from(customerMap.values());
         customerData.totalCustomers = customerData.customers.length;
         customerData.totalOrders = customerData.orders.length;
-        
+
         if (customerData.totalCustomers === 0) {
             errors.push('No customer data found in imports');
             return {
@@ -6558,20 +6596,20 @@ async function safeLoadCustomerImportData() {
                 loadTime: Date.now() - startTime
             };
         }
-        
+
         console.log(`✅ Successfully loaded ${customerData.totalCustomers} customers from imports`);
-        
+
         return {
             success: true,
             data: customerData,
             errors: errors,
             loadTime: Date.now() - startTime
         };
-        
+
     } catch (error) {
         console.error('❌ Error loading customer import data:', error);
         errors.push(`Import loading error: ${error.message}`);
-        
+
         return {
             success: false,
             data: null,
@@ -6588,7 +6626,7 @@ async function safeLoadCustomerImportData() {
 async function safeCreateMinimalCustomerData() {
     const startTime = Date.now();
     const errors = [];
-    
+
     try {
         // Create a minimal customer data structure
         const customerData = {
@@ -6600,7 +6638,7 @@ async function safeCreateMinimalCustomerData() {
             lastUpdated: new Date().toISOString(),
             note: 'Minimal data structure created as fallback'
         };
-        
+
         // Add a sample customer for testing purposes
         const sampleCustomer = {
             id: 'sample-customer-001',
@@ -6614,23 +6652,23 @@ async function safeCreateMinimalCustomerData() {
             totalSpent: 0,
             source: 'minimal'
         };
-        
+
         customerData.customers.push(sampleCustomer);
         customerData.totalCustomers = 1;
-        
+
         console.log('✅ Successfully created minimal customer data structure');
-        
+
         return {
             success: true,
             data: customerData,
             errors: errors,
             loadTime: Date.now() - startTime
         };
-        
+
     } catch (error) {
         console.error('❌ Error creating minimal customer data:', error);
         errors.push(`Minimal data creation error: ${error.message}`);
-        
+
         return {
             success: false,
             data: null,
@@ -6656,26 +6694,26 @@ function monitorCustomerDataHealth() {
         averageLoadTime: 0,
         status: 'unknown'
     };
-    
+
     try {
         // Check if we have recent load data stored
         const recentLoadsKey = 'customerDataRecentLoads';
         const storedData = localStorage.getItem(recentLoadsKey);
-        
+
         if (storedData) {
             const recentLoads = JSON.parse(storedData);
             health.recentLoads = recentLoads.slice(-10); // Last 10 loads
-            
+
             // Calculate metrics
             const totalLoads = recentLoads.length;
             const errorLoads = recentLoads.filter(load => !load.success).length;
             const successfulLoads = recentLoads.filter(load => load.success);
-            
+
             health.errorRate = totalLoads > 0 ? errorLoads / totalLoads : 0;
             health.averageLoadTime = successfulLoads.length > 0
                 ? successfulLoads.reduce((sum, load) => sum + load.loadTime, 0) / successfulLoads.length
                 : 0;
-            
+
             // Determine status
             if (health.errorRate > 0.5) {
                 health.status = 'critical';
@@ -6689,13 +6727,13 @@ function monitorCustomerDataHealth() {
         } else {
             health.status = 'no_data';
         }
-        
+
     } catch (error) {
         console.error('❌ Error monitoring customer data health:', error);
         health.status = 'error';
         health.error = error.message;
     }
-    
+
     return health;
 }
 
@@ -6707,13 +6745,13 @@ function recordCustomerDataLoad(loadResult) {
     try {
         const recentLoadsKey = 'customerDataRecentLoads';
         let recentLoads = [];
-        
+
         // Load existing data
         const storedData = localStorage.getItem(recentLoadsKey);
         if (storedData) {
             recentLoads = JSON.parse(storedData);
         }
-        
+
         // Add new load result
         const record = {
             timestamp: new Date().toISOString(),
@@ -6724,19 +6762,19 @@ function recordCustomerDataLoad(loadResult) {
             fallback: loadResult.fallback,
             reason: loadResult.reason
         };
-        
+
         recentLoads.push(record);
-        
+
         // Keep only last 50 records
         if (recentLoads.length > 50) {
             recentLoads = recentLoads.slice(-50);
         }
-        
+
         // Save back to storage
         localStorage.setItem(recentLoadsKey, JSON.stringify(recentLoads));
-        
+
         console.log('📊 Customer data load recorded:', record);
-        
+
     } catch (error) {
         console.error('❌ Error recording customer data load:', error);
     }
@@ -6753,15 +6791,15 @@ function displayCustomerDataStatus(loadResult) {
             console.warn('⚠️ Customer data status container not found');
             return;
         }
-        
+
         let statusHTML = '';
         let statusClass = '';
-        
+
         if (loadResult.success && loadResult.data) {
             statusClass = 'status-success';
             const customerCount = loadResult.data.totalCustomers || 0;
             const orderCount = loadResult.data.totalOrders || 0;
-            
+
             statusHTML = `
                 <div class="status-indicator ${statusClass}">
                     <i class="fas fa-check-circle"></i>
@@ -6776,7 +6814,7 @@ function displayCustomerDataStatus(loadResult) {
         } else {
             statusClass = 'status-warning';
             const fallbackText = loadResult.fallback === 'analytics' ? 'Falling back to analytics' : 'Check console for details';
-            
+
             statusHTML = `
                 <div class="status-indicator ${statusClass}">
                     <i class="fas fa-exclamation-triangle"></i>
@@ -6789,17 +6827,17 @@ function displayCustomerDataStatus(loadResult) {
                 </div>
             `;
         }
-        
+
         statusContainer.innerHTML = statusHTML;
         statusContainer.style.display = 'block';
-        
+
         // Auto-hide after 5 seconds if successful
         if (loadResult.success) {
             setTimeout(() => {
                 statusContainer.style.display = 'none';
             }, 5000);
         }
-        
+
     } catch (error) {
         console.error('❌ Error displaying customer data status:', error);
     }
@@ -6811,45 +6849,45 @@ function displayCustomerDataStatus(loadResult) {
  */
 async function safeRefreshCustomerData() {
     const startTime = Date.now();
-    
+
     try {
         console.log('🔄 Starting safe customer data refresh...');
-        
+
         // Load customer data with safety mechanisms
         const loadResult = await safeLoadCustomerData();
-        
+
         // Record the load attempt
         recordCustomerDataLoad(loadResult);
-        
+
         // Display status to user
         displayCustomerDataStatus(loadResult);
-        
+
         // Handle fallback scenarios
         if (!loadResult.success || !loadResult.data) {
             console.warn('⚠️ Customer data refresh failed, handling fallback...');
-            
+
             switch (loadResult.fallback) {
                 case 'analytics':
                     console.log('📊 Falling back to analytics section');
                     showSection('analytics');
                     break;
-                    
+
                 case 'error':
                     console.error('❌ Critical error - showing error notification');
                     ErrorHandler.showNotification('Customer data loading failed', 'error');
                     break;
-                    
+
                 case 'warning':
                     console.warn('⚠️ Warning state - showing warning notification');
                     ErrorHandler.showNotification('Customer data loading completed with warnings', 'warning');
                     break;
-                    
+
                 default:
                     console.log('📊 Defaulting to analytics section');
                     showSection('analytics');
             }
         }
-        
+
         // Check health and potentially auto-disable
         const health = monitorCustomerDataHealth();
         if (health.status === 'critical' && window.CustomerFeatureFlags?.config?.safety?.autoDisableOnHighErrorRate) {
@@ -6858,7 +6896,7 @@ async function safeRefreshCustomerData() {
                 window.CustomerFeatureFlags.disableFeature();
             }
         }
-        
+
         const result = {
             success: loadResult.success,
             data: loadResult.data,
@@ -6866,13 +6904,13 @@ async function safeRefreshCustomerData() {
             health: health,
             fallback: loadResult.fallback
         };
-        
+
         console.log('✅ Safe customer data refresh completed:', result);
         return result;
-        
+
     } catch (error) {
         console.error('❌ Critical error in safeRefreshCustomerData:', error);
-        
+
         return {
             success: false,
             data: null,
@@ -6889,17 +6927,17 @@ async function safeRefreshCustomerData() {
 function startCustomerDataHealthMonitoring() {
     try {
         console.log('🔍 Starting customer data health monitoring...');
-        
+
         // Run health check every 30 seconds
         const healthCheckInterval = setInterval(async () => {
             try {
                 const health = monitorCustomerDataHealth();
                 console.log('🏥 Customer data health check:', health);
-                
+
                 // Log critical issues
                 if (health.status === 'critical') {
                     console.error('🚨 Critical health status detected');
-                    
+
                     // Auto-disable if configured
                     if (window.CustomerFeatureFlags?.config?.safety?.autoDisableOnHighErrorRate) {
                         console.error('🚨 Auto-disabling customer management due to critical health');
@@ -6909,13 +6947,13 @@ function startCustomerDataHealthMonitoring() {
                         clearInterval(healthCheckInterval);
                     }
                 }
-                
+
                 // Update UI with health status
                 const healthContainer = document.getElementById('customerDataHealth');
                 if (healthContainer) {
                     let healthClass = 'health-unknown';
                     let healthIcon = 'fa-question-circle';
-                    
+
                     switch (health.status) {
                         case 'healthy':
                             healthClass = 'health-healthy';
@@ -6934,7 +6972,7 @@ function startCustomerDataHealthMonitoring() {
                             healthIcon = 'fa-clock';
                             break;
                     }
-                    
+
                     healthContainer.innerHTML = `
                         <div class="health-indicator ${healthClass}">
                             <i class="fas ${healthIcon}"></i>
@@ -6946,21 +6984,21 @@ function startCustomerDataHealthMonitoring() {
                         </div>
                     `;
                 }
-                
+
             } catch (error) {
                 console.error('❌ Error in health monitoring interval:', error);
             }
         }, 30000); // Every 30 seconds
-        
+
         console.log('✅ Customer data health monitoring started (30s intervals)');
-        
+
     } catch (error) {
         console.error('❌ Error starting customer data health monitoring:', error);
     }
 }
 
 // Initialize customer data loading system when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Start health monitoring after a delay to ensure everything is loaded
     setTimeout(() => {
         startCustomerDataHealthMonitoring();
@@ -6990,36 +7028,36 @@ class CustomerManagementTester {
     async runAllTests() {
         console.log('🧪 Starting comprehensive customer management testing...');
         this.testStartTime = Date.now();
-        
+
         try {
             // Test 1: Feature Flag System
             await this.testFeatureFlags();
-            
+
             // Test 2: Safe Data Loading Functions
             await this.testSafeDataLoading();
-            
+
             // Test 3: Error Handling and Fallbacks
             await this.testErrorHandling();
-            
+
             // Test 4: Health Monitoring System
             await this.testHealthMonitoring();
-            
+
             // Test 5: Performance Limits
             await this.testPerformanceLimits();
-            
+
             // Test 6: UI Integration
             await this.testUIIntegration();
-            
+
             // Test 7: Edge Cases
             await this.testEdgeCases();
-            
+
             // Test 8: Safety Mechanisms
             await this.testSafetyMechanisms();
-            
+
             this.testEndTime = Date.now();
-            
+
             return this.generateTestReport();
-            
+
         } catch (error) {
             console.error('❌ Critical error during testing:', error);
             this.testEndTime = Date.now();
@@ -7032,52 +7070,52 @@ class CustomerManagementTester {
      */
     async testFeatureFlags() {
         console.log('🚩 Testing feature flag system...');
-        
+
         // Test 1.1: Feature flag configuration exists
         this.addTest('Feature flags configuration exists', () => {
             return window.CustomerFeatureFlags !== undefined &&
-                   typeof window.CustomerFeatureFlags === 'object';
+                typeof window.CustomerFeatureFlags === 'object';
         });
 
         // Test 1.2: Enable/disable functionality
         this.addTest('Feature flags can be enabled/disabled', () => {
             if (!window.CustomerFeatureFlags) return false;
-            
+
             // Test enable
             if (window.CustomerFeatureFlags.enableFeature) {
                 window.CustomerFeatureFlags.enableFeature();
                 const enabled = window.CustomerFeatureFlags.isEnabled();
                 if (!enabled) return false;
             }
-            
+
             // Test disable
             if (window.CustomerFeatureFlags.disableFeature) {
                 window.CustomerFeatureFlags.disableFeature();
                 const disabled = !window.CustomerFeatureFlags.isEnabled();
                 if (!disabled) return false;
             }
-            
+
             return true;
         });
 
         // Test 1.3: Gradual rollout functionality
         this.addTest('Gradual rollout configuration works', () => {
             if (!window.CustomerFeatureFlags || !window.CustomerFeatureFlags.config) return false;
-            
+
             const config = window.CustomerFeatureFlags.config;
             return config.gradualRollout &&
-                   typeof config.gradualRollout.enabled === 'boolean' &&
-                   typeof config.gradualRollout.percentage === 'number';
+                typeof config.gradualRollout.enabled === 'boolean' &&
+                typeof config.gradualRollout.percentage === 'number';
         });
 
         // Test 1.4: Safety thresholds
         this.addTest('Safety thresholds are configured', () => {
             if (!window.CustomerFeatureFlags || !window.CustomerFeatureFlags.config) return false;
-            
+
             const config = window.CustomerFeatureFlags.config;
             return config.safety &&
-                   typeof config.safety.maxErrorRate === 'number' &&
-                   typeof config.safety.autoDisableOnHighErrorRate === 'boolean';
+                typeof config.safety.maxErrorRate === 'number' &&
+                typeof config.safety.autoDisableOnHighErrorRate === 'boolean';
         });
     }
 
@@ -7086,7 +7124,7 @@ class CustomerManagementTester {
      */
     async testSafeDataLoading() {
         console.log('📊 Testing safe data loading functions...');
-        
+
         // Test 2.1: safeLoadCustomerData function exists
         this.addTest('safeLoadCustomerData function exists', () => {
             return typeof safeLoadCustomerData === 'function';
@@ -7112,10 +7150,10 @@ class CustomerManagementTester {
             try {
                 const result = await safeLoadCustomerData();
                 return result &&
-                       typeof result.success === 'boolean' &&
-                       (result.data !== undefined) &&
-                       Array.isArray(result.errors) &&
-                       typeof result.loadTime === 'number';
+                    typeof result.success === 'boolean' &&
+                    (result.data !== undefined) &&
+                    Array.isArray(result.errors) &&
+                    typeof result.loadTime === 'number';
             } catch (error) {
                 return false;
             }
@@ -7126,7 +7164,7 @@ class CustomerManagementTester {
             try {
                 const result = await safeLoadCustomerData();
                 return result &&
-                       (result.success === true || result.fallback !== undefined);
+                    (result.success === true || result.fallback !== undefined);
             } catch (error) {
                 return false;
             }
@@ -7138,7 +7176,7 @@ class CustomerManagementTester {
      */
     async testErrorHandling() {
         console.log('🛡️ Testing error handling and fallbacks...');
-        
+
         // Test 3.1: Error collection works
         this.addTest('Error collection works properly', async () => {
             try {
@@ -7176,10 +7214,10 @@ class CustomerManagementTester {
             try {
                 const result = await safeLoadCustomerData();
                 if (!result) return false;
-                
+
                 const expectedErrorRate = result.errors.length / Math.max(result.loadAttempts?.length || 1, 1);
                 const actualErrorRate = result.errorRate || 0;
-                
+
                 return Math.abs(expectedErrorRate - actualErrorRate) < 0.01;
             } catch (error) {
                 return false;
@@ -7192,7 +7230,7 @@ class CustomerManagementTester {
      */
     async testHealthMonitoring() {
         console.log('🏥 Testing health monitoring system...');
-        
+
         // Test 4.1: monitorCustomerDataHealth function exists
         this.addTest('monitorCustomerDataHealth function exists', () => {
             return typeof monitorCustomerDataHealth === 'function';
@@ -7203,9 +7241,9 @@ class CustomerManagementTester {
             try {
                 const health = monitorCustomerDataHealth();
                 return health &&
-                       typeof health.timestamp === 'string' &&
-                       typeof health.status === 'string' &&
-                       typeof health.errorRate === 'number';
+                    typeof health.timestamp === 'string' &&
+                    typeof health.status === 'string' &&
+                    typeof health.errorRate === 'number';
             } catch (error) {
                 return false;
             }
@@ -7238,14 +7276,14 @@ class CustomerManagementTester {
      */
     async testPerformanceLimits() {
         console.log('⚡ Testing performance limits...');
-        
+
         // Test 5.1: Load time measurement works
         this.addTest('Load time measurement works correctly', async () => {
             try {
                 const result = await safeLoadCustomerData();
                 return result &&
-                       typeof result.loadTime === 'number' &&
-                       result.loadTime >= 0;
+                    typeof result.loadTime === 'number' &&
+                    result.loadTime >= 0;
             } catch (error) {
                 return false;
             }
@@ -7256,15 +7294,15 @@ class CustomerManagementTester {
             try {
                 const result = await safeLoadCustomerData();
                 if (!result) return false;
-                
+
                 const loadTime = result.loadTime;
                 const maxLoadTime = window.CustomerFeatureFlags?.config?.performance?.maxLoadTime || 5000;
-                
+
                 // If load time exceeds threshold, there should be warnings
                 if (loadTime > maxLoadTime) {
                     return result.warnings && result.warnings.length > 0;
                 }
-                
+
                 return true;
             } catch (error) {
                 return false;
@@ -7277,12 +7315,12 @@ class CustomerManagementTester {
                 const startMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
                 const result = await safeLoadCustomerData();
                 const endMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
-                
+
                 if (!result) return false;
-                
+
                 const memoryIncrease = endMemory - startMemory;
                 const maxMemoryIncrease = 50 * 1024 * 1024; // 50MB
-                
+
                 return memoryIncrease < maxMemoryIncrease;
             } catch (error) {
                 return true; // Skip if memory API not available
@@ -7295,7 +7333,7 @@ class CustomerManagementTester {
      */
     async testUIIntegration() {
         console.log('🎨 Testing UI integration...');
-        
+
         // Test 6.1: Customer management section exists
         this.addTest('Customer management section exists in DOM', () => {
             const section = document.getElementById('customerManagement');
@@ -7310,7 +7348,7 @@ class CustomerManagementTester {
                     data: { totalCustomers: 5, totalOrders: 10 },
                     loadTime: 100
                 });
-                
+
                 const statusContainer = document.getElementById('customerDataStatus');
                 return statusContainer && statusContainer.innerHTML.length > 0;
             } catch (error) {
@@ -7337,16 +7375,16 @@ class CustomerManagementTester {
      */
     async testEdgeCases() {
         console.log('🔍 Testing edge cases...');
-        
+
         // Test 7.1: Empty data handling
         this.addTest('Empty data is handled gracefully', async () => {
             try {
                 const result = await safeCreateMinimalCustomerData();
                 return result &&
-                       result.success === true &&
-                       result.data &&
-                       result.data.customers &&
-                       result.data.customers.length >= 0;
+                    result.success === true &&
+                    result.data &&
+                    result.data.customers &&
+                    result.data.customers.length >= 0;
             } catch (error) {
                 return false;
             }
@@ -7370,14 +7408,14 @@ class CustomerManagementTester {
                 if (window.CustomerFeatureFlags) {
                     window.CustomerFeatureFlags.config = null;
                 }
-                
+
                 const result = await safeLoadCustomerData();
-                
+
                 // Restore configuration
                 if (window.CustomerFeatureFlags) {
                     window.CustomerFeatureFlags.config = originalConfig;
                 }
-                
+
                 return result && typeof result.success === 'boolean';
             } catch (error) {
                 return false;
@@ -7391,7 +7429,7 @@ class CustomerManagementTester {
                 for (let i = 0; i < 5; i++) {
                     promises.push(safeLoadCustomerData());
                 }
-                
+
                 const results = await Promise.all(promises);
                 return results.every(result => result && typeof result.success === 'boolean');
             } catch (error) {
@@ -7405,15 +7443,15 @@ class CustomerManagementTester {
      */
     async testSafetyMechanisms() {
         console.log('🛡️ Testing safety mechanisms...');
-        
+
         // Test 8.1: Auto-disable on high error rate
         this.addTest('Auto-disable on high error rate works', () => {
             if (!window.CustomerFeatureFlags || !window.CustomerFeatureFlags.config) return true; // Skip if not configured
-            
+
             const config = window.CustomerFeatureFlags.config;
             return config.safety &&
-                   typeof config.safety.maxErrorRate === 'number' &&
-                   typeof config.safety.autoDisableOnHighErrorRate === 'boolean';
+                typeof config.safety.maxErrorRate === 'number' &&
+                typeof config.safety.autoDisableOnHighErrorRate === 'boolean';
         });
 
         // Test 8.2: Fallback mechanisms are robust
@@ -7423,14 +7461,14 @@ class CustomerManagementTester {
                 if (window.CustomerFeatureFlags && window.CustomerFeatureFlags.disableFeature) {
                     window.CustomerFeatureFlags.disableFeature();
                 }
-                
+
                 const result = await safeLoadCustomerData();
-                
+
                 // Re-enable if possible
                 if (window.CustomerFeatureFlags && window.CustomerFeatureFlags.enableFeature) {
                     window.CustomerFeatureFlags.enableFeature();
                 }
-                
+
                 return result && result.fallback !== undefined;
             } catch (error) {
                 return false;
@@ -7442,8 +7480,8 @@ class CustomerManagementTester {
             try {
                 const health = monitorCustomerDataHealth();
                 return health &&
-                       typeof health.errorRate === 'number' &&
-                       typeof health.status === 'string';
+                    typeof health.errorRate === 'number' &&
+                    typeof health.status === 'string';
             } catch (error) {
                 return false;
             }
@@ -7454,13 +7492,13 @@ class CustomerManagementTester {
             try {
                 const result = await safeLoadCustomerData();
                 if (!result || !result.data) return true; // Skip if no data
-                
+
                 // Check that data is properly structured
                 const data = result.data;
                 return data &&
-                       typeof data.source === 'string' &&
-                       Array.isArray(data.customers) &&
-                       typeof data.totalCustomers === 'number';
+                    typeof data.source === 'string' &&
+                    Array.isArray(data.customers) &&
+                    typeof data.totalCustomers === 'number';
             } catch (error) {
                 return false;
             }
@@ -7472,11 +7510,11 @@ class CustomerManagementTester {
      */
     addTest(testName, testFunction) {
         this.totalTests++;
-        
+
         try {
             const result = testFunction();
             const isAsync = result && typeof result.then === 'function';
-            
+
             if (isAsync) {
                 return result.then(success => {
                     if (success) {
@@ -7541,7 +7579,7 @@ class CustomerManagementTester {
     generateTestReport() {
         const duration = this.testEndTime - this.testStartTime;
         const passRate = this.totalTests > 0 ? (this.passedTests / this.totalTests) * 100 : 0;
-        
+
         const report = {
             summary: {
                 totalTests: this.totalTests,
@@ -7555,7 +7593,7 @@ class CustomerManagementTester {
             recommendations: this.generateRecommendations(),
             healthCheck: this.performHealthCheck()
         };
-        
+
         console.log('📋 Customer Management Test Report:', report);
         return report;
     }
@@ -7565,19 +7603,19 @@ class CustomerManagementTester {
      */
     generateRecommendations() {
         const recommendations = [];
-        
+
         if (this.failedTests > 0) {
             const failedTestNames = this.testResults
                 .filter(result => result.status !== 'PASS')
                 .map(result => result.name);
-            
+
             recommendations.push({
                 priority: 'HIGH',
                 issue: `${this.failedTests} tests failed`,
                 recommendation: `Review and fix the following tests: ${failedTestNames.join(', ')}`
             });
         }
-        
+
         if (this.passedTests < this.totalTests * 0.8) {
             recommendations.push({
                 priority: 'MEDIUM',
@@ -7585,7 +7623,7 @@ class CustomerManagementTester {
                 recommendation: 'Consider improving the implementation to achieve at least 80% test coverage'
             });
         }
-        
+
         // Check for specific issues
         const featureFlagTests = this.testResults.filter(result =>
             result.name.includes('Feature') && result.status !== 'PASS'
@@ -7597,7 +7635,7 @@ class CustomerManagementTester {
                 recommendation: 'Ensure CustomerFeatureFlags object is properly configured and available globally'
             });
         }
-        
+
         const dataLoadingTests = this.testResults.filter(result =>
             result.name.includes('Data Loading') && result.status !== 'PASS'
         );
@@ -7608,7 +7646,7 @@ class CustomerManagementTester {
                 recommendation: 'Verify that all safe data loading functions are properly implemented and accessible'
             });
         }
-        
+
         const safetyTests = this.testResults.filter(result =>
             result.name.includes('Safety') && result.status !== 'PASS'
         );
@@ -7619,7 +7657,7 @@ class CustomerManagementTester {
                 recommendation: 'Safety mechanisms are critical - review and fix immediately before deployment'
             });
         }
-        
+
         if (recommendations.length === 0) {
             recommendations.push({
                 priority: 'LOW',
@@ -7627,7 +7665,7 @@ class CustomerManagementTester {
                 recommendation: 'System appears to be working correctly. Continue monitoring in production.'
             });
         }
-        
+
         return recommendations;
     }
 
@@ -7641,7 +7679,7 @@ class CustomerManagementTester {
             warnings: [],
             suggestions: []
         };
-        
+
         // Determine system status
         if (this.failedTests === 0) {
             healthCheck.systemStatus = 'HEALTHY';
@@ -7650,42 +7688,42 @@ class CustomerManagementTester {
         } else {
             healthCheck.systemStatus = 'CRITICAL';
         }
-        
+
         // Identify critical issues
         const criticalFailures = this.testResults.filter(result =>
             result.status === 'ERROR' ||
             (result.status === 'FAIL' && result.name.includes('Safety'))
         );
-        
+
         healthCheck.criticalIssues = criticalFailures.map(result => ({
             test: result.name,
             issue: result.message,
             priority: result.name.includes('Safety') ? 'CRITICAL' : 'HIGH'
         }));
-        
+
         // Add warnings for failed non-critical tests
         const warnings = this.testResults.filter(result =>
             result.status === 'FAIL' && !result.name.includes('Safety')
         );
-        
+
         healthCheck.warnings = warnings.map(result => ({
             test: result.name,
             issue: result.message,
             priority: 'MEDIUM'
         }));
-        
+
         // Add suggestions
         if (this.passedTests < this.totalTests) {
             healthCheck.suggestions.push('Review failed tests and implement fixes');
         }
-        
+
         if (this.totalTests < 20) {
             healthCheck.suggestions.push('Consider adding more comprehensive test coverage');
         }
-        
+
         healthCheck.suggestions.push('Monitor system performance in production environment');
         healthCheck.suggestions.push('Set up alerting for safety mechanism failures');
-        
+
         return healthCheck;
     }
 }
@@ -7695,11 +7733,11 @@ class CustomerManagementTester {
  */
 async function runCustomerManagementTests() {
     console.log('🚀 Starting comprehensive customer management testing...');
-    
+
     try {
         const tester = new CustomerManagementTester();
         const results = await tester.runAllTests();
-        
+
         // Display results in console
         console.log('📊 CUSTOMER MANAGEMENT TEST RESULTS');
         console.log('=====================================');
@@ -7709,7 +7747,7 @@ async function runCustomerManagementTests() {
         console.log(`Pass Rate: ${results.summary.passRate}`);
         console.log(`Duration: ${results.summary.duration}`);
         console.log('');
-        
+
         // Show detailed results
         results.results.forEach(result => {
             const icon = result.status === 'PASS' ? '✅' : '❌';
@@ -7718,46 +7756,46 @@ async function runCustomerManagementTests() {
                 console.log(`   ${result.message}`);
             }
         });
-        
+
         console.log('');
         console.log('📋 RECOMMENDATIONS:');
         results.recommendations.forEach(rec => {
             console.log(`[${rec.priority}] ${rec.issue}`);
             console.log(`   → ${rec.recommendation}`);
         });
-        
+
         console.log('');
         console.log('🏥 HEALTH CHECK:');
         console.log(`System Status: ${results.healthCheck.systemStatus}`);
-        
+
         if (results.healthCheck.criticalIssues.length > 0) {
             console.log('Critical Issues:');
             results.healthCheck.criticalIssues.forEach(issue => {
                 console.log(`   - ${issue.test}: ${issue.issue}`);
             });
         }
-        
+
         if (results.healthCheck.warnings.length > 0) {
             console.log('Warnings:');
             results.healthCheck.warnings.forEach(warning => {
                 console.log(`   - ${warning.test}: ${warning.issue}`);
             });
         }
-        
+
         // Show alert with summary
         const alertMessage = `Customer Management Testing Complete!\n\n` +
-                           `Total Tests: ${results.summary.totalTests}\n` +
-                           `Passed: ${results.summary.passedTests}\n` +
-                           `Failed: ${results.summary.failedTests}\n` +
-                           `Pass Rate: ${results.summary.passRate}\n\n` +
-                           `System Status: ${results.healthCheck.systemStatus}\n` +
-                           `Critical Issues: ${results.healthCheck.criticalIssues.length}\n` +
-                           `Warnings: ${results.healthCheck.warnings.length}`;
-        
+            `Total Tests: ${results.summary.totalTests}\n` +
+            `Passed: ${results.summary.passedTests}\n` +
+            `Failed: ${results.summary.failedTests}\n` +
+            `Pass Rate: ${results.summary.passRate}\n\n` +
+            `System Status: ${results.healthCheck.systemStatus}\n` +
+            `Critical Issues: ${results.healthCheck.criticalIssues.length}\n` +
+            `Warnings: ${results.healthCheck.warnings.length}`;
+
         alert(alertMessage);
-        
+
         return results;
-        
+
     } catch (error) {
         console.error('❌ Critical error during testing:', error);
         alert(`Testing failed with critical error: ${error.message}`);
@@ -7770,7 +7808,7 @@ async function runCustomerManagementTests() {
  */
 async function quickTestCustomerManagement() {
     console.log('⚡ Running quick customer management test...');
-    
+
     try {
         const tests = [
             {
@@ -7790,10 +7828,10 @@ async function quickTestCustomerManagement() {
                 test: () => document.getElementById('customerManagement') !== null
             }
         ];
-        
+
         let passed = 0;
         let total = tests.length;
-        
+
         tests.forEach(test => {
             try {
                 if (test.test()) {
@@ -7806,18 +7844,18 @@ async function quickTestCustomerManagement() {
                 console.log(`❌ ${test.name} - Error: ${error.message}`);
             }
         });
-        
+
         const passRate = (passed / total) * 100;
         console.log(`\nQuick Test Results: ${passed}/${total} (${passRate.toFixed(0)}%)`);
-        
+
         if (passRate >= 75) {
             console.log('🎉 Customer management system appears to be working correctly!');
         } else {
             console.log('⚠️ Some issues detected - run full test suite for details');
         }
-        
+
         return { passed, total, passRate: passRate.toFixed(0) + '%' };
-        
+
     } catch (error) {
         console.error('❌ Quick test failed:', error);
         return null;
@@ -7878,7 +7916,7 @@ function updateBulkActionsVisibility() {
  */
 function initializeCustomerManagementTesting() {
     console.log('🔧 Initializing customer management testing system...');
-    
+
     // Add test buttons to UI if they don't exist
     const testButtonsContainer = document.getElementById('testButtonsContainer');
     if (testButtonsContainer) {
@@ -7892,7 +7930,7 @@ function initializeCustomerManagementTesting() {
             quickTestBtn.style.marginRight = '10px';
             testButtonsContainer.appendChild(quickTestBtn);
         }
-        
+
         // Add comprehensive test button
         if (!document.getElementById('comprehensiveTestBtn')) {
             const comprehensiveTestBtn = document.createElement('button');
@@ -7903,12 +7941,12 @@ function initializeCustomerManagementTesting() {
             testButtonsContainer.appendChild(comprehensiveTestBtn);
         }
     }
-    
+
     console.log('✅ Customer management testing system initialized');
 }
 
 // Initialize testing system when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     setTimeout(() => {
         initializeCustomerManagementTesting();
     }, 2000);
@@ -7964,3 +8002,213 @@ window.CUSTOMER_MANAGEMENT_CONFIG = {
 };
 
 console.log('✅ Customer management functions exposed globally for browser testing');
+
+/* Supplier Invoice and Pricing Updates */
+
+let pendingPricingUpdates = []; // Store updates pending approval
+
+async function handleSupplierInvoiceUpload(event) {
+    const file = event.target.files[0];
+    if (!file || file.type !== 'application/pdf') {
+        alert('Please upload a valid PDF file.');
+        return;
+    }
+
+    try {
+        if (typeof showLoadingState === 'function') showLoadingState(true, 'Analyzing Supplier Invoice...');
+
+        // Ensure pdfjsLib is available
+        if (typeof pdfjsLib === 'undefined') {
+            throw new Error('PDF.js library not loaded');
+        }
+
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+        let fullText = '';
+
+        // Extract text from all pages
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+
+            // Try to preserve layout slightly better by tracking Y position
+            let lastY = -1;
+            let pageText = '';
+            content.items.forEach(item => {
+                if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
+                    pageText += '\n';
+                }
+                pageText += item.str + ' ';
+                lastY = item.transform[5];
+            });
+            fullText += pageText + '\n';
+        }
+
+        console.log('Extracted PDF Text Length:', fullText.length);
+
+        pendingPricingUpdates = extractPricingFromText(fullText);
+
+        if (pendingPricingUpdates.length === 0) {
+            alert('No matching products found in this invoice. Ensure product names match database names.');
+        } else {
+            showPricingUpdateModal(pendingPricingUpdates);
+        }
+    } catch (error) {
+        console.error('Error parsing supplier invoice:', error);
+        alert('Failed to parse invoice: ' + error.message);
+    } finally {
+        if (typeof showLoadingState === 'function') showLoadingState(false);
+        event.target.value = ''; // Reset input
+    }
+}
+
+function extractPricingFromText(text) {
+    const updates = [];
+    // Normalize text for searching
+    const normalizedText = text.toLowerCase();
+
+    // Iterate through all known products
+    if (!products || products.length === 0) {
+        console.warn('No products loaded to match against.');
+        return [];
+    }
+
+    products.forEach(product => {
+        if (!product.active) return;
+
+        const searchName = product.name.toLowerCase();
+
+        // Find all occurrences
+        let pos = normalizedText.indexOf(searchName);
+        if (pos !== -1) {
+            // Find the line containing this occurrence
+            const lineStart = text.lastIndexOf('\n', pos);
+            const lineEnd = text.indexOf('\n', pos + searchName.length);
+
+            if (lineStart !== -1 && lineEnd !== -1) {
+                const line = text.substring(lineStart, lineEnd);
+
+                // Look for price pattern (R xxx.xx or xxx.xx)
+                const numbers = line.match(/\d+(\.\d{2})/g); // Match 123.45 format
+                if (numbers) {
+                    const prices = numbers.map(parseFloat).sort((a, b) => a - b);
+
+                    // Strategy: Find number closest to current cost price (within 50% deviation)
+                    let candidatePrice = null;
+                    if (product.cost_price > 0) {
+                        candidatePrice = prices.find(p => Math.abs(p - product.cost_price) / product.cost_price < 0.5);
+                    } else {
+                        // If no kost price, guess based on position or reasonable range? 
+                        // Usually cost is smaller than selling, and total is largest.
+                        // Let's assume the smallest number > 5 is unit price? (Risky)
+                        // Fallback: take first match
+                        candidatePrice = prices[0];
+                    }
+
+                    if (candidatePrice) {
+                        // Calculate metrics
+                        const currentMargin = product.cost_price > 0
+                            ? (product.selling_price - product.cost_price) / product.cost_price
+                            : 0.15; // default 15%
+
+                        // Rounding logic can be improved
+                        const calcSelling = candidatePrice * (1 + currentMargin);
+
+                        updates.push({
+                            id: product.id,
+                            name: product.name,
+                            oldCost: product.cost_price,
+                            newCost: candidatePrice,
+                            oldSelling: product.selling_price,
+                            margin: currentMargin,
+                            calcSelling: calcSelling,
+                            finalSelling: Math.ceil(calcSelling) // Default round up to nearest Rand? Or just raw
+                        });
+                    }
+                }
+            }
+        }
+    });
+    return updates;
+}
+
+function showPricingUpdateModal(updates) {
+    const modal = document.getElementById('pricingUpdateModal');
+    const tbody = document.getElementById('pricingUpdateBody');
+    if (!tbody) {
+        console.error('Modal body not found');
+        return;
+    }
+    tbody.innerHTML = '';
+
+    updates.forEach((update, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${update.name}</td>
+            <td>R${update.oldCost.toFixed(2)}</td>
+            <td class="font-bold text-blue-600">R${update.newCost.toFixed(2)}</td>
+            <td>R${update.oldSelling.toFixed(2)}</td>
+            <td>${(update.margin * 100).toFixed(1)}%</td>
+            <td>R${update.calcSelling.toFixed(2)}</td>
+            <td>
+                <input type="number" step="1.00" 
+                    value="${update.finalSelling.toFixed(2)}" 
+                    onchange="updateFinalPrice(${index}, this.value)"
+                    class="p-1 border rounded w-24">
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    if (modal) modal.style.display = 'block';
+}
+
+function closePricingUpdateModal() {
+    const modal = document.getElementById('pricingUpdateModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function updateFinalPrice(index, value) {
+    if (pendingPricingUpdates[index]) {
+        pendingPricingUpdates[index].finalSelling = parseFloat(value);
+    }
+}
+
+async function applyPricingUpdates() {
+    if (!pendingPricingUpdates.length) return;
+
+    if (typeof showLoadingState === 'function') showLoadingState(true, 'Updating database...');
+    try {
+        if (!supabaseClient) throw new Error('Database not connected');
+
+        // Process updates
+        const promises = pendingPricingUpdates.map(update => {
+            return supabaseClient
+                .from('products')
+                .update({
+                    cost_price: update.newCost,
+                    selling_price: update.finalSelling,
+                    updated_at: new Date()
+                })
+                .eq('id', update.id);
+        });
+
+        await Promise.all(promises);
+
+        alert('Successfully updated ' + pendingPricingUpdates.length + ' products.');
+        closePricingUpdateModal();
+        await loadProducts(); // Refresh local list and UI
+
+    } catch (error) {
+        console.error('Failed to update pricing:', error);
+        alert('Error updating database: ' + error.message);
+    } finally {
+        if (typeof showLoadingState === 'function') showLoadingState(false);
+    }
+}
+
+// Global exposure
+window.handleSupplierInvoiceUpload = handleSupplierInvoiceUpload;
+window.closePricingUpdateModal = closePricingUpdateModal;
+window.applyPricingUpdates = applyPricingUpdates;
+window.updateFinalPrice = updateFinalPrice;
