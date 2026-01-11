@@ -303,7 +303,7 @@
             for (const field in validationRules) {
                 const rules = validationRules[field];
                 const value = formData[field];
-                let fieldErrors = [];
+                const fieldErrors = [];
                 let fieldSanitized = value;
                 
                 // Required check

@@ -449,7 +449,7 @@ let customerSession = null;
 
 // Navigation state management
 let currentSection = 'dashboard';
-let sectionData = {
+const sectionData = {
     products: null,
     orders: null,
     profile: null
@@ -488,10 +488,10 @@ async function handleAuthCallback() {
 
         if (error) {
             console.log('DEBUG: Auth error detected:', error, errorCode, errorDescription);
-            
+
             // Clear the hash from URL
             window.history.replaceState({}, document.title, window.location.pathname);
-            
+
             if (errorCode === 'otp_expired') {
                 showFormMessage(document.getElementById('registerMessage'), 'Email confirmation link has expired. Please request a new one.', 'error');
                 document.getElementById('resendConfirmation').style.display = 'block';
@@ -597,9 +597,12 @@ async function initializeCustomerPortal() {
 
         console.log('✅ Customer portal secure connection ready');
 
+        // Load products from database (for dynamic pricing)
+        await loadProductsFromDB();
+
         // Handle auth tokens from email confirmation or password reset
         await handleAuthCallback();
-        
+
         // Debug: Check localStorage contents before session check
         console.log('🔍 Debugging localStorage contents:');
         const allKeys = Object.keys(localStorage);
@@ -755,7 +758,7 @@ async function initializeCustomerPortal() {
             console.log('🔓 No session found, showing auth section');
             showAuthSection();
         }
-        
+
         // Wait for minimum loading time before hiding spinner
         const now = new Date().getTime();
         if (now < minLoadingTime) {
@@ -787,7 +790,7 @@ async function initializeCustomerPortal() {
                 console.log('Portal closed, returned to products view');
             });
         }
-        
+
         // Listen for auth state changes
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
             console.info('Auth state changed:', event);
@@ -818,7 +821,7 @@ async function initializeCustomerPortal() {
                 showAuthSection();
             }
         });
-        
+
     } catch (error) {
         console.error('Error initializing customer portal:', error);
         showFormMessage('An error occurred loading the portal. Please refresh the page.', 'error', 'loginMessage');
@@ -840,7 +843,7 @@ async function loadCustomerProfile() {
             console.log('❌ No authenticated user session found');
             throw new Error('No authenticated user session');
         }
-        
+
         console.log('🆔 Customer session user ID:', customerSession.user.id);
 
         // Try to get customer profile from database (gracefully handle missing table)
@@ -903,24 +906,24 @@ async function loadCustomerProfile() {
             // Create customer profile for new user (e.g., Google OAuth user)
             // Extract phone number from multiple possible locations in Google auth data
             const phoneFromAuth = customerSession.user.user_metadata?.phone ||
-                                 customerSession.user.phone ||
-                                 null;
+                customerSession.user.phone ||
+                null;
 
             const newCustomer = {
                 auth_user_id: customerSession.user.id,
                 full_name: customerSession.user.user_metadata?.full_name ||
-                          customerSession.user.user_metadata?.name ||
-                          customerSession.user.email.split('@')[0],
+                    customerSession.user.user_metadata?.name ||
+                    customerSession.user.email.split('@')[0],
                 name: customerSession.user.user_metadata?.full_name ||
-                      customerSession.user.user_metadata?.name ||
-                      customerSession.user.email.split('@')[0],
+                    customerSession.user.user_metadata?.name ||
+                    customerSession.user.email.split('@')[0],
                 email: customerSession.user.email,
                 phone: phoneFromAuth,
                 address: customerSession.user.user_metadata?.address || null,
                 communication_preferences: { email_notifications: true },
                 last_login: new Date().toISOString()
             };
-            
+
             console.log('📝 New customer data from auth:', newCustomer);
             console.log('📞 Phone extracted from auth:', phoneFromAuth);
 
@@ -933,7 +936,7 @@ async function loadCustomerProfile() {
                 const { data: existingCustomerByEmail, error: emailCheckError } = await supabaseClient
                     .from('customers')
                     .select('*')
-                    .eq('email', newCustomer.email)
+                    .eq('email', newCustomer.email.toLowerCase())
                     .maybeSingle();
 
                 if (emailCheckError && emailCheckError.code !== 'PGRST116') {
@@ -980,7 +983,7 @@ async function loadCustomerProfile() {
                             const { data: duplicateCustomer, error: fetchError } = await supabaseClient
                                 .from('customers')
                                 .select('*')
-                                .eq('email', newCustomer.email)
+                                .eq('email', newCustomer.email.toLowerCase())
                                 .single();
 
                             if (!fetchError && duplicateCustomer) {
@@ -1024,7 +1027,7 @@ async function loadCustomerProfile() {
         // Update UI with customer name in multiple places
         updateCustomerNameInUI();
         updateAuthUI();
-        
+
         // Set up real-time order status subscriptions
         if (typeof setupOrderStatusSubscription === 'function') {
             await setupOrderStatusSubscription();
@@ -1157,7 +1160,7 @@ async function handleRegister(event) {
                         const { data: duplicateProfile } = await supabaseClient
                             .from('customers')
                             .select('*')
-                            .eq('email', registrationData.email)
+                            .eq('email', registrationData.email.toLowerCase())
                             .single();
 
                         if (duplicateProfile) {
@@ -1180,7 +1183,7 @@ async function handleRegister(event) {
     } catch (error) {
         console.error('Registration error:', error);
         let errorMessage = 'Registration failed. Please try again.';
-        
+
         if (error.message?.includes('already registered')) {
             errorMessage = 'This email is already registered. Please try logging in instead.';
         } else if (error.message?.includes('Invalid email')) {
@@ -1188,7 +1191,7 @@ async function handleRegister(event) {
         } else if (error.message?.includes('Password')) {
             errorMessage = 'Password must be at least 8 characters long.';
         }
-        
+
         showFormMessage(errorMessage, 'error', 'registerMessage');
     } finally {
         showLoadingSpinner(false);
@@ -1240,13 +1243,13 @@ async function handleLogin(event) {
     } catch (error) {
         console.error('Login error:', error);
         let errorMessage = 'Login failed. Please check your credentials and try again.';
-        
+
         if (error.message?.includes('Invalid login credentials')) {
             errorMessage = 'Invalid email or password. Please try again.';
         } else if (error.message?.includes('Email not confirmed')) {
             errorMessage = 'Please confirm your email address before logging in.';
         }
-        
+
         showFormMessage(errorMessage, 'error', 'loginMessage');
     } finally {
         showLoadingSpinner(false);
@@ -1326,9 +1329,9 @@ async function handleGoogleLogin() {
 async function handleLogout() {
     try {
         showLoadingSpinner(true);
-        
+
         const { error } = await supabaseClient.auth.signOut();
-        
+
         if (error) {
             throw error;
         }
@@ -1337,11 +1340,11 @@ async function handleLogout() {
         if (typeof cleanupOrderStatusSubscription === 'function') {
             cleanupOrderStatusSubscription();
         }
-        
+
         // Clear local state
         currentCustomer = null;
         customerSession = null;
-        
+
         // Auth state change listener will handle UI updates
 
     } catch (error) {
@@ -1558,7 +1561,7 @@ function showAuthForm(formType) {
     const registerTab = document.getElementById('register-tab');
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
-    
+
     if (formType === 'login') {
         // Show login form
         if (loginTab) {
@@ -1603,7 +1606,7 @@ function showCustomerPortal() {
         authSection.classList.remove('active');
         authSection.style.display = 'none';
     }
-    
+
     // Load cart from storage when portal opens
     loadCartFromStorage();
 
@@ -1611,7 +1614,7 @@ function showCustomerPortal() {
     const modal = document.getElementById('modal');
     if (modal) {
         modal.style.display = 'flex';
-        
+
         // Initialize the beautiful portal
         initializeBeautifulPortal();
     }
@@ -1639,24 +1642,24 @@ function initializeBeautifulPortal() {
         const displayPhone = document.getElementById('displayPhone');
         const displayAddress = document.getElementById('displayAddress');
         const displayEmail = document.getElementById('displayEmail');
-        
+
         if (displayName) displayName.textContent = currentCustomer.full_name || currentCustomer.name || '';
         if (displayPhone) displayPhone.textContent = currentCustomer.phone || '';
         if (displayAddress) displayAddress.textContent = currentCustomer.address || '';
         if (displayEmail) displayEmail.textContent = currentCustomer.email || '';
-        
+
         // Update form fields as well
         const customerName = document.getElementById('customerName');
         const customerPhone = document.getElementById('customerPhone');
         const customerAddress = document.getElementById('customerAddress');
         const customerEmail = document.getElementById('customerEmail');
-        
+
         if (customerName) customerName.value = currentCustomer.full_name || currentCustomer.name || '';
         if (customerPhone) customerPhone.value = currentCustomer.phone || '';
         if (customerAddress) customerAddress.value = currentCustomer.address || '';
         if (customerEmail) customerEmail.value = currentCustomer.email || '';
     }
-    
+
     // Initialize the beautiful portal components
     setupBeautifulPortalEventListeners();
     populateEditForm();
@@ -1679,7 +1682,7 @@ function setupBeautifulPortalEventListeners() {
             }
         });
     }
-    
+
     // Step navigation
     const confirmDetails = document.getElementById('confirmDetails');
     if (confirmDetails) {
@@ -1690,7 +1693,7 @@ function setupBeautifulPortalEventListeners() {
                     phone: currentCustomer?.phone || '',
                     address: currentCustomer?.address || ''
                 });
-                
+
                 if (!validation.isValid) {
                     // Show validation overlay with errors
                     window.CustomerValidator.showValidationOverlay(validation.errors);
@@ -1703,19 +1706,19 @@ function setupBeautifulPortalEventListeners() {
                     return;
                 }
             }
-            
+
             // Validation passed, proceed to step 2
             showBeautifulStep(2);
         });
     }
-    
+
     const backToStep1 = document.getElementById('backToStep1');
     if (backToStep1) {
         backToStep1.addEventListener('click', () => {
             showBeautifulStep(1);
         });
     }
-    
+
     const proceedToReview = document.getElementById('proceedToReview');
     if (proceedToReview) {
         proceedToReview.addEventListener('click', () => {
@@ -1727,14 +1730,14 @@ function setupBeautifulPortalEventListeners() {
             showBeautifulStep(3);
         });
     }
-    
+
     const backToProducts = document.getElementById('backToProducts');
     if (backToProducts) {
         backToProducts.addEventListener('click', () => {
             showBeautifulStep(2);
         });
     }
-    
+
     const placeOrder = document.getElementById('placeOrder');
     if (placeOrder) {
         placeOrder.addEventListener('click', async (e) => {
@@ -1742,13 +1745,13 @@ function setupBeautifulPortalEventListeners() {
             if (placeOrder.disabled) {
                 return;
             }
-            
+
             // Disable button and show loading state
             placeOrder.disabled = true;
             const originalText = placeOrder.textContent;
             placeOrder.textContent = 'Plaas Bestelling...';
             placeOrder.style.opacity = '0.7';
-            
+
             try {
                 await handleOrderPlacement();
             } catch (error) {
@@ -1760,14 +1763,14 @@ function setupBeautifulPortalEventListeners() {
             }
         });
     }
-    
+
     const newOrder = document.getElementById('newOrder');
     if (newOrder) {
         newOrder.addEventListener('click', () => {
             showBeautifulStep(1);
         });
     }
-    
+
     // Edit customer details button
     const editDetailsBtn = document.getElementById('editDetailsBtn');
     if (editDetailsBtn) {
@@ -1776,7 +1779,7 @@ function setupBeautifulPortalEventListeners() {
             // Hide display mode, show edit mode
             const detailsDisplay = document.getElementById('detailsDisplay');
             const detailsEdit = document.getElementById('detailsEdit');
-            
+
             if (detailsDisplay) {
                 detailsDisplay.style.display = 'none';
                 console.log('Hidden display mode');
@@ -1788,7 +1791,7 @@ function setupBeautifulPortalEventListeners() {
             }
         });
     }
-    
+
     // Cancel edit button
     const cancelEditBtn = document.getElementById('cancelEditBtn');
     if (cancelEditBtn) {
@@ -1797,7 +1800,7 @@ function setupBeautifulPortalEventListeners() {
             // Show display mode, hide edit mode
             const detailsDisplay = document.getElementById('detailsDisplay');
             const detailsEdit = document.getElementById('detailsEdit');
-            
+
             if (detailsDisplay) {
                 detailsDisplay.style.display = 'block';
                 console.log('Shown display mode');
@@ -1807,12 +1810,12 @@ function setupBeautifulPortalEventListeners() {
                 detailsEdit.classList.add('hidden');
                 console.log('Hidden edit mode');
             }
-            
+
             // Restore original values
             populateEditForm();
         });
     }
-    
+
     // Save changes button
     const saveChangesBtn = document.getElementById('saveChangesBtn');
     if (saveChangesBtn) {
@@ -1907,15 +1910,15 @@ function populateAllProducts() {
         // Get all 18 products with categories from shared-utils.js
         const pricing = getCustomerPricing();
         const categories = getProductCategories();
-        
+
         const productGrid = document.getElementById('productGrid');
         if (!productGrid) {
             console.error('Product grid not found');
             return;
         }
-        
+
         productGrid.innerHTML = '';
-        
+
         // Create products organized by categories
         Object.entries(categories).forEach(([categoryKey, category]) => {
             // Add category header
@@ -1929,7 +1932,7 @@ function populateAllProducts() {
                 <p class="text-zinc-200 text-base mt-2 font-medium">${category.description}</p>
             `;
             productGrid.appendChild(categoryHeader);
-            
+
             // Add products in this category
             category.products.forEach(productName => {
                 const priceData = pricing[productName];
@@ -1937,17 +1940,17 @@ function populateAllProducts() {
                     console.warn(`No pricing data for ${productName}`);
                     return;
                 }
-                
+
                 // Get display info and create safe product key
                 const displayInfo = getProductDisplayInfo(productName);
                 const estimatedWeight = getEstimatedWeight(productName);
                 const productKey = productName.replace(/[^A-Z0-9]/g, '_');
-                
+
                 console.log(`🔑 Generated key: "${productName}" → "${productKey}"`);
-                
+
                 const productCard = document.createElement('div');
                 productCard.className = 'bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
-                
+
                 productCard.innerHTML = `
                         <div class="mb-4">
                             <h4 class="text-lg font-semibold text-white mb-2">${displayInfo.displayName}</h4>
@@ -1978,24 +1981,24 @@ function populateAllProducts() {
                             <span class="text-sm text-zinc-200 font-medium" id="total-${productKey}">R0.00</span>
                         </div>
                 `;
-                
+
                 productGrid.appendChild(productCard);
             });
         });
-        
+
         console.log(`✅ Populated ${Object.keys(pricing).length} products across ${Object.keys(categories).length} categories`);
         console.log('🔍 Debug: Product grid populated with:', Object.keys(categories).map(key => categories[key].name));
-        
+
     } catch (error) {
         console.error('Error populating products:', error);
-        
+
         // Fallback to basic products if shared-utils functions fail
         const basicProducts = [
             { name: 'HEEL HOENDER', price: 67.00, weight: 2.5 },
             { name: 'PLAT HOENDER', price: 79.00, weight: 1.8 },
             { name: 'BRAAIPAKKE', price: 74.00, weight: 1.0 }
         ];
-        
+
         const productGrid = document.getElementById('productGrid');
         if (productGrid) {
             productGrid.innerHTML = '<p class="text-red-400 col-span-full text-center">Products loading failed. Please refresh the page.</p>';
@@ -2035,10 +2038,10 @@ function loadCartFromStorage() {
             cart = {};
             return;
         }
-        
+
         const cartData = JSON.parse(stored);
         const hoursSinceStored = (Date.now() - cartData.timestamp) / (1000 * 60 * 60);
-        
+
         // Cart expires after 24 hours or if customer changed
         if (hoursSinceStored > 24 || (cartData.customerId && cartData.customerId !== currentCustomer?.id)) {
             console.log('🗑️ Cart expired or customer changed, clearing cart');
@@ -2047,12 +2050,12 @@ function loadCartFromStorage() {
         } else {
             cart = cartData.items || {};
             console.log('📦 Cart loaded from localStorage:', Object.keys(cart).length, 'items');
-            
+
             // Clean cart of invalid products (like old BORSSTUKKE_MET_BEEN_EN_VEL without pack size)
             const pricing = getCustomerPricing();
             const cleanedCart = {};
             let removedCount = 0;
-            
+
             for (const [productKey, cartItem] of Object.entries(cart)) {
                 // Skip the old BORSSTUKKE product without pack size
                 if (productKey === 'BORSSTUKKE_MET_BEEN_EN_VEL') {
@@ -2079,18 +2082,18 @@ function loadCartFromStorage() {
                     cleanedCart[productKey] = cartItem;
                 }
             }
-            
+
             if (removedCount > 0) {
                 cart = cleanedCart;
                 saveCartToStorage();
                 console.log(`✅ Cleaned ${removedCount} invalid products from cart`);
             }
         }
-        
+
         // Update display after loading
         updateCartDisplay();
         updateCartSummary();
-        
+
     } catch (error) {
         console.error('❌ Failed to load cart from localStorage:', error);
         cart = {};
@@ -2115,7 +2118,7 @@ function clearCart() {
  */
 function populateCartQuantities() {
     console.log('🔄 Populating cart quantities in product UI');
-    
+
     Object.entries(cart).forEach(([productKey, cartItem]) => {
         const quantity = cartItem.quantity || 0;
         const qtyInput = document.getElementById(`qty-${productKey}`);
@@ -2124,7 +2127,7 @@ function populateCartQuantities() {
             console.log(`✅ Set ${productKey} quantity to ${quantity}`);
         }
     });
-    
+
     // Update cart display and summary after populating
     updateCartDisplay();
     updateCartSummary();
@@ -2198,7 +2201,7 @@ function setQuantity(productKey, quantity) {
  */
 function updateCartDisplay() {
     const totalItems = Object.values(cart).reduce((sum, item) => sum + (item.quantity || 0), 0);
-    
+
     // Update cart badge
     const cartBadge = document.getElementById('cartBadge');
     if (cartBadge) {
@@ -2211,7 +2214,7 @@ function updateCartDisplay() {
             cartBadge.classList.remove('opacity-100', 'scale-100');
         }
     }
-    
+
     // Enable/disable proceed button
     const proceedBtn = document.getElementById('proceedToReview');
     if (proceedBtn) {
@@ -2228,16 +2231,16 @@ function updateCartSummary() {
     const cartTotal = document.getElementById('cartTotal');
     const cartWeight = document.getElementById('cartWeight');
     const cartItemCount = document.getElementById('cartItemCount');
-    
+
     // Use the new pricing system from shared-utils.js
     const pricing = getCustomerPricing();
-    
+
     // Create a lookup from productKey back to full name
     function getProductNameFromKey(productKey) {
         // The key generation uses: productName.replace(/[^A-Z0-9]/g, '_')
         // So we need to map the generated keys back to original names
         const allProducts = getCustomerPricing();
-        
+
         // Find the product that generates this key
         for (const productName of Object.keys(allProducts)) {
             const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
@@ -2245,20 +2248,20 @@ function updateCartSummary() {
                 return productName;
             }
         }
-        
+
         // Fallback: convert key back to name by replacing underscores
         return productKey.replace(/_/g, ' ')
-                        .replace(/  /g, ' ')  // Remove double spaces
-                        .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
+            .replace(/ {2}/g, ' ')  // Remove double spaces
+            .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
     }
-    
+
     let totalAmount = 0;
     let totalWeight = 0;
     let totalItems = 0;
-    
+
     if (cartItems) {
         cartItems.innerHTML = '';
-        
+
         if (Object.keys(cart).length === 0) {
             cartItems.innerHTML = '<p class="text-zinc-400 text-center py-4">Geen items in mandjie nie</p>';
         } else {
@@ -2294,7 +2297,7 @@ function updateCartSummary() {
                     totalWeight += weight;
                     totalAmount += amount;
                     totalItems += qty;
-                    
+
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'flex justify-between items-center py-2 border-b border-zinc-700/30';
                     // Display text based on unit type
@@ -2306,7 +2309,7 @@ function updateCartSummary() {
                     } else {
                         quantityText = `${qty}x (~${weight.toFixed(1)}kg)`;
                     }
-                    
+
                     itemDiv.innerHTML = `
                         <div>
                             <p class="text-white font-medium">${displayInfo.displayName}</p>
@@ -2322,11 +2325,11 @@ function updateCartSummary() {
             });
         }
     }
-    
+
     if (cartTotal) cartTotal.textContent = `R${totalAmount.toFixed(2)}`;
     if (cartWeight) cartWeight.textContent = `${totalWeight.toFixed(1)}kg`;
     if (cartItemCount) cartItemCount.textContent = `${totalItems} items`;
-    
+
     // Update final total as well
     const finalTotal = document.getElementById('finalTotal');
     if (finalTotal) finalTotal.textContent = `R${totalAmount.toFixed(2)}`;
@@ -2339,11 +2342,11 @@ function updateCartSummary() {
 function populateEditForm() {
     if (currentCustomer) {
         const customerName = document.getElementById('customerName');
-        const customerPhone = document.getElementById('customerPhone');  
+        const customerPhone = document.getElementById('customerPhone');
         const customerAddress = document.getElementById('customerAddress');
         const customerEmail = document.getElementById('customerEmail');
         const deliveryInstructions = document.getElementById('deliveryInstructions');
-        
+
         if (customerName) customerName.value = currentCustomer.full_name || currentCustomer.name || '';
         if (customerPhone) customerPhone.value = currentCustomer.phone || '';
         if (customerAddress) customerAddress.value = currentCustomer.address || '';
@@ -2364,7 +2367,7 @@ async function saveCustomerChanges() {
         const customerAddress = document.getElementById('customerAddress');
         const customerEmail = document.getElementById('customerEmail');
         const deliveryInstructions = document.getElementById('deliveryInstructions');
-        
+
         // Update current customer object
         if (currentCustomer) {
             if (customerName) {
@@ -2375,10 +2378,10 @@ async function saveCustomerChanges() {
             if (customerAddress) currentCustomer.address = customerAddress.value;
             if (customerEmail) currentCustomer.email = customerEmail.value;
             if (deliveryInstructions) currentCustomer.delivery_instructions = deliveryInstructions.value;
-            
+
             // Update display
             updateCustomerDisplayElements();
-            
+
             // Try to save to database (gracefully handle errors)
             try {
                 if (currentCustomer.id) {
@@ -2394,7 +2397,7 @@ async function saveCustomerChanges() {
                             updated_at: new Date().toISOString()
                         })
                         .eq('id', currentCustomer.id);
-                        
+
                     if (error) throw error;
                     console.log('✅ Customer profile updated in database');
                 } else if (customerSession?.user) {
@@ -2412,9 +2415,9 @@ async function saveCustomerChanges() {
                         })
                         .select()
                         .single();
-                        
+
                     if (error) throw error;
-                    
+
                     // Update current customer with new ID
                     currentCustomer.id = data.id;
                     console.log('✅ New customer profile created in database');
@@ -2423,18 +2426,18 @@ async function saveCustomerChanges() {
                 console.warn('🚫 Could not save to database (table may not exist), changes saved locally:', dbError);
                 console.log('💡 Run the database migration to enable persistent customer profiles');
             }
-            
+
             // Show success message
             alert('Besonderhede suksesvol opgestamp!');
-            
+
             // Return to display mode
             const detailsDisplay = document.getElementById('detailsDisplay');
             const detailsEdit = document.getElementById('detailsEdit');
-            
+
             if (detailsDisplay) detailsDisplay.style.display = 'block';
             if (detailsEdit) detailsEdit.style.display = 'none';
         }
-        
+
     } catch (error) {
         console.error('Error saving customer changes:', error);
         alert('Fout met stoor van besonderhede. Probeer weer.');
@@ -2451,7 +2454,7 @@ function updateCustomerDisplayElements() {
         const displayPhone = document.getElementById('displayPhone');
         const displayAddress = document.getElementById('displayAddress');
         const displayEmail = document.getElementById('displayEmail');
-        
+
         if (displayName) displayName.textContent = currentCustomer.full_name || currentCustomer.name || '';
         if (displayPhone) displayPhone.textContent = currentCustomer.phone || 'Geen telefoon';
         if (displayAddress) displayAddress.textContent = currentCustomer.address || 'Geen adres';
@@ -2472,30 +2475,30 @@ function populateOrderReview() {
         address: currentCustomer.address,
         email: currentCustomer.email
     } : 'No customer data');
-    
+
     // Populate the specific review elements (this was missing!)
     populateReviewCustomerInfo();
-    
+
     // Populate customer summary in display mode
     populateCustomerSummaryDisplay();
-    
+
     // Populate edit form with current data
     populateOrderReviewEditForm();
-    
+
     // Populate order items summary
     populateOrderItemsSummary();
-    
+
     // Initialize confirmation checkboxes state
     updateConfirmationButtonState();
-    
+
     // Update confirmation checkboxes text
     updateConfirmationText();
-    
+
     // Add event listeners for confirmation checkboxes to enable/disable proceed button
     const addressCheckbox = document.getElementById('addressConfirmed');
     const phoneCheckbox = document.getElementById('phoneConfirmed');
     const placeOrderBtn = document.getElementById('placeOrder');
-    
+
     if (addressCheckbox && phoneCheckbox && placeOrderBtn) {
         const checkProceedButton = () => {
             if (addressCheckbox.checked && phoneCheckbox.checked) {
@@ -2504,10 +2507,10 @@ function populateOrderReview() {
                 placeOrderBtn.disabled = true;
             }
         };
-        
+
         addressCheckbox.addEventListener('change', checkProceedButton);
         phoneCheckbox.addEventListener('change', checkProceedButton);
-        
+
         // Initial check
         checkProceedButton();
     }
@@ -2520,29 +2523,29 @@ function populateOrderReview() {
 function populateReviewCustomerInfo() {
     console.log('🎯 populateReviewCustomerInfo() called');
     console.log('📋 currentCustomer:', currentCustomer);
-    
+
     if (!currentCustomer) {
         console.log('❌ No currentCustomer available in populateReviewCustomerInfo');
         return;
     }
-    
+
     // Check if step-3 is active/visible
     const step3 = document.getElementById('step-3');
     console.log('🔍 Step 3 element:', step3);
     console.log('🔍 Step 3 active class:', step3?.classList.contains('active'));
     console.log('🔍 Step 3 display style:', step3?.style.display);
-    
+
     // Add a small delay to ensure DOM is fully ready
     setTimeout(() => {
         console.log('🔍 Checking elements after delay...');
-        
+
         // Get the specific review elements
         const reviewCustomerName = document.getElementById('reviewCustomerName');
         const reviewCustomerPhone = document.getElementById('reviewCustomerPhone');
         const reviewCustomerAddress = document.getElementById('reviewCustomerAddress');
         const reviewCustomerEmail = document.getElementById('reviewCustomerEmail');
         const reviewCustomerInstructions = document.getElementById('reviewCustomerInstructions');
-        
+
         console.log('🔍 Review elements found after delay:', {
             name: { exists: !!reviewCustomerName, element: reviewCustomerName },
             phone: { exists: !!reviewCustomerPhone, element: reviewCustomerPhone },
@@ -2554,10 +2557,10 @@ function populateReviewCustomerInfo() {
         // Let's also check what elements actually exist in the DOM
         console.log('🔍 All elements in step-3:', document.querySelectorAll('#step-3 [id]'));
         console.log('🔍 Element IDs found:', Array.from(document.querySelectorAll('#step-3 [id]')).map(el => el.id));
-        
+
         // Now populate the elements
         populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewCustomerAddress, reviewCustomerEmail, reviewCustomerInstructions);
-        
+
         // Simple display - no confirmation needed
     }, 100); // 100ms delay
 }
@@ -2572,7 +2575,7 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
         email: reviewCustomerEmail,
         instructions: reviewCustomerInstructions
     });
-    
+
     // Try alternative selectors as backup
     const backupSelectors = {
         name: ['#reviewCustomerName', '#customerDetailsDisplay p:nth-child(1) span:last-child', '#customerDetailsDisplay > div > div:first-child p:last-child'],
@@ -2581,7 +2584,7 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
         email: ['#reviewCustomerEmail', '#customerDetailsDisplay p:nth-child(4) span:last-child'],
         instructions: ['#reviewCustomerInstructions']
     };
-    
+
     // Find elements using backup selectors if primary ones are null
     if (!reviewCustomerName) {
         for (const selector of backupSelectors.name) {
@@ -2592,7 +2595,7 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
             }
         }
     }
-    
+
     if (!reviewCustomerPhone) {
         for (const selector of backupSelectors.phone) {
             reviewCustomerPhone = document.querySelector(selector);
@@ -2602,7 +2605,7 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
             }
         }
     }
-    
+
     if (!reviewCustomerAddress) {
         for (const selector of backupSelectors.address) {
             reviewCustomerAddress = document.querySelector(selector);
@@ -2612,7 +2615,7 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
             }
         }
     }
-    
+
     if (!reviewCustomerEmail) {
         for (const selector of backupSelectors.email) {
             reviewCustomerEmail = document.querySelector(selector);
@@ -2622,7 +2625,7 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
             }
         }
     }
-    
+
     if (!reviewCustomerInstructions) {
         for (const selector of backupSelectors.instructions) {
             reviewCustomerInstructions = document.querySelector(selector);
@@ -2632,7 +2635,7 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
             }
         }
     }
-    
+
     console.log('🔍 Final elements after backup search:', {
         name: reviewCustomerName,
         phone: reviewCustomerPhone,
@@ -2640,7 +2643,7 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
         email: reviewCustomerEmail,
         instructions: reviewCustomerInstructions
     });
-    
+
     // Populate the elements with customer data
     if (reviewCustomerName) {
         reviewCustomerName.textContent = currentCustomer.full_name || currentCustomer.name || 'N/A';
@@ -2648,32 +2651,32 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
     } else {
         console.log('❌ Could not find name element even with backup selectors');
     }
-    
+
     if (reviewCustomerPhone) {
         reviewCustomerPhone.textContent = currentCustomer.phone || 'N/A';
         console.log('✅ Set reviewCustomerPhone:', reviewCustomerPhone.textContent);
     } else {
         console.log('❌ Could not find phone element even with backup selectors');
     }
-    
+
     if (reviewCustomerAddress) {
         reviewCustomerAddress.textContent = currentCustomer.address || 'N/A';
         console.log('✅ Set reviewCustomerAddress:', reviewCustomerAddress.textContent);
     } else {
         console.log('❌ Could not find address element even with backup selectors');
     }
-    
+
     if (reviewCustomerEmail) {
         reviewCustomerEmail.textContent = currentCustomer.email || 'N/A';
         console.log('✅ Set reviewCustomerEmail:', reviewCustomerEmail.textContent);
     } else {
         console.log('❌ Could not find email element even with backup selectors');
     }
-    
+
     if (reviewCustomerInstructions) {
         reviewCustomerInstructions.textContent = currentCustomer.delivery_instructions || 'Geen spesiale instruksies';
         console.log('✅ Set reviewCustomerInstructions:', reviewCustomerInstructions.textContent);
-        
+
         // Show/hide instructions section based on content
         const instructionsSection = document.getElementById('reviewDeliveryInstructions');
         if (instructionsSection) {
@@ -2686,7 +2689,7 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
     } else {
         console.log('❌ Could not find instructions element even with backup selectors');
     }
-    
+
     console.log('✅ populateReviewElements() completed');
 }
 
@@ -2697,11 +2700,11 @@ function populateReviewElements(reviewCustomerName, reviewCustomerPhone, reviewC
 function populateCustomerSummaryDisplay() {
     console.log('🎯 populateCustomerSummaryDisplay() called');
     console.log('📋 currentCustomer:', currentCustomer);
-    
+
     // Add delay to ensure DOM is ready
     setTimeout(() => {
         let customerSummary = document.getElementById('customerSummary');
-        
+
         // Try alternative selectors if primary one not found
         if (!customerSummary) {
             const alternativeSelectors = [
@@ -2711,7 +2714,7 @@ function populateCustomerSummaryDisplay() {
                 '#step-3 [id*="summary"]',
                 '#step-3 [class*="summary"]'
             ];
-            
+
             for (const selector of alternativeSelectors) {
                 customerSummary = document.querySelector(selector);
                 if (customerSummary) {
@@ -2720,18 +2723,18 @@ function populateCustomerSummaryDisplay() {
                 }
             }
         }
-        
+
         console.log('🔍 customerSummary element:', customerSummary);
-        
+
         if (customerSummary && currentCustomer) {
-        console.log('✅ Both customerSummary and currentCustomer exist');
-        console.log('📊 Customer data being displayed:');
-        console.log('   - Name:', currentCustomer.full_name || currentCustomer.name || '');
-        console.log('   - Phone:', currentCustomer.phone || 'Geen telefoon');
-        console.log('   - Address:', currentCustomer.address || 'Geen adres');
-        console.log('   - Email:', currentCustomer.email || '');
-        
-        customerSummary.innerHTML = `
+            console.log('✅ Both customerSummary and currentCustomer exist');
+            console.log('📊 Customer data being displayed:');
+            console.log('   - Name:', currentCustomer.full_name || currentCustomer.name || '');
+            console.log('   - Phone:', currentCustomer.phone || 'Geen telefoon');
+            console.log('   - Address:', currentCustomer.address || 'Geen adres');
+            console.log('   - Email:', currentCustomer.email || '');
+
+            customerSummary.innerHTML = `
             <div class="space-y-3">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
@@ -2759,13 +2762,13 @@ function populateCustomerSummaryDisplay() {
                 </div>
             </div>
         `;
-    } else {
-        console.log('❌ Missing elements:');
-        console.log('   - customerSummary exists:', !!customerSummary);
-        console.log('   - currentCustomer exists:', !!currentCustomer);
-        
-        if (customerSummary) {
-            customerSummary.innerHTML = `
+        } else {
+            console.log('❌ Missing elements:');
+            console.log('   - customerSummary exists:', !!customerSummary);
+            console.log('   - currentCustomer exists:', !!currentCustomer);
+
+            if (customerSummary) {
+                customerSummary.innerHTML = `
                 <div class="space-y-3">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                         <div>
@@ -2787,7 +2790,7 @@ function populateCustomerSummaryDisplay() {
                     </div>
                 </div>
             `;
-        }
+            }
         }
     }, 100); // 100ms delay
 }
@@ -2798,14 +2801,14 @@ function populateCustomerSummaryDisplay() {
  */
 function populateOrderReviewEditForm() {
     if (!currentCustomer) return;
-    
+
     // Populate form fields
     const editName = document.getElementById('editCustomerName');
     const editPhone = document.getElementById('editCustomerPhone');
     const editAddress = document.getElementById('editCustomerAddress');
     const editEmail = document.getElementById('editCustomerEmail');
     const editInstructions = document.getElementById('editDeliveryInstructions');
-    
+
     if (editName) editName.value = currentCustomer.full_name || currentCustomer.name || '';
     if (editPhone) editPhone.value = currentCustomer.phone || '';
     if (editAddress) editAddress.value = currentCustomer.address || '';
@@ -2822,11 +2825,11 @@ function populateOrderItemsSummary() {
     const orderItemsSummary = document.getElementById('orderItemsSummary');
     if (orderItemsSummary) {
         const pricing = getCustomerPricing();
-        
+
         // Use the same key mapping function as cart summary
         function getProductNameFromKey(productKey) {
             const allProducts = getCustomerPricing();
-            
+
             // Find the product that generates this key
             for (const productName of Object.keys(allProducts)) {
                 const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
@@ -2834,15 +2837,15 @@ function populateOrderItemsSummary() {
                     return productName;
                 }
             }
-            
+
             // Fallback: convert key back to name by replacing underscores
             return productKey.replace(/_/g, ' ')
-                            .replace(/  /g, ' ')  // Remove double spaces
-                            .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
+                .replace(/ {2}/g, ' ')  // Remove double spaces
+                .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
         }
-        
+
         orderItemsSummary.innerHTML = '';
-        
+
         if (Object.keys(cart).length === 0) {
             orderItemsSummary.innerHTML = '<p class="text-zinc-400 text-center py-4">Geen items in mandjie</p>';
         } else {
@@ -2874,7 +2877,7 @@ function populateOrderItemsSummary() {
                         weight = estimatedWeight * qty;
                         amount = product.selling * weight;
                     }
-                    
+
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'flex justify-between items-center py-3 border-b border-zinc-700/30';
                     // Display text based on unit type
@@ -2886,7 +2889,7 @@ function populateOrderItemsSummary() {
                     } else {
                         priceText = `${qty}x stuks (~${weight.toFixed(1)}kg @ R${product.selling.toFixed(2)}/kg)`;
                     }
-                    
+
                     itemDiv.innerHTML = `
                         <div>
                             <p class="text-white font-medium">${displayInfo.displayName}</p>
@@ -2915,7 +2918,7 @@ function toggleEditMode(showEdit) {
     const editBtn = document.getElementById('editDetailsBtn');
     const cancelBtn = document.getElementById('cancelEditBtn');
     const saveBtn = document.getElementById('saveEditBtn');
-    
+
     if (showEdit) {
         // Show edit mode
         if (detailsDisplay) detailsDisplay.style.display = 'none';
@@ -2945,23 +2948,23 @@ async function saveOrderReviewChanges() {
         const address = document.getElementById('editCustomerAddress')?.value?.trim();
         const email = document.getElementById('editCustomerEmail')?.value?.trim();
         const instructions = document.getElementById('editDeliveryInstructions')?.value?.trim();
-        
+
         // Validate required fields
         if (!name || !email) {
             alert('Naam en Email is verpligtende velde');
             return;
         }
-        
+
         if (!validateEmail(email)) {
             alert('Voer asseblief \'n geldige e-pos adres in');
             return;
         }
-        
+
         if (phone && !validatePhoneNumber(phone)) {
             alert('Voer asseblief \'n geldige Suid-Afrikaanse telefoon nommer in (bv. 079 123 4567)');
             return;
         }
-        
+
         // Update current customer object
         if (currentCustomer) {
             currentCustomer.name = name;
@@ -2970,11 +2973,11 @@ async function saveOrderReviewChanges() {
             currentCustomer.address = address;
             currentCustomer.email = email;
             currentCustomer.delivery_instructions = instructions;
-            
+
             // Update display
             populateCustomerSummaryDisplay();
             updateCustomerDisplayElements();
-            
+
             // Try to save to database
             try {
                 if (currentCustomer.id) {
@@ -2990,24 +2993,24 @@ async function saveOrderReviewChanges() {
                             updated_at: new Date().toISOString()
                         })
                         .eq('id', currentCustomer.id);
-                        
+
                     if (error) throw error;
                     console.log('✅ Customer profile updated in database');
                 }
             } catch (dbError) {
                 console.warn('🚫 Could not save to database (table may not exist), changes saved locally:', dbError);
             }
-            
+
             // Show success message
             showToast('Besonderhede suksesvol opgestamp!', 'success');
-            
+
             // Return to display mode
             toggleEditMode(false);
-            
+
             // Clear confirmation checkboxes since details were updated
             clearConfirmationCheckboxes();
         }
-        
+
     } catch (error) {
         console.error('Error saving order review changes:', error);
         alert('Fout met stoor van besonderhede. Probeer weer.');
@@ -3021,10 +3024,10 @@ async function saveOrderReviewChanges() {
 function cancelOrderReviewEdit() {
     // Restore original form values
     populateOrderReviewEditForm();
-    
+
     // Return to display mode
     toggleEditMode(false);
-    
+
     // Clear any validation errors
     clearOrderReviewErrors();
 }
@@ -3036,10 +3039,10 @@ function cancelOrderReviewEdit() {
 function clearConfirmationCheckboxes() {
     const addressConfirmed = document.getElementById('addressConfirmed');
     const phoneConfirmed = document.getElementById('phoneConfirmed');
-    
+
     if (addressConfirmed) addressConfirmed.checked = false;
     if (phoneConfirmed) phoneConfirmed.checked = false;
-    
+
     // Update button state
     updateConfirmationButtonState();
 }
@@ -3053,12 +3056,12 @@ function updateConfirmationButtonState() {
     const phoneConfirmed = document.getElementById('phoneConfirmed');
     const confirmDetailsBtn = document.getElementById('confirmDetailsBtn');
     const confirmationError = document.getElementById('confirmationError');
-    
+
     if (!addressConfirmed || !phoneConfirmed || !confirmDetailsBtn) return;
-    
+
     const isAddressConfirmed = addressConfirmed.checked;
     const isPhoneConfirmed = phoneConfirmed.checked;
-    
+
     if (isAddressConfirmed && isPhoneConfirmed) {
         // Enable button and hide error
         confirmDetailsBtn.disabled = false;
@@ -3068,7 +3071,7 @@ function updateConfirmationButtonState() {
         // Disable button and show error if needed
         confirmDetailsBtn.disabled = true;
         confirmDetailsBtn.classList.add('opacity-50', 'cursor-not-allowed');
-        
+
         // Show error message if at least one checkbox is checked but not both
         if (isAddressConfirmed || isPhoneConfirmed) {
             if (confirmationError) {
@@ -3115,31 +3118,31 @@ function validatePhoneNumber(phone) {
 }
 
 // Add event listeners for confirmation checkboxes
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const addressConfirmed = document.getElementById('addressConfirmed');
     const phoneConfirmed = document.getElementById('phoneConfirmed');
-    
+
     if (addressConfirmed) {
         addressConfirmed.addEventListener('change', updateConfirmationButtonState);
     }
-    
+
     if (phoneConfirmed) {
         phoneConfirmed.addEventListener('change', updateConfirmationButtonState);
     }
-    
+
     // Add event listeners for edit buttons
     const editDetailsBtn = document.getElementById('editDetailsBtn');
     const cancelEditBtn = document.getElementById('cancelEditBtn');
     const saveEditBtn = document.getElementById('saveEditBtn');
-    
+
     if (editDetailsBtn) {
         editDetailsBtn.addEventListener('click', () => toggleEditMode(true));
     }
-    
+
     if (cancelEditBtn) {
         cancelEditBtn.addEventListener('click', cancelOrderReviewEdit);
     }
-    
+
     if (saveEditBtn) {
         saveEditBtn.addEventListener('click', saveOrderReviewChanges);
     }
@@ -3492,7 +3495,7 @@ async function handleOrderPlacement() {
         console.log('💾 Saving order to database...');
         const savedOrderId = await saveOrderToDatabase(orderData);
         console.log('🎉 Order saved with ID:', savedOrderId);
-        
+
         // Save order data to localStorage for invoice generation
         const orderDataForInvoice = {
             orderId: savedOrderId,
@@ -3519,7 +3522,7 @@ async function handleOrderPlacement() {
 
         // Populate confirmation order summary
         populateConfirmationOrderSummary(orderData);
-        
+
         // Re-enable button after successful order (will be reset by new order button later)
         const placeOrderBtn = document.getElementById('placeOrder');
         if (placeOrderBtn) {
@@ -3527,17 +3530,17 @@ async function handleOrderPlacement() {
             placeOrderBtn.textContent = 'Plaas Bestelling';
             placeOrderBtn.style.opacity = '1';
         }
-        
+
         // Clear cart after successful order
         clearCart();
-        
+
     } catch (error) {
         console.error('❌ Error placing order:', error);
         console.error('Error details:', error.message, error.stack);
-        
+
         // Provide more specific error messages
         let userMessage = 'Er was \'n probleem met die bestelling. Probeer asseblief weer.';
-        
+
         if (error.message.includes('timeout')) {
             userMessage = 'Bestelling het te lank gevat - databasis probleem. Probeer asseblief weer oor \'n paar minute.';
         } else if (error.message.includes('Database operation failed after')) {
@@ -3545,7 +3548,7 @@ async function handleOrderPlacement() {
         } else if (error.message.includes('Network')) {
             userMessage = 'Internet verbinding probleem. Kontroleer jou wifi en probeer weer.';
         }
-        
+
         alert(userMessage);
     }
 }
@@ -3642,7 +3645,7 @@ function populateConfirmationOrderSummary(orderData) {
 async function saveOrderToDatabase(orderData) {
     try {
         console.log('🔍 saveOrderToDatabase called with:', orderData);
-        
+
         if (!currentCustomer) {
             throw new Error('No customer data available');
         }
@@ -3650,17 +3653,17 @@ async function saveOrderToDatabase(orderData) {
         // Generate order ID
         const orderId = `ORD-${Date.now()}`;
         console.log('🆔 Generated order ID:', orderId);
-        
+
         // Get pricing information
         console.log('💰 Getting pricing information...');
         const pricing = getCustomerPricing();
         console.log('💰 Pricing data:', pricing);
-        
+
         // Calculate order totals
         let totalAmount = 0;
         let totalWeight = 0;
         const orderItems = [];
-        
+
         // Process each cart item
         console.log('🛒 Processing cart items:', Object.entries(orderData.items));
         let itemIndex = 0;
@@ -3668,29 +3671,29 @@ async function saveOrderToDatabase(orderData) {
             // Extract quantity from cart item object
             const quantity = cartItem.quantity || cartItem || 0;
             console.log(`🔑 Processing product key: "${productKey}" with quantity: ${quantity}`);
-            
+
             // Convert product key back to product name
             const productName = getProductNameFromKey(productKey);
             console.log(`📝 Converted "${productKey}" → "${productName}"`);
-            
+
             const productPricing = pricing[productName];
             console.log(`💲 Pricing for "${productName}":`, productPricing);
-            
+
             if (!productPricing) {
                 console.error(`❌ No pricing found for product: ${productName}`);
                 console.error(`Available pricing keys:`, Object.keys(pricing));
                 continue;
             }
-            
+
             // Estimate weight for this product and quantity
             // Skip this item if no pricing found (handle old cart items)
             if (!productPricing) {
                 console.warn(`⚠️ Skipping item without pricing: ${productName}`);
                 continue;
             }
-            
+
             const estimatedWeight = estimateProductWeight(productName, quantity);
-            
+
             // Calculate total based on unit type
             let itemTotal;
             if (productPricing.unit === 'per potjie' || productPricing.unit === 'per unit') {
@@ -3700,14 +3703,14 @@ async function saveOrderToDatabase(orderData) {
                 // For per-kg items, price is per kg
                 itemTotal = productPricing.selling * estimatedWeight;
             }
-            
+
             totalAmount += itemTotal;
             totalWeight += estimatedWeight;
-            
+
             // Create order item referencing the main order
             // Ensure weight is never 0 or negative (database constraint)
             const safeWeight = Math.max(0.001, estimatedWeight);
-            
+
             orderItems.push({
                 order_id: orderId,
                 product_name: productName,
@@ -3718,10 +3721,10 @@ async function saveOrderToDatabase(orderData) {
                 source: 'customer_selection',
                 created_at: new Date().toISOString()  // Add timestamp
             });
-            
+
             itemIndex++;
         }
-        
+
         // Create a single order record with total amount
         const orderRecord = {
             order_id: orderId,  // Use existing database column
@@ -3739,26 +3742,26 @@ async function saveOrderToDatabase(orderData) {
             status: 'pending',
             created_at: orderData.timestamp
         };
-        
+
         // Save single order record
         console.log('💾 Saving order record:', orderRecord);
         console.log('🔄 Attempting database insert...');
-        
+
         // Save order to database with timeout handling
         console.log('💾 Saving order to database...');
-        
+
         // Try the database insert with better error handling
         console.log('💾 About to insert order record:', JSON.stringify(orderRecord, null, 2));
-        
+
         // Create fresh client instance to prevent connection accumulation
         const freshClient = supabase.createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
-        
+
         // Add timeout wrapper for database operation with increased timeout
         let insertWithTimeout = new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 reject(new Error('Database insert timeout after 30 seconds'));
             }, 30000); // Increased from 10s to 30s
-            
+
             freshClient
                 .from('orders')
                 .insert([orderRecord])
@@ -3772,11 +3775,11 @@ async function saveOrderToDatabase(orderData) {
                     reject(error);
                 });
         });
-        
+
         let response;
         let retryCount = 0;
         const maxRetries = 3;
-        
+
         // Retry logic for database operations
         while (retryCount < maxRetries) {
             try {
@@ -3785,25 +3788,25 @@ async function saveOrderToDatabase(orderData) {
             } catch (error) {
                 retryCount++;
                 console.log(`❌ Database attempt ${retryCount}/${maxRetries} failed:`, error.message);
-                
+
                 if (retryCount >= maxRetries) {
                     throw new Error(`Database operation failed after ${maxRetries} attempts: ${error.message}`);
                 }
-                
+
                 // Wait before retrying (exponential backoff)
                 const delay = Math.pow(2, retryCount) * 1000; // 2s, 4s, 8s
-                console.log(`⏳ Retrying in ${delay/1000} seconds...`);
+                console.log(`⏳ Retrying in ${delay / 1000} seconds...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
-                
+
                 // Create fresh client instance for retry to prevent connection accumulation
                 const retryClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
-                
+
                 // Recreate the timeout promise for the retry
                 insertWithTimeout = new Promise((resolve, reject) => {
                     const timeout = setTimeout(() => {
                         reject(new Error('Database insert timeout after 30 seconds'));
                     }, 30000);
-                    
+
                     retryClient
                         .from('orders')
                         .insert([orderRecord])
@@ -3819,31 +3822,31 @@ async function saveOrderToDatabase(orderData) {
                 });
             }
         }
-        
+
         console.log('📡 Database response:', response);
-        
+
         if (response.error) {
             console.error('❌ Error saving order:', response.error);
             throw new Error(`Database error: ${response.error.message}`);
         }
-        
+
         console.log('✅ Order record saved to database successfully');
-        
+
         // Save order items
         if (orderItems.length > 0) {
             console.log('💾 Saving order items:', orderItems);
             console.log('🔍 Order items count:', orderItems.length);
             console.log('🔍 First order item sample:', JSON.stringify(orderItems[0], null, 2));
-            
+
             // Create fresh client instance for order items to prevent connection accumulation
             const itemsClient = supabase.createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
-            
+
             // Insert with .select() and timeout to force data return even with RLS
             const itemsInsertWithTimeout = new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => {
                     reject(new Error('Order items insert timeout after 30 seconds'));
                 }, 30000); // Increased from 10s to 30s
-                
+
                 itemsClient
                     .from('order_items')
                     .insert(orderItems)
@@ -3857,7 +3860,7 @@ async function saveOrderToDatabase(orderData) {
                         reject(error);
                     });
             });
-            
+
             let itemsResponse;
             try {
                 itemsResponse = await itemsInsertWithTimeout;
@@ -3867,9 +3870,9 @@ async function saveOrderToDatabase(orderData) {
                 // Don't throw, continue anyway
                 itemsResponse = { error: timeoutError, data: null };
             }
-            
+
             console.log('📡 Order items response:', itemsResponse);
-            
+
             if (itemsResponse.error) {
                 console.error('❌ CRITICAL: Order items not saved:', itemsResponse.error);
                 console.error('❌ Full error details:', JSON.stringify(itemsResponse.error, null, 2));
@@ -3879,7 +3882,7 @@ async function saveOrderToDatabase(orderData) {
                 console.error('❌ CRITICAL: Order items insert returned success but no data!');
                 console.error('❌ This is likely an RLS (Row Level Security) issue in Supabase');
                 console.error('❌ Response:', itemsResponse);
-                
+
                 // Try direct verification instead of relying on insert response
                 console.log('🔍 Attempting direct verification of inserted items...');
             } else {
@@ -3891,10 +3894,10 @@ async function saveOrderToDatabase(orderData) {
             console.error('❌ CRITICAL: No order items to save! orderItems array is empty');
             console.log('🔍 orderData.items:', orderData.items);
         }
-        
+
         console.log('Order saved successfully:', orderId);
         return orderId;
-        
+
     } catch (error) {
         console.error('Failed to save order to database:', error);
         throw error;
@@ -3909,11 +3912,11 @@ async function saveOrderToDatabase(orderData) {
  */
 function getProductNameFromKey(productKey) {
     console.log(`🔍 Looking up product name for key: "${productKey}"`);
-    
+
     // Get all available products
     const allProducts = getCustomerPricing();
     console.log(`📋 Available products:`, Object.keys(allProducts));
-    
+
     // First try exact key match
     for (const productName of Object.keys(allProducts)) {
         const generatedKey = productName.replace(/[^A-Z0-9]/g, '_');
@@ -3923,14 +3926,14 @@ function getProductNameFromKey(productKey) {
             return productName;
         }
     }
-    
+
     console.log(`❌ No exact match found for key: "${productKey}"`);
-    
+
     // Fallback: convert key back to name by replacing underscores
     const fallbackName = productKey.replace(/_/g, ' ')
-                    .replace(/  /g, ' ')  // Remove double spaces
-                    .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
-                    
+        .replace(/ {2}/g, ' ')  // Remove double spaces
+        .replace(/ S /g, '\'S '); // Fix things like FLATTY S → FLATTY'S
+
     console.log(`🔄 Fallback conversion: "${productKey}" → "${fallbackName}"`);
     return fallbackName;
 }
@@ -3945,7 +3948,7 @@ function getProductNameFromKey(productKey) {
 function estimateProductWeight(productName, quantity) {
     // Products sold per unit (not by weight)
     const perUnitProducts = ['SUIWER HEUNING', 'INGELEGDE GROEN VYE'];
-    
+
     // Return nominal weight for per-unit products (database requires weight > 0)
     if (perUnitProducts.includes(productName)) {
         // Use actual jar weight for database constraint compliance
@@ -3957,7 +3960,7 @@ function estimateProductWeight(productName, quantity) {
         }
         return 0.001 * quantity; // Fallback minimal weight
     }
-    
+
     // Actual average weights per item based on your data (in kg)
     const typicalWeights = {
         'HEEL HOENDER': 2.19,                    // heel
@@ -3979,10 +3982,10 @@ function estimateProductWeight(productName, quantity) {
         'GEVULDE HOENDER ROLLE OPSIE 1': 1.75,  // Vye rol
         'GEVULDE HOENDER ROLLE OPSIE 2': 1.83    // Pep rol
     };
-    
+
     const baseWeight = typicalWeights[productName] || 1.0; // Default 1kg if unknown
     const totalWeight = baseWeight * quantity;
-    
+
     // Ensure weight is never 0 (database constraint requires weight > 0)
     return Math.max(0.001, totalWeight);
 }
@@ -4054,24 +4057,24 @@ async function performSectionTransition(targetSectionName) {
         // Step 2: Prepare target section (hidden, positioned)
         targetSection.style.opacity = '0';
         targetSection.classList.add('active');
-        
+
         // Step 3: Load section data while transition happens
         const dataLoadPromise = loadSectionData(targetSectionName);
-        
+
         // Step 4: Small delay to ensure DOM updates, then fade in
         await new Promise(resolve => setTimeout(resolve, 50));
         targetSection.style.opacity = '1';
-        
+
         // Step 5: Wait for data loading to complete
         await dataLoadPromise;
-        
+
         // Step 6: Clean up transition state
         await new Promise(resolve => setTimeout(resolve, 200)); // Complete fade in
-        
+
     } finally {
         // Always remove transitioning class
         document.body.classList.remove('section-transitioning');
-        
+
         // Reset opacity for all sections
         allSections.forEach(section => {
             if (!section.classList.contains('active')) {
@@ -4091,7 +4094,7 @@ function updateNavigationUrl(sectionName) {
     if (window.history && window.history.pushState) {
         const newUrl = `${window.location.pathname}${window.location.search}#${sectionName}`;
         const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-        
+
         // Only update if URL actually changed
         if (newUrl !== currentUrl) {
             window.history.pushState({ section: sectionName }, '', newUrl);
@@ -4146,14 +4149,14 @@ async function loadSectionData(sectionName) {
 function updateCustomerNameInUI() {
     console.log('🎨 updateCustomerNameInUI() called');
     console.log('📊 currentCustomer:', currentCustomer);
-    
+
     if (!currentCustomer) {
         console.log('⚠️ No customer data available for UI update');
         return;
     }
-    
+
     console.log('🔄 Updating UI with customer data');
-    
+
     // Update main dashboard welcome
     const customerNameElement = document.getElementById('customerName');
     if (customerNameElement) {
@@ -4206,7 +4209,7 @@ function updateDashboardPersonalization() {
  */
 function getGreetingTimeOfDay() {
     const hour = new Date().getHours();
-    
+
     if (hour < 6) {
         return 'Good evening'; // Late night
     } else if (hour < 12) {
@@ -4290,9 +4293,9 @@ function formatMemberSinceDate(dateString) {
             const months = Math.floor(diffDays / 30);
             return months === 1 ? '1 month ago' : `${months} months ago`;
         } else {
-            return date.toLocaleDateString('en-ZA', { 
-                year: 'numeric', 
-                month: 'long' 
+            return date.toLocaleDateString('en-ZA', {
+                year: 'numeric',
+                month: 'long'
             });
         }
     } catch (error) {
@@ -4325,8 +4328,8 @@ function formatLastLoginDate(dateString) {
             const days = Math.floor(diffMinutes / 1440);
             return days === 1 ? 'Yesterday' : `${days} days ago`;
         } else {
-            return date.toLocaleDateString('en-ZA', { 
-                month: 'short', 
+            return date.toLocaleDateString('en-ZA', {
+                month: 'short',
                 day: 'numeric',
                 year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
             });
@@ -4343,7 +4346,7 @@ function formatLastLoginDate(dateString) {
  */
 function updateAuthUI() {
     const customerAuth = document.getElementById('customerAuth');
-    
+
     if (!customerAuth) return;
 
     if (currentCustomer && customerSession) {
@@ -4370,12 +4373,12 @@ function updateAuthUI() {
 async function loadProducts() {
     // Show loading state
     showSectionLoading('products', true);
-    
+
     try {
         // Get pricing data and categories
         const pricing = getCustomerPricing();
         const categories = getProductCategories();
-        
+
         // Build product catalog HTML
         const productsGrid = document.getElementById('productsGrid');
         if (!productsGrid) {
@@ -4384,10 +4387,10 @@ async function loadProducts() {
 
         // Create category filter buttons
         const categoryFilters = createCategoryFilters(categories);
-        
+
         // Create product cards grouped by category
         const productCards = createProductCards(pricing, categories);
-        
+
         // Combine filters and cards
         productsGrid.innerHTML = `
             <div class="product-filters">
@@ -4400,15 +4403,15 @@ async function loadProducts() {
                 ${productCards}
             </div>
         `;
-        
+
         productsGrid.style.display = 'block';
-        
+
         // Add event listeners for category filtering
         setupCategoryFiltering();
-        
+
         // Add event listeners for product interactions
         setupProductInteractions();
-        
+
         showSectionLoading('products', false);
 
     } catch (error) {
@@ -4430,7 +4433,7 @@ function createCategoryFilters(categories) {
             All Products
         </button>
     `;
-    
+
     Object.entries(categories).forEach(([categoryKey, category]) => {
         filtersHTML += `
             <button class="filter-btn" data-category="${categoryKey}">
@@ -4439,7 +4442,7 @@ function createCategoryFilters(categories) {
             </button>
         `;
     });
-    
+
     return filtersHTML;
 }
 
@@ -4452,7 +4455,7 @@ function createCategoryFilters(categories) {
  */
 function createProductCards(pricing, categories) {
     let cardsHTML = '';
-    
+
     Object.entries(categories).forEach(([categoryKey, category]) => {
         cardsHTML += `
             <div class="product-category" data-category="${categoryKey}">
@@ -4466,7 +4469,7 @@ function createProductCards(pricing, categories) {
             </div>
         `;
     });
-    
+
     return cardsHTML;
 }
 
@@ -4481,17 +4484,17 @@ function createCategoryProductCards(products, pricing) {
     return products.map(productName => {
         const priceData = pricing[productName];
         const displayInfo = getProductDisplayInfo(productName);
-        
+
         if (!priceData) {
             console.warn(`No pricing data found for product: ${productName}`);
             return '';
         }
-        
+
         // Pass pricing cache to avoid redundant calls
         const availability = getProductAvailability(productName, pricing);
         const availabilityClass = availability.available ? 'available' : 'unavailable';
         const availabilityIcon = availability.available ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
-        
+
         return `
             <div class="product-card ${availabilityClass}" data-product="${productName}">
                 <div class="product-header">
@@ -4547,7 +4550,7 @@ function getProductAvailability(productName, pricingCache = null) {
     // Use cached pricing or fetch if not provided
     const pricing = pricingCache || getCustomerPricing();
     const product = pricing[productName];
-    
+
     if (product && product.packaging) {
         const packaging = product.packaging.toUpperCase();
         if (packaging.includes('NIE ALTYD BESKIKBAAR')) {
@@ -4558,7 +4561,7 @@ function getProductAvailability(productName, pricingCache = null) {
             };
         }
     }
-    
+
     // Default to available
     return {
         available: true,
@@ -4574,15 +4577,15 @@ function getProductAvailability(productName, pricingCache = null) {
 function setupCategoryFiltering() {
     const filterButtons = document.querySelectorAll('.filter-btn');
     const productCategories = document.querySelectorAll('.product-category');
-    
+
     filterButtons.forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function () {
             const category = this.getAttribute('data-category');
-            
+
             // Update active filter button
             filterButtons.forEach(btn => btn.classList.remove('active'));
             this.classList.add('active');
-            
+
             // Show/hide product categories
             productCategories.forEach(categoryEl => {
                 if (category === 'all') {
@@ -4592,7 +4595,7 @@ function setupCategoryFiltering() {
                     categoryEl.style.display = categoryKey === category ? 'block' : 'none';
                 }
             });
-            
+
             // Smooth scroll to products
             const productsGrid = document.getElementById('productsGrid');
             if (productsGrid) {
@@ -4608,9 +4611,9 @@ function setupCategoryFiltering() {
  */
 function setupProductInteractions() {
     const addToCartButtons = document.querySelectorAll('.add-to-cart');
-    
+
     addToCartButtons.forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function () {
             const productName = this.getAttribute('data-product');
             handleAddToCart(productName);
         });
@@ -4625,15 +4628,15 @@ function setupProductInteractions() {
 function handleAddToCart(productName) {
     const displayInfo = getProductDisplayInfo(productName);
     const productKey = productName.replace(/[^A-Z0-9]/g, '_');
-    
+
     // Add one item to cart (quantity 1)
     const currentQty = cart[productKey] || 0;
     setQuantity(productKey, currentQty + 1);
-    
+
     // Show success message
     showToast(`${displayInfo.displayName} bygevoeg by mandjie!`, 'success');
     console.log(`✅ Added to cart: ${productName} (${cart[productKey]} items)`);
-    
+
     // Save cart and update display
     saveCartToStorage();
 }
@@ -4647,7 +4650,7 @@ function handleAddToCart(productName) {
 async function loadOrders() {
     // Show loading state
     showSectionLoading('orders', true);
-    
+
     try {
         if (!currentCustomer) {
             throw new Error('No customer data available');
@@ -4678,7 +4681,7 @@ async function loadOrders() {
 async function loadProfile() {
     // Show loading state
     showSectionLoading('profile', true);
-    
+
     try {
         if (!currentCustomer) {
             throw new Error('No customer data available');
@@ -5076,7 +5079,7 @@ async function updateCustomerProfile(profileData) {
 
     } catch (dbError) {
         console.warn('Database profile update failed, attempting localStorage fallback:', dbError);
-        
+
         try {
             // Fallback to localStorage update
             const updatedCustomer = {
@@ -5090,7 +5093,7 @@ async function updateCustomerProfile(profileData) {
 
             // Save to localStorage for offline functionality
             localStorage.setItem('plaasHoendersCustomerProfile', JSON.stringify(updatedCustomer));
-            
+
             // Queue update for next online session
             const pendingUpdates = JSON.parse(localStorage.getItem('plaasHoendersPendingProfileUpdates') || '[]');
             pendingUpdates.push({
@@ -5105,7 +5108,7 @@ async function updateCustomerProfile(profileData) {
 
         } catch (fallbackError) {
             console.error('Both database and localStorage profile updates failed:', fallbackError);
-            
+
             // Provide specific error messages based on error type
             if (fallbackError.message?.includes('localStorage')) {
                 throw new Error('Failed to save profile changes offline. Please check browser storage settings and try again.');
@@ -5159,7 +5162,7 @@ async function loadCustomerProfileData(customerId) {
 
     } catch (dbError) {
         console.warn('Database profile load failed, checking localStorage fallback:', dbError);
-        
+
         // Fallback to localStorage
         const cachedProfile = localStorage.getItem('plaasHoendersCustomerProfile');
         if (cachedProfile) {
@@ -5190,13 +5193,13 @@ async function loadCustomerProfileData(customerId) {
 async function processPendingProfileUpdates() {
     try {
         const pendingUpdates = JSON.parse(localStorage.getItem('plaasHoendersPendingProfileUpdates') || '[]');
-        
+
         if (pendingUpdates.length === 0) {
             return; // No pending updates
         }
 
         console.info(`Processing ${pendingUpdates.length} pending profile updates`);
-        
+
         for (const update of pendingUpdates) {
             try {
                 await supabaseClient
@@ -5209,7 +5212,7 @@ async function processPendingProfileUpdates() {
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', update.customerId);
-                
+
                 console.info('Processed pending profile update for customer:', update.customerId);
             } catch (updateError) {
                 console.warn('Failed to process pending profile update:', updateError);
@@ -5269,18 +5272,18 @@ async function handleProfileUpdate(event) {
         updateCustomerNameInUI();
 
         showFormMessage('Profile updated successfully!', 'success', 'profileUpdateMessage');
-        
+
         // Show success notification
         showToast('Profile updated successfully!', 'success');
 
     } catch (error) {
         console.error('Profile update error:', error);
         let errorMessage = 'Failed to update profile. Please try again.';
-        
+
         if (error.message?.includes('duplicate key')) {
             errorMessage = 'This email address is already in use by another account.';
         }
-        
+
         showFormMessage(errorMessage, 'error', 'profileUpdateMessage');
     } finally {
         showLoadingSpinner(false);
@@ -5348,7 +5351,7 @@ async function updateCustomerPassword(currentPassword, newPassword) {
     try {
         // First verify the current password
         const isCurrentPasswordValid = await currentPasswordVerification(currentPassword);
-        
+
         if (!isCurrentPasswordValid) {
             throw new Error('Current password is incorrect');
         }
@@ -5369,7 +5372,7 @@ async function updateCustomerPassword(currentPassword, newPassword) {
 
     } catch (error) {
         console.error('Password update error:', error);
-        
+
         if (error.message?.includes('Current password is incorrect')) {
             throw error; // Re-throw with specific message
         } else if (error.message?.includes('New password should be different')) {
@@ -5424,8 +5427,8 @@ async function handlePasswordChange(event) {
 
     } catch (error) {
         console.error('Password change error:', error);
-        let errorMessage = error.message || 'Failed to change password. Please try again.';
-        
+        const errorMessage = error.message || 'Failed to change password. Please try again.';
+
         // Handle specific error cases
         if (error.message?.includes('Current password is incorrect')) {
             // Focus on current password field for user convenience
@@ -5434,7 +5437,7 @@ async function handlePasswordChange(event) {
                 currentPasswordField.focus();
             }
         }
-        
+
         showFormMessage(errorMessage, 'error', 'passwordChangeMessage');
     } finally {
         showLoadingSpinner(false);
@@ -5527,9 +5530,9 @@ async function updateEmailQueueCustomerPreferences(customerId, preferences) {
         const existingPreferences = JSON.parse(localStorage.getItem('plaasHoendersEmailPreferences') || '[]');
         const updatedPreferences = existingPreferences.filter(pref => pref.customerId !== customerId);
         updatedPreferences.push(emailPreferences);
-        
+
         localStorage.setItem('plaasHoendersEmailPreferences', JSON.stringify(updatedPreferences));
-        
+
         console.info('Email queue preferences updated for customer:', customerId);
 
     } catch (error) {
@@ -5609,7 +5612,7 @@ async function handlePreferencesUpdate(event) {
 
     } catch (error) {
         console.error('Preferences update error:', error);
-        let errorMessage = error.message || 'Failed to save preferences. Please try again.';
+        const errorMessage = error.message || 'Failed to save preferences. Please try again.';
         showFormMessage(errorMessage, 'error', 'preferencesUpdateMessage');
     } finally {
         showLoadingSpinner(false);
@@ -5727,7 +5730,7 @@ async function deleteCustomerAccount(customerId) {
 async function handleAccountDeletion() {
     const confirmationInput = document.getElementById('deleteConfirmationInput');
     const errorElement = document.getElementById('deleteConfirmationError');
-    
+
     if (confirmationInput.value !== 'DELETE') {
         errorElement.textContent = 'Please type "DELETE" to confirm account deletion.';
         return;
@@ -5759,12 +5762,12 @@ async function handleAccountDeletion() {
         }
 
         // Show detailed success message
-        const message = deletionSummary.ordersPreserved > 0 
+        const message = deletionSummary.ordersPreserved > 0
             ? `Account deleted successfully. ${deletionSummary.ordersPreserved} order(s) have been preserved for business records. You have been signed out.`
             : 'Account deleted successfully. You have been signed out.';
 
         showToast(message, 'success', 10000);
-        
+
         // Clear local state and redirect to auth
         currentCustomer = null;
         customerSession = null;
@@ -5776,11 +5779,11 @@ async function handleAccountDeletion() {
     } catch (error) {
         console.error('Account deletion error:', error);
         let errorMessage = error.message || 'Failed to delete account. Please try again.';
-        
+
         if (error.message?.includes('order history')) {
             errorMessage = 'Account deletion failed - unable to preserve order history. Please contact support.';
         }
-        
+
         errorElement.textContent = errorMessage;
     } finally {
         showLoadingSpinner(false);
@@ -5801,7 +5804,7 @@ function resetProfileForm() {
     document.getElementById('profileEmail').value = currentCustomer.email || '';
     document.getElementById('profilePhone').value = currentCustomer.phone || '';
     document.getElementById('profileAddress').value = currentCustomer.address || '';
-    
+
     clearProfileFormErrors();
     showToast('Form reset to original values', 'info');
 }
@@ -5825,7 +5828,7 @@ function clearProfileFormErrors() {
         '#currentPasswordError', '#newPasswordError', '#confirmNewPasswordError',
         '#deliveryInstructionsError', '#deleteConfirmationError'
     ];
-    
+
     errorSelectors.forEach(selector => {
         const element = document.querySelector(selector);
         if (element) {
@@ -5836,7 +5839,7 @@ function clearProfileFormErrors() {
     const messageSelectors = [
         '#profileUpdateMessage', '#passwordChangeMessage', '#preferencesUpdateMessage'
     ];
-    
+
     messageSelectors.forEach(selector => {
         const element = document.querySelector(selector);
         if (element) {
@@ -5951,25 +5954,25 @@ function setupRealTimeProfileValidation() {
     const nameField = document.getElementById('profileName');
 
     if (emailField) {
-        emailField.addEventListener('blur', function() {
+        emailField.addEventListener('blur', function () {
             validateProfileField('email', this.value, 'profileEmailError');
         });
-        emailField.addEventListener('input', debounce(function() {
+        emailField.addEventListener('input', debounce(function () {
             validateProfileField('email', this.value, 'profileEmailError');
         }, 500));
     }
 
     if (phoneField) {
-        phoneField.addEventListener('blur', function() {
+        phoneField.addEventListener('blur', function () {
             validateProfileField('phone', this.value, 'profilePhoneError');
         });
-        phoneField.addEventListener('input', debounce(function() {
+        phoneField.addEventListener('input', debounce(function () {
             validateProfileField('phone', this.value, 'profilePhoneError');
         }, 500));
     }
 
     if (nameField) {
-        nameField.addEventListener('blur', function() {
+        nameField.addEventListener('blur', function () {
             validateProfileField('name', this.value, 'profileNameError');
         });
     }
@@ -6023,7 +6026,7 @@ function validateProfileField(fieldType, value, errorElementId) {
     // Update UI based on validation result
     errorElement.textContent = errorMessage;
     errorElement.style.display = errorMessage ? 'block' : 'none';
-    
+
     const fieldElement = document.getElementById(errorElementId.replace('Error', ''));
     if (fieldElement) {
         fieldElement.classList.toggle('field-error', !isValid);
@@ -6091,7 +6094,7 @@ async function verifyProfileIntegration(customerId) {
         // Test 1: Verify customer profile can be loaded
         const customer = await loadCustomerProfileData(customerId);
         results.customer_profile_loaded = !!customer;
-        
+
         if (!customer) {
             results.errors.push('Customer profile could not be loaded');
         }
@@ -6105,7 +6108,7 @@ async function verifyProfileIntegration(customerId) {
                 .limit(5);
 
             results.order_history_accessible = !orderError && Array.isArray(orders);
-            
+
             if (orderError) {
                 results.errors.push(`Order history access failed: ${orderError.message}`);
             }
@@ -6118,9 +6121,9 @@ async function verifyProfileIntegration(customerId) {
             const emailPreferences = localStorage.getItem('plaasHoendersEmailPreferences');
             const customerPrefs = emailPreferences ? JSON.parse(emailPreferences) : [];
             const hasCustomerInQueue = customerPrefs.some(pref => pref.customerId === customerId);
-            
+
             results.email_queue_integration = true; // Integration exists, presence in queue is optional
-            
+
             if (hasCustomerInQueue) {
                 console.info('Customer found in email preferences queue');
             }
@@ -6135,9 +6138,9 @@ async function verifyProfileIntegration(customerId) {
                 customer?.email,
                 customer?.communication_preferences
             ];
-            
+
             results.invoice_generation_ready = invoiceReadyFields.every(field => field !== null && field !== undefined);
-            
+
             if (!results.invoice_generation_ready) {
                 results.errors.push('Customer profile missing required fields for invoice generation');
             }
@@ -6155,7 +6158,7 @@ async function verifyProfileIntegration(customerId) {
                 .single();
 
             results.admin_dashboard_compatibility = !adminError && !!adminCustomerView;
-            
+
             if (adminError) {
                 results.errors.push(`Admin dashboard compatibility failed: ${adminError.message}`);
             }
@@ -6193,14 +6196,14 @@ async function testProfileOrderIntegration(testProfileData) {
         const updatedCustomer = await updateCustomerProfile(testProfileData);
 
         // Verify customer name and email would be reflected in new orders
-        const customerDetailsMatch = 
+        const customerDetailsMatch =
             updatedCustomer.name === testProfileData.name &&
             updatedCustomer.email === testProfileData.email &&
             updatedCustomer.phone === testProfileData.phone &&
             updatedCustomer.address === testProfileData.address;
 
         // Verify communication preferences persist
-        const preferencesIntegrated = 
+        const preferencesIntegrated =
             updatedCustomer.communication_preferences &&
             typeof updatedCustomer.communication_preferences === 'object';
 
@@ -6296,7 +6299,7 @@ function showSectionLoading(sectionName, show) {
     const loadingElement = document.getElementById(`${sectionName}Loading`);
     if (loadingElement) {
         loadingElement.style.display = show ? 'block' : 'none';
-        
+
         // Add loading animation class
         if (show) {
             loadingElement.classList.add('loading-active');
@@ -6307,9 +6310,9 @@ function showSectionLoading(sectionName, show) {
 
     // Hide other states when showing loading
     if (show) {
-        const contentElement = document.getElementById(`${sectionName}Grid`) || 
-                              document.getElementById(`${sectionName}List`) ||
-                              document.getElementById(`${sectionName}Form`);
+        const contentElement = document.getElementById(`${sectionName}Grid`) ||
+            document.getElementById(`${sectionName}List`) ||
+            document.getElementById(`${sectionName}Form`);
         const errorElement = document.getElementById(`${sectionName}Error`);
         const emptyElement = document.getElementById(`${sectionName}Empty`);
 
@@ -6389,7 +6392,7 @@ function getToastIcon(type) {
         case 'success': return 'fa-check-circle';
         case 'error': return 'fa-exclamation-triangle';
         case 'warning': return 'fa-exclamation-circle';
-        case 'info': 
+        case 'info':
         default: return 'fa-info-circle';
     }
 }
@@ -6402,7 +6405,7 @@ function getToastIcon(type) {
  */
 function showSectionError(sectionName, message) {
     showSectionLoading(sectionName, false);
-    
+
     const errorElement = document.getElementById(`${sectionName}Error`);
     if (errorElement) {
         const errorText = errorElement.querySelector('p');
@@ -6417,7 +6420,7 @@ function showSectionError(sectionName, message) {
 document.addEventListener('DOMContentLoaded', initializeCustomerPortal);
 
 // Handle browser back/forward navigation
-window.addEventListener('hashchange', function() {
+window.addEventListener('hashchange', function () {
     const hash = window.location.hash.substring(1);
     if (hash && ['dashboard', 'products', 'orders', 'profile'].includes(hash)) {
         navigateToSection(hash);
@@ -6428,7 +6431,7 @@ window.addEventListener('hashchange', function() {
 });
 
 // Handle browser popstate (back/forward buttons)
-window.addEventListener('popstate', function(event) {
+window.addEventListener('popstate', function (event) {
     if (event.state && event.state.section) {
         navigateToSection(event.state.section);
     } else {
@@ -6443,7 +6446,7 @@ window.addEventListener('popstate', function(event) {
 });
 
 // Initialize navigation from URL on page load
-window.addEventListener('load', function() {
+window.addEventListener('load', function () {
     if (currentCustomer && customerSession) {
         const hash = window.location.hash.substring(1);
         if (hash && ['dashboard', 'products', 'orders', 'profile'].includes(hash)) {
@@ -6455,13 +6458,13 @@ window.addEventListener('load', function() {
 });
 
 // Password strength indicator (optional enhancement)
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const passwordInput = document.getElementById('registerPassword');
     if (passwordInput) {
-        passwordInput.addEventListener('input', function() {
+        passwordInput.addEventListener('input', function () {
             const password = this.value;
             const errorElement = document.getElementById('registerPasswordError');
-            
+
             if (errorElement) {
                 if (password.length > 0 && password.length < 8) {
                     errorElement.textContent = `Password too short (${password.length}/8 characters)`;
@@ -6481,32 +6484,32 @@ document.addEventListener('DOMContentLoaded', function() {
     // Register Form Handler
     const registerForm = document.getElementById('customerRegisterForm');
     if (registerForm) {
-        registerForm.addEventListener('submit', async function(e) {
+        registerForm.addEventListener('submit', async function (e) {
             e.preventDefault();
-            
+
             const name = document.getElementById('registerName').value.trim();
             const email = document.getElementById('registerEmail').value.trim();
             const phone = document.getElementById('registerPhone').value.trim();
             const address = document.getElementById('registerAddress').value.trim();
             const password = document.getElementById('registerPassword').value;
-            
+
             const messageElement = document.getElementById('registerMessage');
             const submitBtn = document.getElementById('registerBtn');
-            
+
             if (!name || !email || !password) {
                 showFormMessage(messageElement, 'Please fill in all required fields', 'error');
                 return;
             }
-            
+
             if (password.length < 8) {
                 showFormMessage(messageElement, 'Password must be at least 8 characters', 'error');
                 return;
             }
-            
+
             try {
                 submitBtn.textContent = 'Creating Account...';
                 submitBtn.disabled = true;
-                
+
                 const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
@@ -6518,20 +6521,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 });
-                
+
                 if (error) {
                     throw error;
                 }
-                
+
                 showFormMessage(messageElement, 'Account created successfully! You can now login.', 'success');
                 registerForm.reset();
-                
+
                 // Auto-switch to login tab after successful registration
                 setTimeout(() => {
                     showAuthForm('login');
                     showFormMessage(document.getElementById('loginMessage'), 'Registration successful! Please login with your credentials.', 'success');
                 }, 2000);
-                
+
             } catch (error) {
                 console.error('Registration error:', error);
                 showFormMessage(messageElement, error.message || 'Registration failed. Please try again.', 'error');
@@ -6545,35 +6548,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // Login Form Handler
     const loginForm = document.getElementById('customerLoginForm');
     if (loginForm) {
-        loginForm.addEventListener('submit', async function(e) {
+        loginForm.addEventListener('submit', async function (e) {
             e.preventDefault();
-            
+
             const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
-            
+
             const messageElement = document.getElementById('loginMessage');
             const submitBtn = document.getElementById('loginBtn');
-            
+
             if (!email || !password) {
                 showFormMessage(messageElement, 'Please enter both email and password', 'error');
                 return;
             }
-            
+
             try {
                 submitBtn.textContent = 'Signing In...';
                 submitBtn.disabled = true;
-                
+
                 const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
-                
+
                 if (error) {
                     throw error;
                 }
-                
+
                 // Auth state change will automatically handle navigation
-                
+
             } catch (error) {
                 console.error('Login error:', error);
                 showFormMessage(messageElement, error.message || 'Login failed. Please try again.', 'error');
@@ -6591,20 +6594,20 @@ document.addEventListener('DOMContentLoaded', function() {
 async function clearAllAuthData() {
     try {
         console.log('Clearing all authentication data...');
-        
+
         // Sign out from Supabase FIRST
         try {
             await supabaseClient.auth.signOut();
-        } catch(e) {
+        } catch (e) {
             console.log('Sign out error (expected if not logged in):', e);
         }
-        
+
         // Clear all localStorage
         localStorage.clear();
-        
+
         // Clear all sessionStorage
         sessionStorage.clear();
-        
+
         // CRITICAL: Clear IndexedDB where Supabase ACTUALLY stores auth
         const databases = await indexedDB.databases();
         for (const db of databases) {
@@ -6613,32 +6616,32 @@ async function clearAllAuthData() {
                 console.log('Deleted IndexedDB:', db.name);
             }
         }
-        
+
         // Alternative IndexedDB clear for older browsers
         try {
             indexedDB.deleteDatabase('supabase-auth');
             indexedDB.deleteDatabase('supabase');
-        } catch(e) {
+        } catch (e) {
             console.log('IndexedDB clear attempt:', e);
         }
-        
+
         // Clear all cookies
-        document.cookie.split(";").forEach(function(c) { 
-            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+        document.cookie.split(";").forEach(function (c) {
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
         });
-        
+
         // Force clear any remaining Supabase keys
-        for (let key in localStorage) {
+        for (const key in localStorage) {
             if (key.includes('supabase') || key.includes('auth') || key.includes('gotrue')) {
                 localStorage.removeItem(key);
             }
         }
-        
+
         alert('✅ All auth data cleared! The page will now reload.');
-        
+
         // Hard reload to bypass cache
         window.location.href = window.location.href.split('#')[0];
-        
+
     } catch (error) {
         console.error('Error clearing auth data:', error);
         alert('Error clearing data: ' + error.message);
@@ -6656,12 +6659,12 @@ window.clearAllAuthData = clearAllAuthData;
 function validateOrderReview() {
     const addressConfirmed = document.getElementById('addressConfirmed')?.checked;
     const phoneConfirmed = document.getElementById('phoneConfirmed')?.checked;
-    
+
     if (!addressConfirmed || !phoneConfirmed) {
         alert('⚠️ Please confirm that your address and phone number are correct before proceeding.');
         return false;
     }
-    
+
     return true;
 }
 
@@ -6674,29 +6677,29 @@ function handleProceedToStep4() {
     if (!validateOrderReview()) {
         return;
     }
-    
+
     // If validation passes, proceed to step 4
-// Simple place order functionality - go directly to step 4
-document.addEventListener('DOMContentLoaded', function() {
-    const placeOrderBtn = document.getElementById('placeOrder');
-    if (placeOrderBtn) {
-        placeOrderBtn.addEventListener('click', function() {
-            // Simple navigation to step 4
-            document.getElementById('step-3').classList.remove('active');
-            document.getElementById('step-4').classList.add('active');
-            
-            // Update step indicators
-            document.getElementById('step-indicator-3').classList.remove('bg-orange-500');
-            document.getElementById('step-indicator-3').classList.add('bg-gray-200');
-            document.getElementById('step-indicator-4').classList.remove('bg-gray-200');
-            document.getElementById('step-indicator-4').classList.add('bg-orange-500');
-            
-            // Update progress lines
-            document.getElementById('progress-3').classList.remove('bg-gray-300');
-            document.getElementById('progress-3').classList.add('bg-orange-500');
-        });
-    }
-});
+    // Simple place order functionality - go directly to step 4
+    document.addEventListener('DOMContentLoaded', function () {
+        const placeOrderBtn = document.getElementById('placeOrder');
+        if (placeOrderBtn) {
+            placeOrderBtn.addEventListener('click', function () {
+                // Simple navigation to step 4
+                document.getElementById('step-3').classList.remove('active');
+                document.getElementById('step-4').classList.add('active');
+
+                // Update step indicators
+                document.getElementById('step-indicator-3').classList.remove('bg-orange-500');
+                document.getElementById('step-indicator-3').classList.add('bg-gray-200');
+                document.getElementById('step-indicator-4').classList.remove('bg-gray-200');
+                document.getElementById('step-indicator-4').classList.add('bg-orange-500');
+
+                // Update progress lines
+                document.getElementById('progress-3').classList.remove('bg-gray-300');
+                document.getElementById('progress-3').classList.add('bg-orange-500');
+            });
+        }
+    });
 }
 
 /**
@@ -6706,7 +6709,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function updateConfirmationText() {
     const addressText = document.getElementById('confirmAddressText');
     const phoneText = document.getElementById('confirmPhoneText');
-    
+
     if (currentCustomer) {
         if (addressText) {
             addressText.textContent = currentCustomer.address || 'Geen adres verskaf nie';
@@ -6714,5 +6717,51 @@ function updateConfirmationText() {
         if (phoneText) {
             phoneText.textContent = currentCustomer.phone || 'Geen telefoon nommer verskaf nie';
         }
+    }
+}
+
+/**
+ * Load products from database for dynamic pricing
+ * @async
+ * @function loadProductsFromDB
+ */
+async function loadProductsFromDB() {
+    try {
+        console.log('🛍️ Loading products from database...');
+        if (!supabaseClient) return;
+
+        const { data, error } = await supabaseClient
+            .from('products')
+            .select('name, selling_price, packaging, unit')
+            .eq('active', true);
+
+        if (error) {
+            // Ignore "table missing" error if just starting out
+            if (error.code !== '42P01') console.error('Error loading products:', error);
+            return;
+        }
+
+        if (data && data.length > 0) {
+            // Convert to pricing object format
+            const pricingMap = {};
+            data.forEach(p => {
+                pricingMap[p.name] = {
+                    cost: 0, // Hidden
+                    selling: p.selling_price,
+                    packaging: p.packaging,
+                    unit: p.unit
+                };
+            });
+
+            // Update shared utils
+            if (typeof updateDynamicPricing === 'function') {
+                updateDynamicPricing(pricingMap);
+            } else {
+                window.dynamicPricing = pricingMap;
+            }
+            console.log(`✅ Loaded ${data.length} products for customer portal`);
+        }
+    } catch (e) {
+        console.error('❌ Failed to load products:', e);
     }
 }

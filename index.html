@@ -708,6 +708,10 @@ Savings/Spaar rek</textarea>
                     <button class="btn-primary" onclick="addNewProduct()">
                         <i class="fas fa-plus"></i> Add Product
                     </button>
+                    <button class="btn-secondary" onclick="document.getElementById('supplierInvoiceInput').click()">
+                        <i class="fas fa-file-invoice-dollar"></i> Update from Invoice
+                    </button>
+                    <input type="file" id="supplierInvoiceInput" accept=".pdf" style="display: none;" onchange="handleSupplierInvoiceUpload(event)">
                 </div>
 
                 <div class="pricing-table-container">
@@ -971,6 +975,43 @@ Savings/Spaar rek</textarea>
                 <button onclick="closeWeightEditModal()" class="btn-secondary">Cancel</button>
                 <button onclick="saveWeightEdits()" class="btn-primary">
                     <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pricing Update Modal -->
+    <div id="pricingUpdateModal" class="modal">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h2>Update Pricing from Invoice</h2>
+                <button class="close-modal" onclick="closePricingUpdateModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Review the extracted costs and proposed selling prices. Selling prices are calculated based on the previous margin percentage. You can manually override the final selling price.</p>
+                <div class="table-container">
+                    <table id="pricingUpdateTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Old Cost</th>
+                                <th>New Cost</th>
+                                <th>Old Sell</th>
+                                <th>Margin</th>
+                                <th>Calc Sell</th>
+                                <th>Final Sell</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pricingUpdateBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closePricingUpdateModal()" class="btn-secondary">Cancel</button>
+                <button onclick="applyPricingUpdates()" class="btn-primary">
+                    <i class="fas fa-save"></i> Apply Changes
                 </button>
             </div>
         </div>
