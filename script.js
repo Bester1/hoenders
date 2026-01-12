@@ -1773,7 +1773,7 @@ async function testEmail() {
 }
 
 // Order processing functions
-function processOrders() {
+async function processOrders() {
     const orderData = document.getElementById('orderData').value.trim();
     if (!orderData) {
         alert('Please paste order data first.');
@@ -1781,6 +1781,9 @@ function processOrders() {
     }
 
     try {
+        // Load customers for smart matching
+        const allCustomers = await loadAllCustomers();
+
         const lines = orderData.split('\n');
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
 
@@ -1788,12 +1791,27 @@ function processOrders() {
         for (let i = 1; i < lines.length; i++) {
             if (lines[i].trim()) {
                 const values = lines[i].split(',').map(v => v.trim());
+
+                let name = values[headers.indexOf('name')] || '';
+                let email = values[headers.indexOf('email')] || '';
+                let phone = values[headers.indexOf('phone')] || '';
+
+                // SMART MATCHING
+                const match = findBestCustomerMatch(name, email, phone, allCustomers);
+                if (match) {
+                    // Safety check: Don't overwrite if email/phone was provided and contradicts match
+                    // But here we implicitly trust the match if the input was partial
+                    if (!name || name.length < match.name.length) name = match.name;
+                    if (!email) email = match.email;
+                    if (!phone) phone = match.phone;
+                }
+
                 const order = {
                     orderId: 'ORD-' + Date.now() + '-' + i,
                     date: new Date().toISOString().split('T')[0],
-                    name: values[headers.indexOf('name')] || '',
-                    email: values[headers.indexOf('email')] || '',
-                    phone: values[headers.indexOf('phone')] || '',
+                    name: name,
+                    email: email,
+                    phone: phone,
                     product: values[headers.indexOf('product')] || '',
                     quantity: parseInt(values[headers.indexOf('quantity')]) || 1,
                     specialInstructions: values[headers.indexOf('special instructions')] || '',
@@ -2713,7 +2731,7 @@ function parseCSVLine(line) {
     return result;
 }
 
-function processCSVFile() {
+async function processCSVFile() {
     if (!csvData || csvData.length === 0) {
         alert('No CSV data to process.');
         return;
@@ -2724,8 +2742,12 @@ function processCSVFile() {
     if (!importName) return;
 
     try {
+        // Load customers for smart matching
+        const allCustomers = await loadAllCustomers();
+
         const newOrders = [];
         const skippedRows = [];
+        const importsInvoices = []; // To store created invoices specific to this import
 
         // Find column indices
         const emailIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('email'));
@@ -2735,15 +2757,26 @@ function processCSVFile() {
 
         // Process each row
         csvData.forEach((row, rowIndex) => {
-            const email = row[emailIndex] || '';
-            const name = row[nameIndex] || '';
-            const phone = row[phoneIndex] || '';
+            let email = row[emailIndex] || '';
+            let name = row[nameIndex] || '';
+            let phone = row[phoneIndex] || '';
             const address = row[addressIndex] || '';
 
             // Skip rows without essential info
-            if (!email || !name) {
+            if (!email && !name) {
                 skippedRows.push(rowIndex + 2); // +2 for header and 0-index
                 return;
+            }
+
+            // SMART MATCHING
+            const match = findBestCustomerMatch(name, email, phone, allCustomers);
+            if (match) {
+                // Safety check: Don't overwrite if data provided in CSV contradicts,
+                // but typically CSV data is the source of truth, OR we want to normalize it.
+                // Here we normalize to the CLEAN existing database record if matched.
+                if (!name || name.length < match.name.length) name = match.name;
+                if (!email) email = match.email;
+                if (!phone) phone = match.phone;
             }
 
             // Collect all products for this customer
@@ -8395,3 +8428,104 @@ window.handleSupplierInvoiceUpload = handleSupplierInvoiceUpload;
 window.closePricingUpdateModal = closePricingUpdateModal;
 window.applyPricingUpdates = applyPricingUpdates;
 window.updateFinalPrice = updateFinalPrice;
+// ============ SMART CUSTOMER MATCHING ============
+
+/**
+ * Loads all customers from database for smart matching
+ * Uses caching to avoid repeated calls
+ */
+let _cachedAllCustomers = null;
+let _lastCustomerLoadTime = 0;
+
+async function loadAllCustomers() {
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+    if (_cachedAllCustomers && (Date.now() - _lastCustomerLoadTime < CACHE_DURATION)) {
+        return _cachedAllCustomers;
+    }
+
+    try {
+        if (!supabaseClient) return [];
+
+        console.log('🔄 Loading all customers for smart matching...');
+
+        // Fetch ID, Name, Email, Phone
+        const { data, error } = await supabaseClient
+            .from('customers')
+            .select('id, name, email, phone');
+
+        if (error) {
+            console.error('❌ Error loading customers:', error);
+            return [];
+        }
+
+        _cachedAllCustomers = data || [];
+        _lastCustomerLoadTime = Date.now();
+        console.log(`✅ Loaded ${_cachedAllCustomers.length} customers for matching`);
+
+        return _cachedAllCustomers;
+    } catch (err) {
+        console.error('Failed to load customers:', err);
+        return [];
+    }
+}
+
+/**
+ * Finds the best customer match based on input data
+ * STRICT MODE: Returns null if multiple matches are found (ambiguity)
+ */
+function findBestCustomerMatch(inputName, inputEmail, inputPhone, customers) {
+    if (!customers || customers.length === 0) return null;
+
+    const cleanName = inputName ? inputName.trim().toLowerCase() : '';
+    const cleanEmail = inputEmail ? inputEmail.trim().toLowerCase() : '';
+    const cleanPhone = inputPhone ? inputPhone.replace(/\D/g, '') : '';
+
+    // 1. Exact Unique Identifier Match (Highest Confidence)
+    if (cleanEmail) {
+        const emailMatch = customers.find(c => c.email && c.email.toLowerCase() === cleanEmail);
+        if (emailMatch) {
+            console.log(`🎯 Exact Email Match: ${inputEmail} -> ${emailMatch.name}`);
+            return emailMatch;
+        }
+    }
+
+    if (cleanPhone && cleanPhone.length > 5) { // Minimum length to avoid false positives
+        const phoneMatch = customers.find(c => {
+            const dbPhone = c.phone ? c.phone.replace(/\D/g, '') : '';
+            return dbPhone && (dbPhone === cleanPhone || dbPhone.endsWith(cleanPhone) || cleanPhone.endsWith(dbPhone));
+        });
+        if (phoneMatch) {
+            console.log(`🎯 Phone Match: ${inputPhone} -> ${phoneMatch.name}`);
+            return phoneMatch;
+        }
+    }
+
+    // 2. Exact Name Match
+    if (cleanName) {
+        const exactNameMatches = customers.filter(c => c.name && c.name.toLowerCase() === cleanName);
+        if (exactNameMatches.length === 1) {
+            console.log(`🎯 Exact Name Match: ${inputName} -> ${exactNameMatches[0].name}`);
+            return exactNameMatches[0];
+        } else if (exactNameMatches.length > 1) {
+            console.warn(`⚠️ AMBIGUOUS Exact Name: "${inputName}" matches ${exactNameMatches.length} people. returning NULL.`);
+            return null; // Safety: Multiple "Chris Smith"s -> Don't guess
+        }
+    }
+
+    // 3. Partial Name Match (Strict)
+    // Only works if the input name is significant (e.g. > 3 chars)
+    if (cleanName && cleanName.length > 3) {
+        const partialMatches = customers.filter(c => c.name && c.name.toLowerCase().includes(cleanName));
+
+        if (partialMatches.length === 1) {
+            console.log(`🎯 Unique Partial Match: "${inputName}" -> "${partialMatches[0].name}"`);
+            return partialMatches[0];
+        } else if (partialMatches.length > 1) {
+            console.warn(`⚠️ AMBIGUOUS Partial Name: "${inputName}" found in ${partialMatches.map(c => c.name).join(', ')}. Returning NULL.`);
+            return null; // Safety: "Chris" matches "Chris Fourie" AND "Chris Liang" -> Don't guess
+        }
+    }
+
+    return null; // No safe match found
+}
