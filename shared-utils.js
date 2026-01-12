@@ -71,7 +71,7 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
  */
 function getCustomerPricing() {
     // Default pricing data (synchronized with admin system)
-    // Default pricing data (synchronized with admin system)
+
     // This serves as a fallback until database prices are loaded
     const defaultPricing = {
         'HEEL HOENDER': { cost: 59.00, selling: 69.00, packaging: '± 1.8 - 2.5kg' },
@@ -302,92 +302,116 @@ function getProductCategories() {
     };
 }
 
-/**
- * Map product names to customer-friendly display names and descriptions
- * @function getProductDisplayInfo
- * @param {string} productName - Internal product name
- * @returns {Object} Display information for product
- */
-function getProductDisplayInfo(productName) {
-    const displayMap = {
-        'HEEL HOENDER': {
-            displayName: 'Heel Hoender',
-            description: 'Hele vars hoender, perfek vir gesinne'
-        },
-        'PLAT HOENDER (FLATTY\'S)': {
-            displayName: 'Plat Hoender (Flatty\'s)',
-            description: 'Plat hoenders, ideaal vir die braai'
-        },
-        'BRAAIPAKKE': {
-            displayName: 'Braai Pakke',
-            description: 'Hele hoender opgesnye, gereed vir die braai'
-        },
-        'HEEL HALWE HOENDERS': {
-            displayName: 'Hele Halwe Hoenders',
-            description: 'Hele hoender deurgesny, perfek vir kleiner gesinne'
-        },
-        'BORSSTUKKE MET BEEN EN VEL': {
-            displayName: 'Borsstukke met Been en Vel',
-            description: 'Sappige borsstukke, perfek vir braai of bak'
-        },
-        'VLERKIES': {
-            displayName: 'Vlerkies',
-            description: 'Hoender vlerkies, gewild by kinders'
-        },
-        'BOUDE EN DYE': {
-            displayName: 'Boude en Dye',
-            description: 'Dons en sappige hoender boude en dye'
-        },
-        'GUNS Boud en dy aanmekaar': {
-            displayName: 'Boude en Dye Aanmekaar',
-            description: 'Boude en dye nog aanmekaar, maklik om te braai'
-        },
-        'LEWER': {
-            displayName: 'Hoender Lewer',
-            description: 'Vars hoender lewer, ryk aan yster'
-        },
-        'NEKKIES': {
-            displayName: 'Hoender Nekkies',
-            description: 'Hoender nekkies, perfek vir sop of honde kos'
-        },
-        'FILETTE (sonder vel)': {
-            displayName: 'Filette (sonder vel)',
-            description: 'Skoon hoender filette, sonder vel'
-        },
-        'STRIPS': {
-            displayName: 'Hoender Strips',
-            description: 'Hoender strips, perfek vir roerbraai'
-        },
-        'ONTBEENDE HOENDER': {
-            displayName: 'Ontbeende Hoender',
-            description: 'Hele hoender sonder bene, maklik om te snye'
-        },
-        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': {
-            displayName: 'Gevulde Hoender Rolle Opsie 1',
-            description: 'Vye, feta, cheddar, sweet chilly'
-        },
-        'INGELEGDE GROEN VYE': {
-            displayName: 'Ingelegde Groen Vye',
-            description: 'Huis-ingelegde groen vye, perfekte bysmaak'
-        },
-        'HOENDER PATTIES': {
-            displayName: 'Hoender Patties',
-            description: 'Vars hoender patties, maklik om te braai'
-        },
-        'HOENDER KAASWORS': {
-            displayName: 'Hoender Kaaswors',
-            description: 'Hoender wors met kaas, 500g verpak'
-        },
-        'SUIWER HEUNING': {
-            displayName: 'Suiwer Heuning',
-            description: 'Plaas vars heuning, 500g potjie'
-        }
-    };
 
-    return displayMap[productName] || {
-        displayName: productName,
-        description: 'Vars plaas produk'
-    };
+
+// 2026 Delivery and Cut-off Schedule
+const DELIVERY_SCHEDULE_2026 = [
+    { month: 'January', delivery: '2026-01-31', cutoff: '2026-01-15' },
+    { month: 'February', delivery: '2026-02-28', cutoff: '2026-02-10' },
+    { month: 'March', delivery: '2026-03-28', cutoff: '2026-03-10' },
+    { month: 'April', delivery: '2026-04-25', cutoff: '2026-04-14' },
+    { month: 'May', delivery: '2026-05-30', cutoff: '2026-05-12' },
+    { month: 'June', delivery: '2026-06-27', cutoff: '2026-06-11' },
+    { month: 'July', delivery: '2026-07-25', cutoff: '2026-07-14' },
+    { month: 'August', delivery: '2026-08-29', cutoff: '2026-08-11' },
+    { month: 'September', delivery: '2026-09-26', cutoff: '2026-09-15' },
+    { month: 'October', delivery: '2026-10-31', cutoff: '2026-10-13' },
+    { month: 'November', delivery: '2026-11-28', cutoff: '2026-11-08' }
+];
+
+/**
+ * Check if ordering is currently allowed based on the schedule.
+ * Opens 7 days before cutoff at 00:00.
+ * Closes on cutoff date at 22:00 (10 PM).
+ * @returns {Object} status - { isOpen, message, nextDelivery, cutoffDate, nextjOpenDate }
+ */
+function getOrderingStatus() {
+    // strict enforcement: get time from trusted source if possible, but for now use browser time
+    const now = new Date();
+
+    // Find the relevant schedule item
+    // We look for the first cutoff that hasn't passed (or is today)
+    // Actually we need to find the "current" window.
+
+    let currentPeriod = null;
+    let nextPeriod = null;
+
+    for (let i = 0; i < DELIVERY_SCHEDULE_2026.length; i++) {
+        const item = DELIVERY_SCHEDULE_2026[i];
+        const cutoffDate = new Date(item.cutoff + 'T22:00:00'); // 10 PM on cutoff day
+
+        if (now <= cutoffDate) {
+            currentPeriod = item;
+            // Next period is the one after this, if exists
+            nextPeriod = DELIVERY_SCHEDULE_2026[i + 1];
+            break;
+        }
+    }
+
+    // If no current period found (all passed), look at next year or just say closed
+    if (!currentPeriod) {
+        return {
+            isOpen: false,
+            message: "Ordering is closed for 2026. Please check back later.",
+            status: 'closed-year-end'
+        };
+    }
+
+    const cutoffDate = new Date(currentPeriod.cutoff + 'T22:00:00'); // 10 PM
+    const openDate = new Date(currentPeriod.cutoff + 'T00:00:00');
+    openDate.setDate(openDate.getDate() - 7); // 7 days before
+
+    // Check if we are in the window
+    if (now >= openDate && now <= cutoffDate) {
+        // We are OPEN
+        const daysLeft = Math.ceil((cutoffDate - now) / (1000 * 60 * 60 * 24));
+        const hoursLeft = Math.ceil((cutoffDate - now) / (1000 * 60 * 60));
+
+        let timeLeftMsg = `${daysLeft} days`;
+        if (daysLeft <= 1) timeLeftMsg = `${hoursLeft} hours`;
+
+        return {
+            isOpen: true,
+            status: 'open',
+            message: `Orders close on ${formatDateFriendly(currentPeriod.cutoff)} at 22:00 (${timeLeftMsg} left)`,
+            deliveryDate: currentPeriod.delivery,
+            cutoffDate: currentPeriod.cutoff
+        };
+    } else if (now < openDate) {
+        // We are before the window (Too early)
+        return {
+            isOpen: false,
+            status: 'upcoming',
+            message: `Ordering for ${currentPeriod.month} opens on ${formatDateFriendly(openDate.toISOString().split('T')[0])}`,
+            nextOpenDate: openDate,
+            deliveryDate: currentPeriod.delivery
+        };
+    } else {
+        // We are after cutoff but logic above already caught "passed" cutoffs. 
+        // This block strictly shouldn't be reached if the loop works correctly 
+        // because we pick the *first* future cutoff.
+        // However, there is a gap between Cutoff and Delivery where we are "Closed".
+        // The loop finds the "cutoff that hasn't passed". 
+        // If we are on Jan 14, Jan cutoff (Jan 13) has passed. Loop finds Feb cutoff (Feb 10).
+        // Feb open date is Feb 3. Now < Feb 3. So we fall into 'upcoming'. Matches logic.
+
+        return {
+            isOpen: false,
+            status: 'closed-gap', // This should be covered by 'upcoming' logic actually
+            message: "Ordering is currently closed.",
+        };
+    }
+}
+
+function formatDateFriendly(dateStr) {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+// Export for usage (if module system used, but this is vanilla JS loaded via script tag)
+if (typeof window !== 'undefined') {
+    window.DELIVERY_SCHEDULE_2026 = DELIVERY_SCHEDULE_2026;
+    window.getOrderingStatus = getOrderingStatus;
 }
 
 /**
@@ -676,22 +700,9 @@ function updateDynamicPricing(pricingData) {
     console.log('✅ Dynamic pricing updated in shared utils');
 }
 
-// Export functions for Node.js environments (if applicable)
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        formatCurrency,
-        formatPhoneNumber,
-        validatePhoneNumber,
-        validateEmail,
-        generateOrderId,
-        formatDate,
-        formatDateTime,
-        debounce,
-        showToast,
-        sanitizeHtml,
-        calculateOrderTotal,
-        groupBy,
-        isMobileDevice,
-        updateDynamicPricing
-    };
+// Export globally for Node.js/Testing environments
+if (typeof globalThis !== 'undefined') {
+    globalThis.getOrderingStatus = getOrderingStatus;
+    globalThis.DELIVERY_SCHEDULE_2026 = DELIVERY_SCHEDULE_2026;
+    globalThis.getCustomerPricing = getCustomerPricing;
 }

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,24 +17,24 @@
             const originalWarn = console.warn;
             const originalLog = console.log;
             const originalError = console.error;
-            
-            console.warn = function(...args) {
+
+            console.warn = function (...args) {
                 const message = args[0]?.toString() || '';
                 if (message.includes('cdn.tailwindcss.com') || message.includes('should not be used in production')) {
                     return; // Suppress Tailwind production warnings
                 }
                 originalWarn.apply(console, args);
             };
-            
-            console.log = function(...args) {
+
+            console.log = function (...args) {
                 const message = args[0]?.toString() || '';
                 if (message.includes('cdn.tailwindcss.com') || message.includes('should not be used in production')) {
                     return; // Suppress Tailwind production warnings in console.log too
                 }
                 originalLog.apply(console, args);
             };
-            
-            console.error = function(...args) {
+
+            console.error = function (...args) {
                 const message = args[0]?.toString() || '';
                 if (message.includes('cdn.tailwindcss.com') || message.includes('should not be used in production')) {
                     return; // Suppress Tailwind production warnings in console.error too
@@ -45,48 +46,125 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <link rel="stylesheet" href="customer-validation.css">
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .animate-fade-in { animation: fadeIn 0.6s ease-out forwards; }
-        .animate-slide-up { animation: slideUp 0.8s ease-out forwards; }
-        .animate-scale-in { animation: scaleIn 0.5s ease-out forwards; }
-        .animate-slide-right { animation: slideRight 0.6s ease-out forwards; }
-        .animate-slide-left { animation: slideLeft 0.6s ease-out forwards; }
-        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.8s ease-out forwards;
+        }
+
+        .animate-scale-in {
+            animation: scaleIn 0.5s ease-out forwards;
+        }
+
+        .animate-slide-right {
+            animation: slideRight 0.6s ease-out forwards;
+        }
+
+        .animate-slide-left {
+            animation: slideLeft 0.6s ease-out forwards;
+        }
+
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
+
         @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
+
         @keyframes scaleIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
+
         @keyframes slideRight {
-            from { opacity: 0; transform: translateX(-30px); }
-            to { opacity: 1; transform: translateX(0); }
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
+
         @keyframes slideLeft {
-            from { opacity: 0; transform: translateX(30px); }
-            to { opacity: 1; transform: translateX(0); }
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
-        
-        .animation-delay-100 { animation-delay: 0.1s; }
-        .animation-delay-200 { animation-delay: 0.2s; }
-        .animation-delay-300 { animation-delay: 0.3s; }
-        .animation-delay-400 { animation-delay: 0.4s; }
-        .animation-delay-500 { animation-delay: 0.5s; }
-        .opacity-0 { opacity: 0; }
-        
-        .step-content { display: none; }
-        .step-content.active { display: block; }
-        
+
+        .animation-delay-100 {
+            animation-delay: 0.1s;
+        }
+
+        .animation-delay-200 {
+            animation-delay: 0.2s;
+        }
+
+        .animation-delay-300 {
+            animation-delay: 0.3s;
+        }
+
+        .animation-delay-400 {
+            animation-delay: 0.4s;
+        }
+
+        .animation-delay-500 {
+            animation-delay: 0.5s;
+        }
+
+        .opacity-0 {
+            opacity: 0;
+        }
+
+        .step-content {
+            display: none;
+        }
+
+        .step-content.active {
+            display: block;
+        }
+
         .quantity-input {
             -webkit-appearance: none;
             -moz-appearance: textfield;
         }
+
         .quantity-input::-webkit-outer-spin-button,
         .quantity-input::-webkit-inner-spin-button {
             -webkit-appearance: none;
@@ -94,9 +172,14 @@
         }
 
         /* Additional styles for better compatibility */
-        .hidden { display: none !important; }
-        .modal-open { overflow: hidden; }
-        
+        .hidden {
+            display: none !important;
+        }
+
+        .modal-open {
+            overflow: hidden;
+        }
+
         /* Session loading overlay - ensure visibility */
         #sessionLoading {
             display: flex !important;
@@ -116,28 +199,34 @@
             align-items: center;
             width: 100%;
         }
-        .modal-header-content > div:nth-child(2) {
+
+        .modal-header-content>div:nth-child(2) {
             flex: 1;
             text-align: center;
         }
+
         .customer-details-section .bg-zinc-800\/30 {
             background-color: rgba(0, 0, 0, 0.7) !important;
             border-color: rgba(255, 255, 255, 0.3) !important;
         }
+
         .customer-details-section .text-zinc-400 {
             color: rgba(255, 255, 255, 0.9) !important;
             font-weight: 600 !important;
         }
+
         .customer-details-section .text-white {
             color: #ffffff !important;
             font-weight: 700 !important;
         }
+
         .edit-details-btn {
             background-color: rgba(249, 115, 22, 0.8) !important;
             color: #ffffff !important;
             font-weight: 600 !important;
             border: 1px solid rgba(249, 115, 22, 0.5) !important;
         }
+
         .edit-details-btn:hover {
             background-color: rgba(234, 88, 12, 0.9) !important;
         }
@@ -152,17 +241,17 @@
             border: 1px solid rgba(63, 63, 70, 0.3);
             transition: all 0.2s;
         }
-        
+
         .filter-btn.active {
             background-color: rgb(234, 88, 12);
             color: white;
             border-color: rgb(234, 88, 12);
         }
-        
+
         .filter-btn:hover {
             background-color: rgba(82, 82, 91, 0.5);
         }
-        
+
         /* Loading spinner */
         .spinner {
             border: 2px solid rgba(255, 255, 255, 0.3);
@@ -172,10 +261,46 @@
             height: 20px;
             animation: spin 1s linear infinite;
         }
-        
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Ordering Status Banner */
+        #orderingStatusBanner {
+            background-color: #fff3cd;
+            color: #856404;
+            border-bottom: 1px solid #ffeeba;
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: 500;
+            position: relative;
+            z-index: 50;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            display: none;
+            /* Hidden by default */
+        }
+
+        #orderingStatusBanner.status-open {
+            background-color: #d4edda;
+            color: #155724;
+            border-bottom-color: #c3e6cb;
+        }
+
+        #orderingStatusBanner.status-closed {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-bottom-color: #f5c6cb;
+        }
+
+        #orderingStatusBanner .banner-icon {
+            margin-right: 8px;
         }
 
         /* Order history and modal styles */
@@ -201,11 +326,30 @@
             font-weight: 500;
         }
 
-        .status-pending { background-color: rgba(234, 179, 8, 0.2); color: rgb(234, 179, 8); }
-        .status-confirmed { background-color: rgba(34, 197, 94, 0.2); color: rgb(34, 197, 94); }
-        .status-processing { background-color: rgba(59, 130, 246, 0.2); color: rgb(59, 130, 246); }
-        .status-delivered { background-color: rgba(16, 185, 129, 0.2); color: rgb(16, 185, 129); }
-        .status-cancelled { background-color: rgba(239, 68, 68, 0.2); color: rgb(239, 68, 68); }
+        .status-pending {
+            background-color: rgba(234, 179, 8, 0.2);
+            color: rgb(234, 179, 8);
+        }
+
+        .status-confirmed {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: rgb(34, 197, 94);
+        }
+
+        .status-processing {
+            background-color: rgba(59, 130, 246, 0.2);
+            color: rgb(59, 130, 246);
+        }
+
+        .status-delivered {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: rgb(16, 185, 129);
+        }
+
+        .status-cancelled {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: rgb(239, 68, 68);
+        }
 
         /* Modal overlay for order details */
         .modal-overlay {
@@ -223,7 +367,7 @@
         }
 
         .modal-content {
-            background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8));
+            background: linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.8));
             border: 1px solid rgba(63, 63, 70, 0.5);
             border-radius: 1rem;
             max-width: 600px;
@@ -271,22 +415,25 @@
         .customer-section {
             display: none;
         }
+
         .customer-section.active {
             display: block !important;
         }
-        
+
         /* Auth form styling */
         .auth-tab {
             transition: all 0.2s;
         }
+
         .auth-tab:not(.active) {
             background: none;
             color: rgb(161, 161, 170);
         }
+
         .auth-tab:not(.active):hover {
             background-color: rgba(63, 63, 70, 0.5);
         }
-        
+
         .form-message {
             margin-top: 1rem;
             padding: 0.75rem;
@@ -294,30 +441,36 @@
             text-align: center;
             font-size: 0.875rem;
         }
+
         .form-message.success {
             background-color: rgba(34, 197, 94, 0.2);
             color: rgb(34, 197, 94);
             border: 1px solid rgba(34, 197, 94, 0.3);
         }
+
         .form-message.error {
             background-color: rgba(239, 68, 68, 0.2);
             color: rgb(239, 68, 68);
             border: 1px solid rgba(239, 68, 68, 0.3);
-}
-        
+        }
     </style>
 </head>
+
 <body class="min-h-screen text-white antialiased">
     <!-- Background Image - Beautiful Countryside Farm Scene -->
-    <div class="fixed top-0 w-full h-screen bg-cover bg-center" 
-         style="background-image: url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=2532&q=80'); z-index: -10;"></div>
+    <div class="fixed top-0 w-full h-screen bg-cover bg-center"
+        style="background-image: url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=2532&q=80'); z-index: -10;">
+    </div>
 
     <!-- Session Loading Overlay -->
-    <div id="sessionLoading" class="fixed inset-0 flex items-center justify-center" style="position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; display: flex !important; z-index: 9999 !important; background-color: rgba(0, 0, 0, 0.95) !important;">
+    <div id="sessionLoading" class="fixed inset-0 flex items-center justify-center"
+        style="position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; display: flex !important; z-index: 9999 !important; background-color: rgba(0, 0, 0, 0.95) !important;">
         <div class="text-center">
-            <div class="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                    <path d="M21 12a9 9 0 11-6.219-8.56"/>
+            <div
+                class="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                    stroke="white" stroke-width="2">
+                    <path d="M21 12a9 9 0 11-6.219-8.56" />
                 </svg>
             </div>
             <p class="text-white text-xl font-bold mb-2">Checking your session...</p>
@@ -328,11 +481,14 @@
     <!-- Authentication Section (Shows first when not authenticated) -->
     <section id="auth-section" class="customer-section active" style="display: none;">
         <div class="fixed inset-0 flex items-center justify-center z-50 overflow-y-auto py-4">
-            <div class="bg-black/50 backdrop-blur-md border border-zinc-700/30 rounded-3xl p-8 max-w-lg w-full mx-4 shadow-xl my-auto">
+            <div
+                class="bg-black/50 backdrop-blur-md border border-zinc-700/30 rounded-3xl p-8 max-w-lg w-full mx-4 shadow-xl my-auto">
                 <div class="text-center mb-8">
-                    <div class="w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white" class="w-8 h-8">
-                            <path d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z"/>
+                    <div
+                        class="w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white"
+                            class="w-8 h-8">
+                            <path d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z" />
                         </svg>
                     </div>
                     <h1 class="text-2xl font-bold text-white mb-2">🐔 Plaas Hoenders</h1>
@@ -341,12 +497,17 @@
 
                 <!-- Google Sign In (Prominent) -->
                 <div class="mb-6">
-                    <button type="button" id="googleSignInBtn" class="w-full py-4 px-6 bg-white hover:bg-gray-50 text-gray-800 font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg">
+                    <button type="button" id="googleSignInBtn"
+                        class="w-full py-4 px-6 bg-white hover:bg-gray-50 text-gray-800 font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg">
                         <svg width="20" height="20" viewBox="0 0 24 24">
-                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                            <path fill="#4285F4"
+                                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                            <path fill="#34A853"
+                                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                            <path fill="#FBBC05"
+                                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                            <path fill="#EA4335"
+                                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                         </svg>
                         Continue with Google
                     </button>
@@ -363,8 +524,11 @@
 
                 <!-- Auth Tabs -->
                 <div class="flex mb-6 bg-zinc-800/50 rounded-xl p-1">
-                    <button id="login-tab" class="auth-tab flex-1 py-2 text-center rounded-lg text-white bg-orange-500 font-medium active" onclick="showAuthForm('login')">Login</button>
-                    <button id="register-tab" class="auth-tab flex-1 py-2 text-center rounded-lg text-zinc-300" onclick="showAuthForm('register')">Register</button>
+                    <button id="login-tab"
+                        class="auth-tab flex-1 py-2 text-center rounded-lg text-white bg-orange-500 font-medium active"
+                        onclick="showAuthForm('login')">Login</button>
+                    <button id="register-tab" class="auth-tab flex-1 py-2 text-center rounded-lg text-zinc-300"
+                        onclick="showAuthForm('register')">Register</button>
                 </div>
 
                 <!-- Login Form -->
@@ -372,13 +536,16 @@
                     <form id="customerLoginForm">
                         <div class="mb-4">
                             <label class="block text-zinc-300 text-sm font-medium mb-2">Email</label>
-                            <input type="email" id="loginEmail" required class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
+                            <input type="email" id="loginEmail" required
+                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
                         </div>
                         <div class="mb-6">
                             <label class="block text-zinc-300 text-sm font-medium mb-2">Password</label>
-                            <input type="password" id="loginPassword" required class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
+                            <input type="password" id="loginPassword" required
+                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
                         </div>
-                        <button type="submit" id="loginBtn" class="w-full py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-medium transition-all">Login</button>
+                        <button type="submit" id="loginBtn"
+                            class="w-full py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-medium transition-all">Login</button>
                     </form>
                     <div id="loginMessage" class="mt-4 text-center"></div>
                 </div>
@@ -388,25 +555,31 @@
                     <form id="customerRegisterForm">
                         <div class="mb-4">
                             <label class="block text-zinc-300 text-sm font-medium mb-2">Full Name</label>
-                            <input type="text" id="registerName" required class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
+                            <input type="text" id="registerName" required
+                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
                         </div>
                         <div class="mb-4">
                             <label class="block text-zinc-300 text-sm font-medium mb-2">Email</label>
-                            <input type="email" id="registerEmail" required class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
+                            <input type="email" id="registerEmail" required
+                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
                         </div>
                         <div class="mb-4">
                             <label class="block text-zinc-300 text-sm font-medium mb-2">Phone</label>
-                            <input type="tel" id="registerPhone" class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
+                            <input type="tel" id="registerPhone"
+                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
                         </div>
                         <div class="mb-4">
                             <label class="block text-zinc-300 text-sm font-medium mb-2">Address</label>
-                            <textarea id="registerAddress" rows="2" class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500 resize-none"></textarea>
+                            <textarea id="registerAddress" rows="2"
+                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500 resize-none"></textarea>
                         </div>
                         <div class="mb-6">
                             <label class="block text-zinc-300 text-sm font-medium mb-2">Password</label>
-                            <input type="password" id="registerPassword" required class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
+                            <input type="password" id="registerPassword" required
+                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500">
                         </div>
-                        <button type="submit" id="registerBtn" class="w-full py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-medium transition-all">Register</button>
+                        <button type="submit" id="registerBtn"
+                            class="w-full py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-medium transition-all">Register</button>
                     </form>
                     <div id="registerMessage" class="mt-4 text-center"></div>
                 </div>
@@ -415,45 +588,60 @@
     </section>
 
     <!-- Modal Overlay (Hidden until authenticated) -->
-    <div id="modal" class="fixed inset-0 flex items-start justify-center z-50 animate-fade-in overflow-y-auto py-4 px-4" style="display: none;">
+    <div id="modal" class="fixed inset-0 flex items-start justify-center z-50 animate-fade-in overflow-y-auto py-4 px-4"
+        style="display: none;">
         <!-- Modal Card -->
-        <div class="relative w-full max-w-4xl overflow-hidden opacity-0 animate-scale-in animation-delay-200 shadow-2xl border-zinc-700/30 border rounded-3xl mt-12 mr-auto mb-12 ml-auto bg-black/40 backdrop-blur-md">
-            
+        <div
+            class="relative w-full max-w-4xl overflow-hidden opacity-0 animate-scale-in animation-delay-200 shadow-2xl border-zinc-700/30 border rounded-3xl mt-12 mr-auto mb-12 ml-auto bg-black/40 backdrop-blur-md">
+
             <!-- Header Section -->
             <div class="bg-gradient-to-r from-orange-400 to-red-500 pt-6 pr-8 pb-6 pl-8">
                 <!-- Close Button -->
-                <button id="closeModal" class="absolute top-6 right-6 text-white/70 hover:text-white hover:bg-white/20 rounded-2xl p-2 transition-all duration-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
-                        <path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>
+                <button id="closeModal"
+                    class="absolute top-6 right-6 text-white/70 hover:text-white hover:bg-white/20 rounded-2xl p-2 transition-all duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="w-5 h-5">
+                        <path d="M18 6 6 18"></path>
+                        <path d="m6 6 12 12"></path>
                     </svg>
                 </button>
 
                 <div class="modal-header-content opacity-0 animate-slide-up animation-delay-300">
                     <!-- Brand Logo -->
-                    <div class="flex w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white" class="w-6 h-6">
-                            <path d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z"/>
+                    <div
+                        class="flex w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white"
+                            class="w-6 h-6">
+                            <path d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z" />
                         </svg>
                     </div>
 
                     <div>
                         <div class="flex items-center gap-2 mb-1 justify-center">
-                            <span class="text-xs uppercase tracking-wider text-white/80 font-medium">Plaas Hoenders</span>
-                            <span class="px-2 py-0.5 bg-white/20 text-white text-xs rounded-xl border border-white/30">Fresh</span>
+                            <span class="text-xs uppercase tracking-wider text-white/80 font-medium">Plaas
+                                Hoenders</span>
+                            <span
+                                class="px-2 py-0.5 bg-white/20 text-white text-xs rounded-xl border border-white/30">Fresh</span>
                         </div>
-                        <h1 class="text-2xl lg:text-3xl text-white font-bold tracking-tighter text-center">Bestel Vars Hoenders</h1>
+                        <h1 class="text-2xl lg:text-3xl text-white font-bold tracking-tighter text-center">Bestel Vars
+                            Hoenders</h1>
                     </div>
 
                     <!-- Cart Icon with Badge -->
                     <div class="cart-icon-wrapper">
-                        <button id="cartToggle" class="flex items-center justify-center w-12 h-12 bg-zinc-800/50 hover:bg-zinc-700/50 rounded-xl border border-zinc-700/30 transition-all duration-200">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-zinc-300">
+                        <button id="cartToggle"
+                            class="flex items-center justify-center w-12 h-12 bg-zinc-800/50 hover:bg-zinc-700/50 rounded-xl border border-zinc-700/30 transition-all duration-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" class="w-6 h-6 text-zinc-300">
                                 <path d="M3 3h2l.4 2M7 13h10l4-8H5.4m.6 8L4 6H2"></path>
                                 <circle cx="9" cy="22" r="1"></circle>
                                 <circle cx="20" cy="22" r="1"></circle>
                             </svg>
                             <!-- Cart Badge -->
-                            <span id="cartBadge" class="absolute -top-2 -right-2 flex items-center justify-center w-6 h-6 bg-orange-500 text-white text-xs font-bold rounded-full border-2 border-black/20 min-w-6 transition-all duration-300 opacity-0 scale-0">0</span>
+                            <span id="cartBadge"
+                                class="absolute -top-2 -right-2 flex items-center justify-center w-6 h-6 bg-orange-500 text-white text-xs font-bold rounded-full border-2 border-black/20 min-w-6 transition-all duration-300 opacity-0 scale-0">0</span>
                         </button>
                     </div>
                 </div>
@@ -464,25 +652,29 @@
                 <div class="flex opacity-0 animate-slide-up animation-delay-400 mb-6 items-center justify-center">
                     <div class="flex items-center gap-3">
                         <!-- Step 1 -->
-                        <div id="step-indicator-1" class="flex items-center justify-center w-8 h-8 bg-orange-500 rounded-full border border-orange-400">
+                        <div id="step-indicator-1"
+                            class="flex items-center justify-center w-8 h-8 bg-orange-500 rounded-full border border-orange-400">
                             <span class="text-sm font-medium text-white">1</span>
                         </div>
                         <div class="w-8 h-0.5 bg-gray-300" id="progress-1"></div>
-                        
+
                         <!-- Step 2 -->
-                        <div id="step-indicator-2" class="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full border border-gray-300">
+                        <div id="step-indicator-2"
+                            class="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full border border-gray-300">
                             <span class="text-sm font-medium text-gray-600">2</span>
                         </div>
                         <div class="w-8 h-0.5 bg-gray-300" id="progress-2"></div>
-                        
+
                         <!-- Step 3 -->
-                        <div id="step-indicator-3" class="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full border border-gray-300">
+                        <div id="step-indicator-3"
+                            class="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full border border-gray-300">
                             <span class="text-sm font-medium text-gray-600">3</span>
                         </div>
                         <div class="w-8 h-0.5 bg-gray-300" id="progress-3"></div>
-                        
+
                         <!-- Step 4 -->
-                        <div id="step-indicator-4" class="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full border border-gray-300">
+                        <div id="step-indicator-4"
+                            class="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full border border-gray-300">
                             <span class="text-sm font-medium text-gray-600">4</span>
                         </div>
                     </div>
@@ -491,13 +683,16 @@
 
             <!-- Main Content - Scrollable -->
             <div class="max-h-[70vh] overflow-y-auto pb-8 px-8">
-                
+
                 <!-- Step 1: Customer Details Confirmation -->
                 <div id="step-1" class="step-content active">
                     <div class="opacity-0 animate-slide-right animation-delay-500">
                         <div class="text-center mb-8">
-                            <div class="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 text-orange-400">
+                            <div
+                                class="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="w-8 h-8 text-orange-400">
                                     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
                                     <circle cx="9" cy="7" r="4"></circle>
                                     <path d="m22 2-5 10-3-3-2 3"></path>
@@ -509,10 +704,10 @@
 
                         <!-- Customer Details Display/Edit -->
                         <div class="max-w-md mx-auto">
-                            
+
                             <!-- Validation Message -->
                             <div id="validationMessage" class="validation-message hidden mb-4"></div>
-                            
+
                             <!-- Display Mode (Default) -->
                             <div id="detailsDisplay" class="space-y-4 mb-6 customer-details-section">
                                 <div class="bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6">
@@ -528,29 +723,36 @@
                                         <div class="field-validation-error" id="phoneError"></div>
                                         <div class="flex justify-between items-start">
                                             <span class="text-sm font-medium text-zinc-400">Aflewering</span>
-                                            <span class="text-white font-medium text-right max-w-[200px]" id="displayAddress">123 Main Street, Pretoria, 0001</span>
+                                            <span class="text-white font-medium text-right max-w-[200px]"
+                                                id="displayAddress">123 Main Street, Pretoria, 0001</span>
                                         </div>
                                         <div class="field-validation-error" id="addressError"></div>
                                         <div class="flex justify-between items-center">
                                             <span class="text-sm font-medium text-zinc-400">Email</span>
-                                            <span class="text-white font-medium" id="displayEmail">jean.dreyer@email.com</span>
+                                            <span class="text-white font-medium"
+                                                id="displayEmail">jean.dreyer@email.com</span>
                                         </div>
                                     </div>
-                                    
-                                    <button id="editDetailsBtn" class="w-full mt-4 px-4 py-2 bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200 rounded-lg transition-all duration-200 text-sm font-medium edit-details-btn">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline w-4 h-4 mr-2">
+
+                                    <button id="editDetailsBtn"
+                                        class="w-full mt-4 px-4 py-2 bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200 rounded-lg transition-all duration-200 text-sm font-medium edit-details-btn">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round" class="inline w-4 h-4 mr-2">
                                             <path d="M14.5 4L20 9.5L8 22H3v-5L14.5 4z"></path>
                                         </svg>
                                         Wysig Besonderhede
                                     </button>
                                 </div>
-                                
+
                                 <!-- Validation Overlay -->
                                 <div class="validation-overlay">
                                     <div class="validation-overlay-content">
                                         <h5>⚠️ Ontbrekende Inligting</h5>
-                                        <p>Maak asseblief seker dat al jou kontakbesonderhede ingevul is voordat jy voortgaan.</p>
-                                        <button onclick="window.customerValidator.clearValidationErrors()" class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium">
+                                        <p>Maak asseblief seker dat al jou kontakbesonderhede ingevul is voordat jy
+                                            voortgaan.</p>
+                                        <button onclick="window.customerValidator.clearValidationErrors()"
+                                            class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium">
                                             Verstaan
                                         </button>
                                     </div>
@@ -562,36 +764,51 @@
                                 <div class="bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6">
                                     <div class="space-y-4">
                                         <div>
-                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Volle Naam</label>
-                                            <input type="text" id="customerName" class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all" readonly>
+                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Volle
+                                                Naam</label>
+                                            <input type="text" id="customerName"
+                                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all"
+                                                readonly>
                                         </div>
 
                                         <div>
-                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Telefoon Nommer</label>
-                                            <input type="tel" id="customerPhone" class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all">
+                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Telefoon
+                                                Nommer</label>
+                                            <input type="tel" id="customerPhone"
+                                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all">
                                         </div>
 
                                         <div>
-                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Aflewerings Adres</label>
-                                            <textarea id="customerAddress" rows="3" class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all resize-none"></textarea>
-                                        </div>
-                                        
-                                        <div>
-                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Spesiale Instruksies (Opsioneel)</label>
-                                            <textarea id="deliveryInstructions" rows="2" placeholder="Enige spesiale versoeke of instruksies vir aflewering..." class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all resize-none"></textarea>
+                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Aflewerings
+                                                Adres</label>
+                                            <textarea id="customerAddress" rows="3"
+                                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all resize-none"></textarea>
                                         </div>
 
                                         <div>
-                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Email Adres</label>
-                                            <input type="email" id="customerEmail" class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all" readonly>
+                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Spesiale
+                                                Instruksies (Opsioneel)</label>
+                                            <textarea id="deliveryInstructions" rows="2"
+                                                placeholder="Enige spesiale versoeke of instruksies vir aflewering..."
+                                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all resize-none"></textarea>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-sm font-medium text-zinc-300 mb-2">Email
+                                                Adres</label>
+                                            <input type="email" id="customerEmail"
+                                                class="w-full px-4 py-3 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 transition-all"
+                                                readonly>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="flex gap-3 mt-4">
-                                        <button id="cancelEditBtn" class="flex-1 px-4 py-2 bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200 rounded-lg transition-all duration-200 text-sm font-medium">
+                                        <button id="cancelEditBtn"
+                                            class="flex-1 px-4 py-2 bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200 rounded-lg transition-all duration-200 text-sm font-medium">
                                             Kanselleer
                                         </button>
-                                        <button id="saveChangesBtn" class="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-all duration-200 text-sm font-medium">
+                                        <button id="saveChangesBtn"
+                                            class="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-all duration-200 text-sm font-medium">
                                             Stoor Veranderinge
                                         </button>
                                     </div>
@@ -601,10 +818,15 @@
                             <!-- Last Order section removed for testing - will be implemented later with real data -->
 
                             <!-- Continue Button -->
-                            <button id="confirmDetails" class="w-full inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium group confirm-details-btn">
+                            <button id="confirmDetails"
+                                class="w-full inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium group confirm-details-btn">
                                 Besonderhede is Korrek - Gaan Verder
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 group-hover:translate-x-1 transition-transform">
-                                    <path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    class="w-4 h-4 group-hover:translate-x-1 transition-transform">
+                                    <path d="M5 12h14"></path>
+                                    <path d="m12 5 7 7-7 7"></path>
                                 </svg>
                             </button>
                         </div>
@@ -614,8 +836,9 @@
                 <!-- Step 2: Product Selection -->
                 <div id="step-2" class="step-content relative">
                     <!-- Background for product section -->
-                    <div class="absolute inset-0 bg-cover bg-center opacity-30 rounded-2xl" 
-                         style="background-image: url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=2532&q=80'); z-index: -1;"></div>
+                    <div class="absolute inset-0 bg-cover bg-center opacity-30 rounded-2xl"
+                        style="background-image: url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=2532&q=80'); z-index: -1;">
+                    </div>
                     <div class="opacity-0 animate-slide-right animation-delay-500 relative z-10">
                         <div class="text-center mb-8">
                             <h2 class="text-xl font-semibold mb-2 text-white">Kies Jou Produkte</h2>
@@ -644,15 +867,19 @@
                                     <span class="text-white">Provisionele Totaal:</span>
                                     <span class="text-orange-400" id="cartTotal">R0.00</span>
                                 </div>
-                                <p class="text-sm text-zinc-200 mt-2 font-medium">*Finale bedrag sal bereken word op werklike gewigte van plaas slaghuis</p>
+                                <p class="text-sm text-zinc-200 mt-2 font-medium">*Finale bedrag sal bereken word op
+                                    werklike gewigte van plaas slaghuis</p>
                             </div>
                         </div>
 
                         <div class="flex gap-4 mt-6">
-                            <button id="backToStep1" class="flex-1 px-6 py-4 rounded-xl bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-100 transition-all duration-200 font-medium">
+                            <button id="backToStep1"
+                                class="flex-1 px-6 py-4 rounded-xl bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-100 transition-all duration-200 font-medium">
                                 Terug
                             </button>
-                            <button id="proceedToReview" class="flex-1 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <button id="proceedToReview"
+                                class="flex-1 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled>
                                 Gaan Verder na Hersiening
                             </button>
                         </div>
@@ -669,29 +896,29 @@
 
                         <div class="space-y-6">
                             <!-- Client Details - Simple Display -->
-                                <div class="p-6 bg-zinc-800/30 rounded-xl border border-zinc-700/30">
-                                    <h3 class="text-lg font-semibold text-white mb-4">Your Details</h3>
-                                    <div class="space-y-3 text-sm">
-                                        <div class="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <p class="text-zinc-400">Name:</p>
-                                                <p class="text-white" id="reviewCustomerName">-</p>
-                                            </div>
-                                            <div>
-                                                <p class="text-zinc-400">Phone:</p>
-                                                <p class="text-white" id="reviewCustomerPhone">-</p>
-                                            </div>
+                            <div class="p-6 bg-zinc-800/30 rounded-xl border border-zinc-700/30">
+                                <h3 class="text-lg font-semibold text-white mb-4">Your Details</h3>
+                                <div class="space-y-3 text-sm">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p class="text-zinc-400">Name:</p>
+                                            <p class="text-white" id="reviewCustomerName">-</p>
                                         </div>
                                         <div>
-                                            <p class="text-zinc-400">Delivery Address:</p>
-                                            <p class="text-white" id="reviewCustomerAddress">-</p>
-                                        </div>
-                                        <div>
-                                            <p class="text-zinc-400">Email:</p>
-                                            <p class="text-white" id="reviewCustomerEmail">-</p>
+                                            <p class="text-zinc-400">Phone:</p>
+                                            <p class="text-white" id="reviewCustomerPhone">-</p>
                                         </div>
                                     </div>
+                                    <div>
+                                        <p class="text-zinc-400">Delivery Address:</p>
+                                        <p class="text-white" id="reviewCustomerAddress">-</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-zinc-400">Email:</p>
+                                        <p class="text-white" id="reviewCustomerEmail">-</p>
+                                    </div>
                                 </div>
+                            </div>
 
                             <!-- Order Items Summary -->
                             <div class="p-6 bg-zinc-800/30 rounded-xl border border-zinc-700/30">
@@ -705,7 +932,8 @@
                                         <span class="text-orange-400" id="finalTotal">R0.00</span>
                                     </div>
                                     <p class="text-sm text-zinc-200 mt-2 font-medium">
-                                        *Dit is 'n voorlopige bestelling. Finale pryse sal bereken word op werklike gewigte
+                                        *Dit is 'n voorlopige bestelling. Finale pryse sal bereken word op werklike
+                                        gewigte
                                         wanneer jou bestelling verwerk en geweeg word by die plaas slaghuis.
                                     </p>
                                 </div>
@@ -713,10 +941,12 @@
                         </div>
 
                         <div class="flex gap-4 mt-6">
-                            <button id="backToProducts" class="flex-1 px-6 py-4 rounded-xl bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-100 transition-all duration-200 font-medium">
+                            <button id="backToProducts"
+                                class="flex-1 px-6 py-4 rounded-xl bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-100 transition-all duration-200 font-medium">
                                 Terug na Produkte
                             </button>
-                            <button id="placeOrder" class="flex-1 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium">
+                            <button id="placeOrder"
+                                class="flex-1 px-6 py-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 font-medium">
                                 Plaas Bestelling
                             </button>
                         </div>
@@ -727,19 +957,24 @@
                 <div id="step-4" class="step-content">
                     <div class="opacity-0 animate-scale-in animation-delay-500">
                         <div class="text-center">
-                            <div class="w-20 h-20 flex items-center justify-center rounded-full bg-orange-500/20 mx-auto mb-6 border border-orange-500/30">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-10 h-10 text-orange-400">
+                            <div
+                                class="w-20 h-20 flex items-center justify-center rounded-full bg-orange-500/20 mx-auto mb-6 border border-orange-500/30">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="w-10 h-10 text-orange-400">
                                     <path d="M21.801 10A10 10 0 1 1 17 3.335"></path>
                                     <path d="m9 11 3 3L22 4"></path>
                                 </svg>
                             </div>
-                            
+
                             <h3 class="text-2xl mb-3 text-white tracking-tighter">Bestelling Ontvang!</h3>
                             <p class="text-zinc-300 mb-2">Jou bestelling is suksesvol geplaas</p>
-                            <p class="text-zinc-500 text-sm mb-6">Bestelling nommer: <span id="orderNumber" class="text-orange-400 font-mono">#ORD-XXXX</span></p>
+                            <p class="text-zinc-500 text-sm mb-6">Bestelling nommer: <span id="orderNumber"
+                                    class="text-orange-400 font-mono">#ORD-XXXX</span></p>
 
                             <!-- Order Summary Section -->
-                            <div class="bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 mb-6 text-left" id="confirmationOrderSummary" style="display: none;">
+                            <div class="bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 mb-6 text-left"
+                                id="confirmationOrderSummary" style="display: none;">
                                 <h4 class="font-semibold text-white mb-4">📋 Jou Bestelling</h4>
                                 <div id="confirmationOrderItems" class="space-y-2 mb-4">
                                     <!-- Order items will be populated here -->
@@ -747,7 +982,8 @@
                                 <div class="border-t border-zinc-700 pt-3">
                                     <div class="flex justify-between items-center">
                                         <span class="text-zinc-300">Totaal:</span>
-                                        <span id="confirmationTotal" class="text-xl font-bold text-orange-400">R0.00</span>
+                                        <span id="confirmationTotal"
+                                            class="text-xl font-bold text-orange-400">R0.00</span>
                                     </div>
                                 </div>
                             </div>
@@ -756,16 +992,19 @@
                                 <h4 class="font-semibold text-white mb-3">Wat gebeur volgende?</h4>
                                 <div class="space-y-3 text-sm text-zinc-300">
                                     <div class="flex gap-3">
-                                        <div class="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <div
+                                            class="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                                             <span class="text-orange-400 text-xs font-bold">1</span>
                                         </div>
                                         <div>
                                             <p class="font-medium">Jou bestelling is gestuur na die plaas slaghuis</p>
-                                            <p class="text-zinc-500 text-xs">Hulle sal jou hoenders voorberei en weeg</p>
+                                            <p class="text-zinc-500 text-xs">Hulle sal jou hoenders voorberei en weeg
+                                            </p>
                                         </div>
                                     </div>
                                     <div class="flex gap-3">
-                                        <div class="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <div
+                                            class="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0 mt-0.5">
                                             <span class="text-zinc-400 text-xs font-bold">2</span>
                                         </div>
                                         <div>
@@ -774,7 +1013,8 @@
                                         </div>
                                     </div>
                                     <div class="flex gap-3">
-                                        <div class="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <div
+                                            class="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0 mt-0.5">
                                             <span class="text-zinc-400 text-xs font-bold">3</span>
                                         </div>
                                         <div>
@@ -784,18 +1024,27 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="flex flex-col gap-3 max-w-sm mx-auto">
-                                <button id="newOrder" class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl transition-all duration-200 font-medium">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
-                                        <path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path>
+                                <button id="newOrder"
+                                    class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl transition-all duration-200 font-medium">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" class="w-4 h-4">
+                                        <path d="M5 12h14"></path>
+                                        <path d="m12 5 7 7-7 7"></path>
                                     </svg>
                                     Plaas Nuwe Bestelling
                                 </button>
-                                <button id="closePortal" class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-100 rounded-xl transition-all duration-200 font-medium">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                                <button id="closePortal"
+                                    class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-100 rounded-xl transition-all duration-200 font-medium">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" class="w-4 h-4">
                                         <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path>
-                                        <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                        <path
+                                            d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z">
+                                        </path>
                                     </svg>
                                     Sluit
                                 </button>
@@ -829,21 +1078,24 @@
                                 </button>
                             </div>
                         </div>
-                        
+
                         <div class="loading-state" id="ordersLoading">
                             <div class="flex items-center justify-center py-8">
                                 <div class="spinner mr-3"></div>
                                 <p class="text-zinc-400">Laai bestellings...</p>
                             </div>
                         </div>
-                        
+
                         <div class="orders-list" id="ordersList" style="display: none;">
                             <!-- Orders will be dynamically loaded here -->
                         </div>
-                        
+
                         <div class="empty-state text-center py-8" id="ordersEmpty" style="display: none;">
-                            <div class="w-16 h-16 bg-zinc-800/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 text-zinc-400">
+                            <div
+                                class="w-16 h-16 bg-zinc-800/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="w-8 h-8 text-zinc-400">
                                     <path d="M3 3h2l.4 2M7 13h10l4-8H5.4m.6 8L4 6H2"></path>
                                     <circle cx="9" cy="22" r="1"></circle>
                                     <circle cx="20" cy="22" r="1"></circle>
@@ -852,16 +1104,23 @@
                             <h3 class="text-lg font-semibold text-white mb-2">Geen bestellings nog nie</h3>
                             <p class="text-zinc-400 mb-4">Jy het nog nie enige bestellings geplaas nie</p>
                         </div>
-                        
+
                         <div class="error-state text-center py-8" id="ordersError" style="display: none;">
-                            <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 text-red-400">
-                                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            <div
+                                class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="w-8 h-8 text-red-400">
+                                    <path
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                                    </path>
                                 </svg>
                             </div>
                             <h3 class="text-lg font-semibold text-white mb-2">Kon nie bestellings laai nie</h3>
                             <p class="text-zinc-400 mb-4">Daar was 'n probleem om jou bestellings te laai</p>
-                            <button class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-all duration-200" onclick="loadOrderHistory()">
+                            <button
+                                class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-all duration-200"
+                                onclick="loadOrderHistory()">
                                 Probeer Weer
                             </button>
                         </div>
@@ -874,8 +1133,8 @@
             <div class="pr-8 pb-8 pl-8">
                 <div class="border-t border-zinc-800/30 pt-6 opacity-0 animate-fade-in animation-delay-500">
                     <p class="text-xs text-zinc-500 leading-relaxed text-center">
-                        Plaas Hoenders - Vars hoenders direk van die plaas. 
-                        Kontak ons: 079 616 7761 | 
+                        Plaas Hoenders - Vars hoenders direk van die plaas.
+                        Kontak ons: 079 616 7761 |
                         <span class="text-zinc-300">Adriaan Bester</span>
                     </p>
                 </div>
@@ -934,4 +1193,5 @@
     <script src="customer-validation.js"></script>
     <script src="customer.js"></script>
 </body>
+
 </html>

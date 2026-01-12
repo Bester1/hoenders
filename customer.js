@@ -1628,6 +1628,27 @@ function showCustomerPortal() {
     // Navigate to dashboard by default
     navigateToSection('dashboard');
     updateAuthUI();
+
+    // Check ordering status and show banner
+    if (typeof getOrderingStatus === 'function') {
+        const status = getOrderingStatus();
+        console.log('📅 Ordering Status:', status);
+
+        const banner = document.getElementById('orderingStatusBanner');
+        const bannerText = document.getElementById('orderingStatusText');
+
+        if (banner && bannerText) {
+            banner.style.display = 'block';
+            bannerText.textContent = status.message;
+            banner.className = status.isOpen ? 'status-open' : 'status-closed';
+
+            // Add status icon
+            const icon = banner.querySelector('.banner-icon');
+            if (icon) {
+                icon.className = status.isOpen ? 'fas fa-check-circle banner-icon' : 'fas fa-lock banner-icon';
+            }
+        }
+    }
 }
 
 /**
@@ -1741,6 +1762,15 @@ function setupBeautifulPortalEventListeners() {
     const placeOrder = document.getElementById('placeOrder');
     if (placeOrder) {
         placeOrder.addEventListener('click', async (e) => {
+            // Check ordering status first
+            if (typeof getOrderingStatus === 'function') {
+                const status = getOrderingStatus();
+                if (!status.isOpen) {
+                    alert('Ordering is currently closed. ' + status.message);
+                    return;
+                }
+            }
+
             // Prevent multiple clicks
             if (placeOrder.disabled) {
                 return;
@@ -1951,6 +1981,11 @@ function populateAllProducts() {
                 const productCard = document.createElement('div');
                 productCard.className = 'bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
 
+                const status = typeof getOrderingStatus === 'function' ? getOrderingStatus() : { isOpen: true };
+                const disabledAttr = status.isOpen ? '' : 'disabled';
+                const opacityClass = status.isOpen ? '' : 'opacity-50 cursor-not-allowed';
+                const buttonClass = `w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all ${opacityClass}`;
+
                 productCard.innerHTML = `
                         <div class="mb-4">
                             <h4 class="text-lg font-semibold text-white mb-2">${displayInfo.displayName}</h4>
@@ -1966,13 +2001,13 @@ function populateAllProducts() {
                         
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
-                                <button class="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all" onclick="updateQuantity('${productKey}', -1)">
+                                <button class="${buttonClass}" onclick="updateQuantity('${productKey}', -1)" ${disabledAttr}>
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M5 12h14"></path>
                                     </svg>
                                 </button>
-                                <input type="number" id="qty-${productKey}" min="0" max="20" value="0" class="w-16 h-8 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-center text-sm quantity-input" onchange="setQuantity('${productKey}', this.value)">
-                                <button class="w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all" onclick="updateQuantity('${productKey}', 1)">
+                                <input type="number" id="qty-${productKey}" min="0" max="20" value="0" class="w-16 h-8 bg-zinc-700/50 border border-zinc-600/50 rounded-lg text-white text-center text-sm quantity-input ${opacityClass}" onchange="setQuantity('${productKey}', this.value)" ${disabledAttr}>
+                                <button class="${buttonClass}" onclick="updateQuantity('${productKey}', 1)" ${disabledAttr}>
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M12 5v14m-7-7h14"></path>
                                     </svg>
