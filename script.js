@@ -515,8 +515,11 @@ async function saveToDatabase() {
                 analysis_history: analysisHistory
             });
 
-        return false;
-    }
+        if (settingsError) {
+            console.error('Error saving settings:', settingsError);
+            ErrorHandler.showNotification('Failed to save settings to database', 'error');
+            return false;
+        }
 
         // Save pricing/products
         // Transform pricing object into products array for DB
