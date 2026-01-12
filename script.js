@@ -8017,6 +8017,8 @@ async function handleSupplierInvoiceUpload(event) {
         return;
     }
 
+    console.log('📄 Starting PDF processing:', file.name, 'Size:', file.size, 'bytes');
+
     try {
         if (typeof showLoadingState === 'function') showLoadingState(true, 'Analyzing Supplier Invoice...');
 
@@ -8025,14 +8027,28 @@ async function handleSupplierInvoiceUpload(event) {
             throw new Error('PDF.js library not loaded');
         }
 
+        console.log('✅ PDF.js library available');
+
         const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+        console.log('📦 ArrayBuffer size:', arrayBuffer.byteLength);
+
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        console.log('📄 PDF loaded, pages:', pdf.numPages);
+
         let fullText = '';
 
         // Extract text from all pages
         for (let i = 1; i <= pdf.numPages; i++) {
+            console.log(`📃 Processing page ${i}/${pdf.numPages}...`);
             const page = await pdf.getPage(i);
             const content = await page.getTextContent();
+
+            console.log(`📃 Page ${i} has ${content.items.length} text items`);
+
+            // Log first few items for debugging
+            if (content.items.length > 0) {
+                console.log('📃 First 5 text items:', content.items.slice(0, 5).map(item => item.str));
+            }
 
             // Try to preserve layout slightly better by tracking Y position
             let lastY = -1;
@@ -8047,17 +8063,26 @@ async function handleSupplierInvoiceUpload(event) {
             fullText += pageText + '\n';
         }
 
-        console.log('Extracted PDF Text Length:', fullText.length);
+        console.log('📄 Extracted PDF Text Length:', fullText.length);
+        console.log('📄 First 500 chars of extracted text:', fullText.substring(0, 500));
+
+        // Check if PDF is likely scanned (no text extracted)
+        if (fullText.trim().length < 10) {
+            console.warn('⚠️ Very little text extracted - PDF might be scanned/image-based');
+            alert('This PDF appears to be scanned or image-based. Text could not be extracted. Please use a PDF with selectable text, or manually update prices.');
+            return;
+        }
 
         pendingPricingUpdates = extractPricingFromText(fullText);
 
         if (pendingPricingUpdates.length === 0) {
-            alert('No matching products found in this invoice. Ensure product names match database names.');
+            console.warn('⚠️ No products matched. Products in DB:', products.map(p => p.name));
+            alert('No matching products found in this invoice. Make sure product names in the PDF match your database product names.');
         } else {
             showPricingUpdateModal(pendingPricingUpdates);
         }
     } catch (error) {
-        console.error('Error parsing supplier invoice:', error);
+        console.error('❌ Error parsing supplier invoice:', error);
         alert('Failed to parse invoice: ' + error.message);
     } finally {
         if (typeof showLoadingState === 'function') showLoadingState(false);
