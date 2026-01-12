@@ -524,63 +524,63 @@ async function saveToDatabase() {
         // Save pricing/products
         // Transform pricing object into products array for DB
         const productsToSave = Object.entries(pricing).map(([name, details]) => ({
-        name: name,
-        cost_price: details.cost,
-        selling_price: details.selling,
-        packaging: details.packaging,
-        unit: details.unit || 'per kg',
-        active: true,
-        // Use existing ID if available, otherwise let Supabase generate one or use a placeholder
-        ...(details.id ? { id: details.id } : {})
-    }));
+            name: name,
+            cost_price: details.cost,
+            selling_price: details.selling,
+            packaging: details.packaging,
+            unit: details.unit || 'per kg',
+            active: true,
+            // Use existing ID if available, otherwise let Supabase generate one or use a placeholder
+            ...(details.id ? { id: details.id } : {})
+        }));
 
-    // We need to handle updates carefully - loop through and upsert
-    // Ideally we would do a bulk upsert, but we need to match by name if ID is missing
-    for (const product of productsToSave) {
-        // First try to find existing product by name to get its ID if we don't have it
-        if (!product.id) {
-            const { data: existing } = await supabaseClient
-                .from('products')
-                .select('id')
-                .eq('name', product.name)
-                .single();
-
-            if (existing) {
-                product.id = existing.id;
-            }
-        }
-
-        const { error: productError } = await supabaseClient
-            .from('products')
-            .upsert(product, { onConflict: 'id' }); // If we have ID, upsert by ID. If not, it will insert (and generate ID)
-
-        if (productError) {
-            // If conflict by name (because we didn't find ID but name exists and is unique constraint)
-            if (productError.code === '23505') { // Unique violation
-                const { error: retryError } = await supabaseClient
+        // We need to handle updates carefully - loop through and upsert
+        // Ideally we would do a bulk upsert, but we need to match by name if ID is missing
+        for (const product of productsToSave) {
+            // First try to find existing product by name to get its ID if we don't have it
+            if (!product.id) {
+                const { data: existing } = await supabaseClient
                     .from('products')
-                    .update(product)
-                    .eq('name', product.name);
+                    .select('id')
+                    .eq('name', product.name)
+                    .single();
 
-                if (retryError) console.error(`Failed to update duplicate product ${product.name}:`, retryError);
-            } else {
-                console.error(`Error saving product ${product.name}:`, productError);
+                if (existing) {
+                    product.id = existing.id;
+                }
+            }
+
+            const { error: productError } = await supabaseClient
+                .from('products')
+                .upsert(product, { onConflict: 'id' }); // If we have ID, upsert by ID. If not, it will insert (and generate ID)
+
+            if (productError) {
+                // If conflict by name (because we didn't find ID but name exists and is unique constraint)
+                if (productError.code === '23505') { // Unique violation
+                    const { error: retryError } = await supabaseClient
+                        .from('products')
+                        .update(product)
+                        .eq('name', product.name);
+
+                    if (retryError) console.error(`Failed to update duplicate product ${product.name}:`, retryError);
+                } else {
+                    console.error(`Error saving product ${product.name}:`, productError);
+                }
             }
         }
-    }
 
-    console.log('Data saved to Supabase successfully');
-    return true;
-} catch (error) {
-    console.error('Database save error:', error);
-    ErrorHandler.showNotification('Database connection error. Data saved locally only.', 'error');
-    // Fallback to localStorage
-    localStorage.setItem('plaasHoendersImports', JSON.stringify(imports));
-    localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
-    localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
-    localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
-    return false;
-}
+        console.log('Data saved to Supabase successfully');
+        return true;
+    } catch (error) {
+        console.error('Database save error:', error);
+        ErrorHandler.showNotification('Database connection error. Data saved locally only.', 'error');
+        // Fallback to localStorage
+        localStorage.setItem('plaasHoendersImports', JSON.stringify(imports));
+        localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
+        localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
+        localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
+        return false;
+    }
 }
 
 async function loadFromDatabase() {
@@ -3098,7 +3098,6 @@ async function resetToDefaultPricing() {
             ErrorHandler.showNotification('Pricing reset locally but failed to save to database', 'warning');
         }
     }
-}
 }
 
 async function retryEmail(emailId) {
