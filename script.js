@@ -133,28 +133,27 @@ let pricing = {};
 let products = [];
 
 // Fallback pricing for initial load / offline mode (Optional, but good for safety)
-const DEFAULT_PRICING = {
-    'HEEL HOENDER': { cost: 59.00, selling: 67.00, packaging: '± 1.8 - 2.5kg' },
-    'PLAT HOENDER (FLATTY\'S)': { cost: 72.00, selling: 82.00, packaging: 'VAKUUM VERPAK - ± 2 +kg' },
-    'BRAAIPAKKE': { cost: 65.00, selling: 74.00, packaging: '1 heel hoender opgesny VAKUUM VERPAK - ± 2kg+' },
-    'HEEL HALWE HOENDERS': { cost: 60.00, selling: 68.00, packaging: 'Heel hoender deurgesny ± 900g - 1.2kg' },
-    'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)': { cost: 64.00, selling: 73.00, packaging: '2 in pak ± 300g p 1 stuk' },
-    'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)': { cost: 64.00, selling: 73.00, packaging: '4 in pak ± 300g p 1 stuk' },
-    'VLERKIES': { cost: 79.00, selling: 90.00, packaging: '8 in pak - ± 700g - 900g VAKUUM VERPAK' },
-    'BOUDE EN DYE': { cost: 71.00, selling: 81.00, packaging: '2 boude en 2 dye in pak ± 700g - 900g' },
-    'GUNS Boud en dy aanmekaar': { cost: 73.00, selling: 83.00, packaging: '3 in pak - ± 1kg - 1.2kg VAKUUM VERPAK' },
-    'LEWER': { cost: 30.00, selling: 35.00, packaging: 'In 500g bakkies verpak' },
-    'MAGIES': { cost: 35.00, selling: 40.00, packaging: 'In 500g sakkies verpak NIE ALTYD BESKIKBAAR NIE' },
-    'NEKKIES': { cost: 27.00, selling: 32.00, packaging: 'In 500g sakkies verpak' },
-    'FILETTE (sonder vel)': { cost: 88.50, selling: 102.00, packaging: '4 filette per pak - ± 900g - 1.1kg VAKUUM VERPAK' },
-    'STRIPS': { cost: 89.50, selling: 103.00, packaging: '± 500g per pak VAKUUM VERPAK' },
-    'ONTBEENDE HOENDER': { cost: 115.00, selling: 130.00, packaging: 'VAKUUM VERPAK - ± 1kg - 1.2kg' },
-    'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 169.00, selling: 195.00, packaging: 'Opsie 1: Groenvye, feta, cheddar, sweet chilli - ± 1.7kg - 2kg', unit: 'per kg' },
-    'GEVULDE HOENDER ROLLE OPSIE 2': { cost: 169.00, selling: 195.00, packaging: 'Opsie 2: Peppadew, mozzarella, cheddar, pynappel - ± 1.7kg - 2kg', unit: 'per kg' },
-    'INGELEGDE GROEN VYE': { cost: 65.00, selling: 85.00, packaging: '375ml potjie', unit: 'per potjie' },
-    'HOENDER PATTIES': { cost: 105.00, selling: 120.00, packaging: '4 in pak (120-140g per patty)', unit: 'per kg' },
-    'HOENDER KAASWORS': { cost: 150.00, selling: 165.00, packaging: '± 500g VAKUUM VERPAK', unit: 'per kg' },
-    'SUIWER HEUNING': { cost: 60.00, selling: 70.00, packaging: '500g potjie', unit: 'per potjie' }
+'HEEL HOENDER': { cost: 59.00, selling: 69.00, packaging: '± 1.8 - 2.5kg' },
+'PLAT HOENDER (FLATTY\'S)': { cost: 72.00, selling: 82.00, packaging: 'VAKUUM VERPAK - ± 2 +kg' },
+'BRAAIPAKKE': { cost: 65.00, selling: 74.00, packaging: '1 heel hoender opgesny VAKUUM VERPAK - ± 2kg+' },
+'HEEL HALWE HOENDERS': { cost: 60.00, selling: 68.00, packaging: 'Heel hoender deurgesny ± 900g - 1.2kg' },
+'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)': { cost: 64.00, selling: 73.00, packaging: '2 in pak ± 300g p 1 stuk' },
+'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)': { cost: 64.00, selling: 73.00, packaging: '4 in pak ± 300g p 1 stuk' },
+'VLERKIES': { cost: 79.00, selling: 95.00, packaging: '8 in pak - ± 700g - 900g VAKUUM VERPAK' },
+'BOUDE EN DYE': { cost: 71.00, selling: 81.00, packaging: '2 boude en 2 dye in pak ± 700g - 900g' },
+'GUNS Boud en dy aanmekaar': { cost: 73.00, selling: 83.00, packaging: '3 in pak - ± 1kg - 1.2kg VAKUUM VERPAK' },
+'LEWER': { cost: 30.00, selling: 35.00, packaging: 'In 500g bakkies verpak' },
+'MAGIES': { cost: 35.00, selling: 40.00, packaging: 'In 500g sakkies verpak NIE ALTYD BESKIKBAAR NIE' },
+'NEKKIES': { cost: 27.00, selling: 32.00, packaging: 'In 500g sakkies verpak' },
+'FILETTE (sonder vel)': { cost: 88.50, selling: 103.00, packaging: '4 filette per pak - ± 900g - 1.1kg VAKUUM VERPAK' },
+'STRIPS': { cost: 89.50, selling: 104.00, packaging: '± 500g per pak VAKUUM VERPAK' },
+'ONTBEENDE HOENDER': { cost: 115.00, selling: 130.00, packaging: 'VAKUUM VERPAK - ± 1kg - 1.2kg' },
+'GEVULDE HOENDER ROLLE VAKUUM VERPAK': { cost: 169.00, selling: 195.00, packaging: 'Opsie 1: Groenvye, feta, cheddar, sweet chilli - ± 1.7kg - 2kg', unit: 'per kg' },
+'GEVULDE HOENDER ROLLE OPSIE 2': { cost: 169.00, selling: 195.00, packaging: 'Opsie 2: Peppadew, mozzarella, cheddar, pynappel - ± 1.7kg - 2kg', unit: 'per kg' },
+'INGELEGDE GROEN VYE': { cost: 65.00, selling: 75.00, packaging: '375ml potjie', unit: 'per potjie' },
+'HOENDER PATTIES': { cost: 105.00, selling: 120.00, packaging: '4 in pak (120-140g per patty)', unit: 'per kg' },
+'HOENDER KAASWORS': { cost: 150.00, selling: 165.00, packaging: '± 500g VAKUUM VERPAK', unit: 'per kg' },
+'SUIWER HEUNING': { cost: 60.00, selling: 70.00, packaging: '500g potjie', unit: 'per potjie' }
 };
 
 // Secure Configuration and Database Connection with Fallback
@@ -1932,7 +1931,14 @@ async function generateInvoice(orderId) {
 
                         if (productPricing) {
                             const estimatedWeight = estimateProductWeight(productName, quantity);
-                            const lineTotal = productPricing.selling * estimatedWeight;
+
+                            // Check for per-unit pricing
+                            let lineTotal;
+                            if (productPricing.unit === 'per potjie' || productPricing.unit === 'per unit' || productPricing.unit === 'per pot') {
+                                lineTotal = productPricing.selling * quantity;
+                            } else {
+                                lineTotal = productPricing.selling * estimatedWeight;
+                            }
 
                             return {
                                 product: productName,
@@ -1989,7 +1995,14 @@ async function generateInvoice(orderId) {
                 const currentPricing = pricing[product.product];
                 const unitPrice = currentPricing ? currentPricing.selling : product.unitPrice;
                 const weight = product.weight || (product.quantity * 2.0); // Default 2kg per item if not specified
-                const total = unitPrice * weight; // Recalculate with current selling price
+
+                // Calculate total based on unit type
+                let total;
+                if (currentPricing && (currentPricing.unit === 'per potjie' || currentPricing.unit === 'per unit' || currentPricing.unit === 'per pot')) {
+                    total = unitPrice * product.quantity;
+                } else {
+                    total = unitPrice * weight;
+                }
 
                 return {
                     product: product.product,
@@ -2006,7 +2019,14 @@ async function generateInvoice(orderId) {
             const currentPricing = pricing[order.product];
             const unitPrice = currentPricing ? currentPricing.selling : order.unitPrice;
             const estimatedWeight = estimateProductWeight(order.product, order.quantity);
-            const total = unitPrice * estimatedWeight; // Recalculate with current selling price
+
+            // Calculate total based on unit type
+            let total;
+            if (currentPricing && (currentPricing.unit === 'per potjie' || currentPricing.unit === 'per unit' || currentPricing.unit === 'per pot')) {
+                total = unitPrice * order.quantity;
+            } else {
+                total = unitPrice * estimatedWeight;
+            }
 
             invoiceItems = [{
                 product: order.product,
@@ -2149,7 +2169,8 @@ function loadPricingTable() {
     const tableBody = document.getElementById('pricingTableBody');
 
     const pricingHTML = Object.entries(pricing).map(([product, prices]) => {
-        const margin = Math.round(((prices.selling - prices.cost) / prices.cost) * 100);
+        // Calculate GPM (Gross Profit Margin) = (Selling - Cost) / Selling
+        const margin = prices.selling > 0 ? ((prices.selling - prices.cost) / prices.selling * 100).toFixed(2) : 0;
         return `
             <tr>
                 <td>${product}</td>
