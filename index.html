@@ -721,6 +721,10 @@ Savings/Spaar rek</textarea>
                     <button class="btn-secondary" onclick="document.getElementById('supplierInvoiceInput').click()">
                         <i class="fas fa-file-invoice-dollar"></i> Update from Invoice
                     </button>
+                    <button class="btn-warning" onclick="resetToDefaultPricing()"
+                        style="background-color: #f39c12; color: white; border: none;">
+                        <i class="fas fa-sync-alt"></i> Reset to Jan 2026 Pricing
+                    </button>
                     <input type="file" id="supplierInvoiceInput" accept=".pdf" style="display: none;"
                         onchange="handleSupplierInvoiceUpload(event)">
                 </div>

@@ -127,7 +127,7 @@ const productMapping = {
     'groen vye': 'INGELEGDE GROEN VYE'
 };
 
-// March 2025 Braaikuikens - EXACT COST and SELLING prices from supplier
+// Jan 2026 Braaikuikens - EXACT COST and SELLING prices from supplier
 // Products and Pricing (Loaded from Database)
 let pricing = {};
 let products = [];
@@ -515,24 +515,69 @@ async function saveToDatabase() {
                 analysis_history: analysisHistory
             });
 
-        if (settingsError) {
-            console.error('Error saving settings:', settingsError);
-            ErrorHandler.showNotification('Failed to save settings to database', 'error');
-            return false;
-        }
-
-        console.log('Data saved to Supabase successfully');
-        return true;
-    } catch (error) {
-        console.error('Database save error:', error);
-        ErrorHandler.showNotification('Database connection error. Data saved locally only.', 'error');
-        // Fallback to localStorage
-        localStorage.setItem('plaasHoendersImports', JSON.stringify(imports));
-        localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
-        localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
-        localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
         return false;
     }
+
+        // Save pricing/products
+        // Transform pricing object into products array for DB
+        const productsToSave = Object.entries(pricing).map(([name, details]) => ({
+        name: name,
+        cost_price: details.cost,
+        selling_price: details.selling,
+        packaging: details.packaging,
+        unit: details.unit || 'per kg',
+        active: true,
+        // Use existing ID if available, otherwise let Supabase generate one or use a placeholder
+        ...(details.id ? { id: details.id } : {})
+    }));
+
+    // We need to handle updates carefully - loop through and upsert
+    // Ideally we would do a bulk upsert, but we need to match by name if ID is missing
+    for (const product of productsToSave) {
+        // First try to find existing product by name to get its ID if we don't have it
+        if (!product.id) {
+            const { data: existing } = await supabaseClient
+                .from('products')
+                .select('id')
+                .eq('name', product.name)
+                .single();
+
+            if (existing) {
+                product.id = existing.id;
+            }
+        }
+
+        const { error: productError } = await supabaseClient
+            .from('products')
+            .upsert(product, { onConflict: 'id' }); // If we have ID, upsert by ID. If not, it will insert (and generate ID)
+
+        if (productError) {
+            // If conflict by name (because we didn't find ID but name exists and is unique constraint)
+            if (productError.code === '23505') { // Unique violation
+                const { error: retryError } = await supabaseClient
+                    .from('products')
+                    .update(product)
+                    .eq('name', product.name);
+
+                if (retryError) console.error(`Failed to update duplicate product ${product.name}:`, retryError);
+            } else {
+                console.error(`Error saving product ${product.name}:`, productError);
+            }
+        }
+    }
+
+    console.log('Data saved to Supabase successfully');
+    return true;
+} catch (error) {
+    console.error('Database save error:', error);
+    ErrorHandler.showNotification('Database connection error. Data saved locally only.', 'error');
+    // Fallback to localStorage
+    localStorage.setItem('plaasHoendersImports', JSON.stringify(imports));
+    localStorage.setItem('plaasHoendersInvoices', JSON.stringify(invoices));
+    localStorage.setItem('plaasHoendersEmailQueue', JSON.stringify(emailQueue));
+    localStorage.setItem('plaasHoendersAnalysisHistory', JSON.stringify(analysisHistory));
+    return false;
+}
 }
 
 async function loadFromDatabase() {
@@ -625,7 +670,7 @@ async function loadProducts() {
             });
         } else {
             // Fallback to DEFAULT_PRICING if no products in database
-            // This ensures the March 2025 pricing updates are available even if DB is empty
+            // This ensures the Jan 2026 pricing updates are available even if DB is empty
             console.log('⚠️ No products in database. Using DEFAULT_PRICING.');
             pricing = JSON.parse(JSON.stringify(DEFAULT_PRICING));
 
@@ -3018,6 +3063,39 @@ function removeFromQueue(emailId) {
 
     console.log(`✅ Removed email to ${emailAddress} from queue`);
     addActivity(`Removed email to ${emailAddress} from queue`);
+}
+
+async function resetToDefaultPricing() {
+    if (confirm('Are you sure you want to reset all product prices to the Standard Jan 2026 Pricing? This will overwrite any custom changes.')) {
+        console.log('🔄 Resetting to standard pricing...');
+
+        // Deep copy default pricing to avoid reference issues
+        pricing = JSON.parse(JSON.stringify(DEFAULT_PRICING));
+
+        // Update products array to match
+        products = Object.entries(pricing).map(([name, details]) => ({
+            name: name,
+            cost_price: details.cost,
+            selling_price: details.selling,
+            packaging: details.packaging,
+            unit: details.unit || 'per kg',
+            id: details.id, // Might be undefined, that's okay
+            active: true
+        }));
+
+        loadPricingTable();
+
+        // Force save to database to persist changes
+        const saved = await saveToDatabase();
+
+        if (saved) {
+            ErrorHandler.showNotification('Pricing reset to Standard Jan 2026 values', 'success');
+            addActivity('Reset pricing to standard Jan 2026 defaults');
+        } else {
+            ErrorHandler.showNotification('Pricing reset locally but failed to save to database', 'warning');
+        }
+    }
+}
 }
 
 async function retryEmail(emailId) {
