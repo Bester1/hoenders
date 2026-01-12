@@ -8132,10 +8132,9 @@ function extractPricingFromText(text) {
             }
         }
     });
-});
-console.log(`✅ Extracted ${updates.length} pricing updates`);
-console.log('🔍 First 3 updates:', JSON.stringify(updates.slice(0, 3), null, 2));
-return updates;
+    console.log(`✅ Extracted ${updates.length} pricing updates`);
+    console.log('🔍 First 3 updates:', JSON.stringify(updates.slice(0, 3), null, 2));
+    return updates;
 }
 
 function showPricingUpdateModal(updates) {
