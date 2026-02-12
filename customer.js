@@ -1752,14 +1752,6 @@ function setupBeautifulPortalEventListeners() {
     const placeOrder = document.getElementById('placeOrder');
     if (placeOrder) {
         placeOrder.addEventListener('click', async (e) => {
-            // Check ordering status first
-            if (typeof getOrderingStatus === 'function') {
-                const status = getOrderingStatus();
-                if (!status.isOpen) {
-                    alert('Ordering is currently closed. ' + status.message);
-                    return;
-                }
-            }
 
             // Prevent multiple clicks
             if (placeOrder.disabled) {
@@ -1971,10 +1963,11 @@ function populateAllProducts() {
                 const productCard = document.createElement('div');
                 productCard.className = 'bg-zinc-800/30 rounded-xl border border-zinc-700/30 p-6 hover:border-orange-500/30 transition-all duration-200';
 
-                const status = typeof getOrderingStatus === 'function' ? getOrderingStatus() : { isOpen: true };
-                const disabledAttr = status.isOpen ? '' : 'disabled';
-                const opacityClass = status.isOpen ? '' : 'opacity-50 cursor-not-allowed';
-                const buttonClass = `w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all ${opacityClass}`;
+                // Manual admin toggle controls ordering via checkOrderingStatus()
+                // Quantity inputs are always enabled - admin uses the toggle button
+                const disabledAttr = '';
+                const opacityClass = '';
+                const buttonClass = `w-8 h-8 rounded-lg bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-300 flex items-center justify-center transition-all`;
 
                 productCard.innerHTML = `
                         <div class="mb-4">
