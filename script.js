@@ -464,6 +464,18 @@ async function updateDatabaseSchema() {
         } else if (!error) {
             console.log('✅ Database schema is up to date');
         }
+
+        // Check if orders_open column exists
+        const { error: ordersError } = await supabaseClient
+            .from('settings')
+            .select('orders_open')
+            .limit(0);
+
+        if (ordersError && (ordersError.message.includes('column "orders_open" does not exist') || ordersError.code === '42703')) {
+            console.log('⚠️ orders_open column missing. Please run this SQL in Supabase SQL Editor:');
+            console.log('%c ALTER TABLE settings ADD COLUMN orders_open BOOLEAN DEFAULT true;', 'background: #f0f0f0; padding: 5px; font-family: monospace;');
+            addActivity('Database schema needs update - orders_open column missing');
+        }
     } catch (error) {
         console.log('⚠️ Could not check database schema:', error);
     }
@@ -1214,6 +1226,7 @@ CREATE TABLE imports (
 CREATE TABLE settings (
     id TEXT PRIMARY KEY,
     current_import_id TEXT,
+    orders_open BOOLEAN DEFAULT true,
     pricing JSONB DEFAULT '{}'::jsonb,
     gmail_config JSONB DEFAULT '{}'::jsonb,
     email_template TEXT,
@@ -1223,8 +1236,9 @@ CREATE TABLE settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Add email_template column to existing settings tables
+-- Add missing columns to existing settings tables
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS email_template TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS orders_open BOOLEAN DEFAULT true;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE imports ENABLE ROW LEVEL SECURITY;

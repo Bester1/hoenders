@@ -1632,25 +1632,12 @@ function showCustomerPortal() {
     navigateToSection('dashboard');
     updateAuthUI();
 
-    // Check ordering status and show banner
+    // Check ordering status - manual toggle from admin overrides date-based logic
+    // The checkOrderingStatus() function (called during init) handles the manual toggle.
+    // Only use date-based getOrderingStatus() as informational, not to block orders.
     if (typeof getOrderingStatus === 'function') {
         const status = getOrderingStatus();
-        console.log('📅 Ordering Status:', status);
-
-        const banner = document.getElementById('orderingStatusBanner');
-        const bannerText = document.getElementById('orderingStatusText');
-
-        if (banner && bannerText) {
-            banner.style.display = 'block';
-            bannerText.textContent = status.message;
-            banner.className = status.isOpen ? 'status-open' : 'status-closed';
-
-            // Add status icon
-            const icon = banner.querySelector('.banner-icon');
-            if (icon) {
-                icon.className = status.isOpen ? 'fas fa-check-circle banner-icon' : 'fas fa-lock banner-icon';
-            }
-        }
+        console.log('📅 Ordering Status (date-based info only):', status);
     }
 }
 
