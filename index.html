@@ -43,7 +43,8 @@
         <!-- Main Content -->
         <main class="main-content">
             <header class="top-bar">
-                <h1 id="page-title">Dashboard</h1>
+                <h1 id="page-title">Dashboard <span id="orderStatusBadge" class="status-badge status-open">Open</span>
+                </h1>
                 <div class="user-info">
                     <span>Welcome, Admin</span>
                     <div class="portal-links">
@@ -113,6 +114,10 @@
                             </button>
                             <button class="action-btn" onclick="exportData()">
                                 <i class="fas fa-download"></i> Export Data
+                            </button>
+                            <button id="toggleOrdersBtn" class="action-btn btn-close-orders"
+                                onclick="toggleOrdersStatus()">
+                                <i class="fas fa-door-closed"></i> <span id="toggleOrdersText">Close Orders</span>
                             </button>
                         </div>
                     </div>

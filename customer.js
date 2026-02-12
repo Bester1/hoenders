@@ -595,6 +595,9 @@ async function initializeCustomerPortal() {
             return;
         }
 
+        // Check ordering status immediately after connection is ready
+        await checkOrderingStatus();
+
         console.log('✅ Customer portal secure connection ready');
 
         // Load products from database (for dynamic pricing)
@@ -6798,5 +6801,63 @@ async function loadProductsFromDB() {
         }
     } catch (e) {
         console.error('❌ Failed to load products:', e);
+    }
+}
+// Ordering Status Control for Customer Portal
+async function checkOrderingStatus() {
+    try {
+        if (!supabaseClient) return;
+
+        const { data, error } = await supabaseClient
+            .from('settings')
+            .select('orders_open')
+            .eq('id', 'main')
+            .single();
+
+        if (error) {
+            if (error.code !== 'PGRST116') {
+                console.warn('Could not fetch ordering status:', error);
+            }
+            // If settings not found, assume open
+            updateOrderingUI(true);
+            return;
+        }
+
+        const isOpen = data && data.orders_open !== false;
+        updateOrderingUI(isOpen);
+    } catch (e) {
+        console.error('Error checking ordering status:', e);
+        updateOrderingUI(true);
+    }
+}
+
+function updateOrderingUI(isOpen) {
+    const banner = document.getElementById('orderingStatusBanner');
+    const message = document.getElementById('orderingStatusMessage');
+    const placeOrderBtn = document.getElementById('placeOrder');
+
+    if (isOpen) {
+        if (banner) banner.style.display = 'none';
+        if (placeOrderBtn) {
+            placeOrderBtn.disabled = false;
+            placeOrderBtn.title = '';
+            placeOrderBtn.style.opacity = '1';
+            // Only reset text if it was our 'Closed' message
+            if (placeOrderBtn.textContent === 'Bestelling Gesluit' || placeOrderBtn.innerText === 'Bestelling Gesluit') {
+                placeOrderBtn.textContent = 'Plaas Bestelling';
+            }
+        }
+    } else {
+        if (banner) {
+            banner.style.display = 'block';
+            banner.className = 'status-closed';
+            if (message) message.textContent = 'Bestelling is tans gesluit. Kontroleer asseblief weer later.';
+        }
+        if (placeOrderBtn) {
+            placeOrderBtn.disabled = true;
+            placeOrderBtn.title = 'Bestelling is tans gesluit';
+            placeOrderBtn.style.opacity = '0.5';
+            placeOrderBtn.textContent = 'Bestelling Gesluit';
+        }
     }
 }

@@ -492,6 +492,44 @@ body {
     color: #004085;
 }
 
+/* New Status Badges */
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-left: 10px;
+    vertical-align: middle;
+    display: inline-block;
+}
+
+.status-badge.status-open {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-badge.status-closed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Toggle Order Button Styles */
+.action-btn.btn-close-orders {
+    background-color: #dc3545;
+}
+
+.action-btn.btn-close-orders:hover {
+    background-color: #c82333;
+}
+
+.action-btn.btn-open-orders {
+    background-color: #28a745;
+}
+
+.action-btn.btn-open-orders:hover {
+    background-color: #218838;
+}
+
 /* Source badge styles */
 .source-badge {
     padding: 4px 10px;

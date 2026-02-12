@@ -1,6 +1,7 @@
 // Global variables
 let imports = {}; // Structure: { importId: { name, date, orders: [], invoices: [] } }
 let currentImportId = null;
+let ordersOpen = true;
 let invoices = []; // Global invoices across all imports
 let emailQueue = [];
 let csvData = null;
@@ -510,6 +511,7 @@ async function saveToDatabase() {
             .upsert({
                 id: 'main',
                 current_import_id: currentImportId,
+                orders_open: ordersOpen,
                 // pricing: pricing, // DON'T save pricing - always use current default
                 email_queue: emailQueue,
                 analysis_history: analysisHistory
@@ -617,10 +619,14 @@ async function loadFromDatabase() {
 
         if (settingsData) {
             currentImportId = settingsData.current_import_id;
+            ordersOpen = settingsData.orders_open !== false;
             // DON'T load pricing from database - always use current default values
             // pricing = settingsData.pricing || pricing;
             emailQueue = settingsData.email_queue || [];
             analysisHistory = settingsData.analysis_history || [];
+
+            // Update UI
+            updateOrdersStatusUI();
         }
 
         console.log('Data loaded from Supabase successfully');
@@ -848,6 +854,54 @@ function updatePortalOrdersTable(orders) {
             </tr>
         `;
     }).join('');
+}
+
+// Manual Order Status Control
+async function toggleOrdersStatus() {
+    ordersOpen = !ordersOpen;
+    console.log(`Orders status toggled: ${ordersOpen ? 'Open' : 'Closed'}`);
+
+    // Update UI
+    updateOrdersStatusUI();
+
+    // Save to database
+    await saveToDatabase();
+
+    addActivity(`Orders manually ${ordersOpen ? 'opened' : 'closed'}`);
+    ErrorHandler.showNotification(`Orders are now ${ordersOpen ? 'OPEN' : 'CLOSED'}`, ordersOpen ? 'success' : 'warning');
+}
+
+function updateOrdersStatusUI() {
+    const badge = document.getElementById('orderStatusBadge');
+    const btn = document.getElementById('toggleOrdersBtn');
+    const btnText = document.getElementById('toggleOrdersText');
+    const btnIcon = btn?.querySelector('i');
+
+    if (ordersOpen) {
+        if (badge) {
+            badge.textContent = 'Open';
+            badge.className = 'status-badge status-open';
+        }
+        if (btn) {
+            btn.className = 'action-btn btn-close-orders';
+            if (btnText) btnText.textContent = 'Close Orders';
+            if (btnIcon) {
+                btnIcon.className = 'fas fa-door-closed';
+            }
+        }
+    } else {
+        if (badge) {
+            badge.textContent = 'Closed';
+            badge.className = 'status-badge status-closed';
+        }
+        if (btn) {
+            btn.className = 'action-btn btn-open-orders';
+            if (btnText) btnText.textContent = 'Open Orders';
+            if (btnIcon) {
+                btnIcon.className = 'fas fa-door-open';
+            }
+        }
+    }
 }
 
 // Export orders to Excel for butchery
