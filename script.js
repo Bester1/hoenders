@@ -92,7 +92,7 @@ const productMapping = {
     'Ontbeende hoender R125/kg     1kg - 1.4kg': 'ONTBEENDE HOENDER',
     'Vlerkies R90/kg 8 in n pak (nie altyd beskikbaar nie)': 'VLERKIES',
     'Gevulde hoender rolle  R193/kg(Opsie 1 - Vye,Feta,Cheddar sweet chilly ,beskikbaar as daar vye is)1.2kg-1.6kg': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
-    'Gevulde hoender rolle  R193/kg (Opsie 2 - Peppadew, mozzarella, cheddar,pynappel)1.2kg-1.6kg': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+    'Gevulde hoender rolle  R193/kg (Opsie 2 - Peppadew, mozzarella, cheddar,pynappel)1.2kg-1.6kg': 'GEVULDE HOENDER ROLLE OPSIE 2',
     'Lewer - In 500 g  bakkies verpak  R31/kg': 'LEWER',
     'Nekkies - In 1  kg sakkies verpak (NIE ALTYD BESKIKBAAR ) R30/kg': 'NEKKIES',
     'INGELEGDE GROEN VYE  R75 PER POTJIE 375ml potjie': 'INGELEGDE GROEN VYE',
@@ -4693,7 +4693,8 @@ function findExistingCustomer(customerName) {
 
     // FIRST: Search through customer portal orders (most likely source)
     const portalOrders = window.customerPortalOrders || [];
-    console.log(`📱 Checking ${portalOrders.length} customer portal orders`);
+    // Collect all potential matches with match quality scores
+    const portalMatches = [];
 
     for (const order of portalOrders) {
         if (!order.name) continue;
@@ -4701,7 +4702,7 @@ function findExistingCustomer(customerName) {
         const orderName = order.name.toLowerCase().trim();
         const searchName = customerName.toLowerCase().trim();
 
-        // Try exact match first
+        // Try exact match first — return immediately, this is always safe
         if (orderName === searchName) {
             console.log(`✅ PORTAL - Exact match found: "${order.name}" === "${customerName}"`);
             return {
@@ -4712,24 +4713,71 @@ function findExistingCustomer(customerName) {
             };
         }
 
-        // Try contains match
+        // Try contains match — collect but don't return yet (could be ambiguous)
         if (orderName.includes(searchName) || searchName.includes(orderName)) {
-            console.log(`✅ PORTAL - Partial match found: "${order.name}" ~= "${customerName}"`);
-            return {
+            portalMatches.push({
                 name: order.name,
                 email: order.email,
                 phone: order.phone,
-                address: order.address
-            };
+                address: order.address,
+                matchType: 'partial'
+            });
+            continue; // Don't also check words for same order
         }
 
-        // Try matching individual words (first name, last name) - EXACT word matches only
+        // Try matching individual words — collect but don't return yet
         const orderWords = orderName.split(/\s+/);
         const searchWords = searchName.split(/\s+/);
 
         for (const searchWord of searchWords) {
             if (searchWord.length > 2 && orderWords.some(orderWord => orderWord === searchWord)) {
-                console.log(`✅ PORTAL - Exact word match found: "${order.name}" contains exact word "${searchWord}" from "${customerName}"`);
+                portalMatches.push({
+                    name: order.name,
+                    email: order.email,
+                    phone: order.phone,
+                    address: order.address,
+                    matchType: 'word',
+                    matchedWord: searchWord
+                });
+                break; // Don't add same order multiple times
+            }
+        }
+    }
+
+    // De-duplicate portal matches by email (same customer may have multiple orders)
+    const uniquePortalMatches = [];
+    const seenEmails = new Set();
+    for (const match of portalMatches) {
+        const key = (match.email || match.name).toLowerCase();
+        if (!seenEmails.has(key)) {
+            seenEmails.add(key);
+            uniquePortalMatches.push(match);
+        }
+    }
+
+    if (uniquePortalMatches.length === 1) {
+        console.log(`✅ PORTAL - Unique match: "${uniquePortalMatches[0].name}" for "${customerName}"`);
+        return uniquePortalMatches[0];
+    } else if (uniquePortalMatches.length > 1) {
+        console.warn(`⚠️ PORTAL - AMBIGUOUS: "${customerName}" matches ${uniquePortalMatches.map(m => `"${m.name}" (${m.matchType})`).join(', ')}. Returning NULL to prevent misrouting.`);
+        // Don't fall through to imports — ambiguity here means imports would also be wrong
+        return null;
+    }
+
+
+    // SECOND: Search through imported orders (fallback) with ambiguity detection
+    const importMatches = [];
+
+    for (const importData of Object.values(imports)) {
+        for (const order of importData.orders) {
+            if (!order.name) continue;
+
+            const orderName = order.name.toLowerCase().trim();
+            const searchName = customerName.toLowerCase().trim();
+
+            // Exact match — return immediately
+            if (orderName === searchName) {
+                console.log(`✅ IMPORT - Exact match found: "${order.name}" === "${customerName}"`);
                 return {
                     name: order.name,
                     email: order.email,
@@ -4737,55 +4785,44 @@ function findExistingCustomer(customerName) {
                     address: order.address
                 };
             }
-        }
-    }
 
-    // SECOND: Search through imported orders (fallback)
-    for (const importData of Object.values(imports)) {
-        console.log(`📂 Checking import: ${importData.name} (${importData.orders.length} orders)`);
-
-        const matchingOrder = importData.orders.find(order => {
-            if (!order.name) return false;
-
-            const orderName = order.name.toLowerCase().trim();
-            const searchName = customerName.toLowerCase().trim();
-
-            // Try exact match first
-            if (orderName === searchName) {
-                console.log(`✅ IMPORT - Exact match found: "${order.name}" === "${customerName}"`);
-                return true;
-            }
-
-            // Try contains match
+            // Partial/word match — collect for ambiguity check
+            let matched = false;
             if (orderName.includes(searchName) || searchName.includes(orderName)) {
-                console.log(`✅ IMPORT - Partial match found: "${order.name}" ~= "${customerName}"`);
-                return true;
-            }
-
-            // Try matching individual words (first name, last name) - EXACT word matches only
-            const orderWords = orderName.split(/\s+/);
-            const searchWords = searchName.split(/\s+/);
-
-            for (const searchWord of searchWords) {
-                if (searchWord.length > 2 && orderWords.some(orderWord => orderWord === searchWord)) {
-                    console.log(`✅ IMPORT - Exact word match found: "${order.name}" contains exact word "${searchWord}" from "${customerName}"`);
-                    return true;
+                matched = true;
+            } else {
+                const orderWords = orderName.split(/\s+/);
+                const searchWords = searchName.split(/\s+/);
+                for (const searchWord of searchWords) {
+                    if (searchWord.length > 2 && orderWords.some(ow => ow === searchWord)) {
+                        matched = true;
+                        break;
+                    }
                 }
             }
 
-            return false;
-        });
-
-        if (matchingOrder) {
-            console.log(`✅ Customer match found in imports: "${matchingOrder.name}" (${matchingOrder.email})`);
-            return {
-                name: matchingOrder.name,
-                email: matchingOrder.email,
-                phone: matchingOrder.phone,
-                address: matchingOrder.address
-            };
+            if (matched) {
+                const key = (order.email || order.name).toLowerCase();
+                if (!importMatches.some(m => (m.email || m.name).toLowerCase() === key)) {
+                    importMatches.push({
+                        name: order.name,
+                        email: order.email,
+                        phone: order.phone,
+                        address: order.address
+                    });
+                }
+            }
         }
     }
+
+    if (importMatches.length === 1) {
+        console.log(`✅ IMPORT - Unique match: "${importMatches[0].name}" for "${customerName}"`);
+        return importMatches[0];
+    } else if (importMatches.length > 1) {
+        console.warn(`⚠️ IMPORT - AMBIGUOUS: "${customerName}" matches ${importMatches.map(m => `"${m.name}"`).join(', ')}. Returning NULL.`);
+        return null;
+    }
+
 
     console.log(`❌ No existing customer found for: "${customerName}"`);
 
