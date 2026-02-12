@@ -124,7 +124,7 @@ const productMapping = {
     'kaaswors': 'HOENDER KAASWORS',
     'plat': 'PLAT HOENDER (FLATTY\'S)',
     'braaipak': 'BRAAIPAKKE',
-    'pep rol': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+    'pep rol': 'GEVULDE HOENDER ROLLE OPSIE 2',
     'groen vye': 'INGELEGDE GROEN VYE'
 };
 
@@ -7210,15 +7210,38 @@ function startCustomerDataHealthMonitoring() {
     try {
         console.log('🔍 Starting customer data health monitoring...');
 
-        // Run health check every 30 seconds
+        // Clear stale load records older than 24 hours to prevent old errors from poisoning health
+        try {
+            const recentLoadsKey = 'customerDataRecentLoads';
+            const storedData = localStorage.getItem(recentLoadsKey);
+            if (storedData) {
+                const recentLoads = JSON.parse(storedData);
+                const cutoff = Date.now() - (24 * 60 * 60 * 1000); // 24 hours ago
+                const freshLoads = recentLoads.filter(load => new Date(load.timestamp).getTime() > cutoff);
+                if (freshLoads.length !== recentLoads.length) {
+                    localStorage.setItem(recentLoadsKey, JSON.stringify(freshLoads));
+                    console.log(`🧹 Cleaned ${recentLoads.length - freshLoads.length} stale health records`);
+                }
+            }
+        } catch (e) { /* ignore cleanup errors */ }
+
+        let lastReportedStatus = null; // Only log when status changes
+
+        // Run health check every 5 minutes (was 30s — far too frequent)
         const healthCheckInterval = setInterval(async () => {
             try {
                 const health = monitorCustomerDataHealth();
-                console.log('🏥 Customer data health check:', health);
 
-                // Log critical issues
-                if (health.status === 'critical') {
-                    console.error('🚨 Critical health status detected');
+                // Only log when status changes to reduce console spam
+                if (health.status !== lastReportedStatus) {
+                    console.log('🏥 Customer data health:', health.status);
+                    lastReportedStatus = health.status;
+                }
+
+                // Log critical issues (once)
+                if (health.status === 'critical' && lastReportedStatus !== 'critical_reported') {
+                    console.warn('🚨 Critical health status detected — check customerDataRecentLoads in localStorage');
+                    lastReportedStatus = 'critical_reported';
 
                     // Auto-disable if configured
                     if (window.CustomerFeatureFlags?.config?.safety?.autoDisableOnHighErrorRate) {
@@ -7270,7 +7293,7 @@ function startCustomerDataHealthMonitoring() {
             } catch (error) {
                 console.error('❌ Error in health monitoring interval:', error);
             }
-        }, 30000); // Every 30 seconds
+        }, 300000); // Every 5 minutes (was 30s)
 
         console.log('✅ Customer data health monitoring started (30s intervals)');
 
