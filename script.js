@@ -2369,10 +2369,10 @@ function deleteInvoice(invoiceId) {
     // 3. Revert order status to pending
     const orderIdToRevert = invoice.orderId || invoice.order_id;
     if (orderIdToRevert) {
-        // Find in currentOrders
-        const currentOrder = currentOrders.find(o => o.orderId === orderIdToRevert || o.order_id === orderIdToRevert);
-        if (currentOrder) {
-            currentOrder.status = 'pending';
+        // Find in orders (manual orders)
+        const order = orders.find(o => o.orderId === orderIdToRevert || o.order_id === orderIdToRevert);
+        if (order) {
+            order.status = 'pending';
         }
 
         // Find in imports
