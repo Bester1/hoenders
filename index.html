@@ -415,7 +415,12 @@
                     <div class="portal-orders-header">
                         <div class="order-stats-cards">
                             <div class="stat-mini-card">
-                                <div class="stat-label">This Month's Orders</div>
+                                <div class="stat-label">
+                                    <select id="portalMonthFilter" class="month-filter-dropdown"
+                                        onchange="filterPortalOrdersByMonth()">
+                                        <option value="">Loading...</option>
+                                    </select>
+                                </div>
                                 <div class="stat-value" id="monthOrderCount">0</div>
                             </div>
                             <div class="stat-mini-card">

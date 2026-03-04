@@ -757,14 +757,38 @@ async function refreshPortalOrders() {
 // Update portal orders display
 function updatePortalOrdersDisplay() {
     const portalOrders = window.customerPortalOrders || [];
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
+    // 1. First, make sure the month filter dropdown is populated
+    populateMonthFilter(portalOrders);
 
-    // Filter orders for current month
-    const monthOrders = portalOrders.filter(order => {
-        const orderDate = new Date(order.date);
-        return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
-    });
+    // 2. Get the currently selected month from the dropdown
+    const monthFilter = document.getElementById('portalMonthFilter');
+    let selectedMonthStr = monthFilter ? monthFilter.value : '';
+
+    let monthOrders = [];
+
+    if (!selectedMonthStr && portalOrders.length > 0) {
+        // If nothing is selected yet, use the most recent month available
+        // Note: the dropdown is reverse sorted so option 1 is the most recent (option 0 is the "All" or default option if any)
+        if (monthFilter && monthFilter.options.length > 0) {
+            selectedMonthStr = monthFilter.options[0].value;
+            monthFilter.value = selectedMonthStr;
+        }
+    }
+
+    if (selectedMonthStr) {
+        // Filter orders for the exactly selected month
+        const [targetYear, targetMonth] = selectedMonthStr.split('-').map(Number);
+        monthOrders = portalOrders.filter(order => {
+            const orderDate = new Date(order.date);
+            return orderDate.getMonth() === targetMonth && orderDate.getFullYear() === targetYear;
+        });
+    }
+
+    // Default fallback if completely empty still somehow
+    if (monthOrders.length === 0 && portalOrders.length > 0) {
+        console.log("No orders found for selected month, displaying most recent orders instead.");
+        monthOrders = portalOrders.slice(0, 50); // Show recent orders as a fallback
+    }
 
     // Update stats
     document.getElementById('monthOrderCount').textContent = monthOrders.length;
@@ -780,6 +804,68 @@ function updatePortalOrdersDisplay() {
 
     // Set up checkbox event listeners
     setupOrderCheckboxes();
+}
+
+// Populate the month filter dropdown based on available portal orders
+function populateMonthFilter(orders) {
+    const monthFilter = document.getElementById('portalMonthFilter');
+    if (!monthFilter) return;
+
+    // Keep track of currently selected value to restore after repopulating
+    const currentValue = monthFilter.value;
+
+    // Extract all unique YYYY-MM from orders
+    const monthsSet = new Set();
+    orders.forEach(order => {
+        if (!order.date) return;
+        const d = new Date(order.date);
+        if (!isNaN(d.valueOf())) {
+            // Format as YYYY-MM (month is 0-indexed in JS, so we keep it as number string for easy comparison)
+            const val = `${d.getFullYear()}-${d.getMonth()}`;
+            monthsSet.add(val);
+        }
+    });
+
+    // Sort descending (newest first)
+    const sortedMonths = Array.from(monthsSet).sort((a, b) => {
+        const [yearA, monthA] = a.split('-').map(Number);
+        const [yearB, monthB] = b.split('-').map(Number);
+        if (yearA !== yearB) return yearB - yearA;
+        return monthB - monthA;
+    });
+
+    // Build the dropdown options
+    monthFilter.innerHTML = '';
+
+    // Formatting helper
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    if (sortedMonths.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No orders available';
+        monthFilter.appendChild(option);
+        return;
+    }
+
+    sortedMonths.forEach(monthStr => {
+        const [y, m] = monthStr.split('-').map(Number);
+        const option = document.createElement('option');
+        option.value = monthStr;
+        option.textContent = `${monthNames[m]} ${y}`;
+        monthFilter.appendChild(option);
+    });
+
+    // Try to restore previous selection, or let it default to the top (newest)
+    if (currentValue && sortedMonths.includes(currentValue)) {
+        monthFilter.value = currentValue;
+    }
+}
+
+// Called when the month dropdown changes
+function filterPortalOrdersByMonth() {
+    // This will read the new dropdown value and re-render everything accordingly
+    updatePortalOrdersDisplay();
 }
 
 // Update product summary for butchery
@@ -4449,8 +4535,10 @@ function showStockReconciliation(filename) {
         const existingCustomer = findExistingCustomer(referenceName);
 
         if (existingCustomer) {
-            // Find all orders for this customer
+            // Find all orders for this customer (from imports and portal)
             const customerOrders = [];
+
+            // 1. Get from past imports
             for (const importData of Object.values(imports)) {
                 const matchingOrders = importData.orders.filter(order =>
                     order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
@@ -4458,21 +4546,45 @@ function showStockReconciliation(filename) {
                 customerOrders.push(...matchingOrders);
             }
 
+            // 2. Get from customer portal
+            const portalOrders = window.customerPortalOrders || [];
+            const matchingPortalOrders = portalOrders.filter(order =>
+                order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
+            );
+            customerOrders.push(...matchingPortalOrders);
+
             // Compare ordered vs delivered for each product
             const productComparison = {};
 
             // Get what was originally ordered
             for (const order of customerOrders) {
-                const productKey = order.product || order.originalDescription;
-                if (!productComparison[productKey]) {
-                    productComparison[productKey] = {
-                        product: productKey,
-                        ordered: { quantity: 0, weight: 0 },
-                        delivered: { quantity: 0, weight: 0 }
-                    };
+                // If it's a multi-product order, loop through products array
+                if (order.products && Array.isArray(order.products)) {
+                    for (const prod of order.products) {
+                        const productKey = prod.product;
+                        if (!productComparison[productKey]) {
+                            productComparison[productKey] = {
+                                product: productKey,
+                                ordered: { quantity: 0, weight: 0 },
+                                delivered: { quantity: 0, weight: 0 }
+                            };
+                        }
+                        productComparison[productKey].ordered.quantity += prod.quantity || 0;
+                        productComparison[productKey].ordered.weight += prod.weight || 0;
+                    }
+                } else {
+                    // Old single-product format
+                    const productKey = order.product || order.originalDescription;
+                    if (!productComparison[productKey]) {
+                        productComparison[productKey] = {
+                            product: productKey,
+                            ordered: { quantity: 0, weight: 0 },
+                            delivered: { quantity: 0, weight: 0 }
+                        };
+                    }
+                    productComparison[productKey].ordered.quantity += order.quantity || 0;
+                    productComparison[productKey].ordered.weight += order.weight || 0;
                 }
-                productComparison[productKey].ordered.quantity += order.quantity || 0;
-                productComparison[productKey].ordered.weight += order.weight || 0;
             }
 
             // Get what was actually delivered (from PDF)
@@ -4632,6 +4744,8 @@ function flagStockIssues(filename) {
         if (existingCustomer) {
             // Find all orders for this customer
             const customerOrders = [];
+
+            // 1. Get from past imports
             for (const importData of Object.values(imports)) {
                 const matchingOrders = importData.orders.filter(order =>
                     order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
@@ -4639,23 +4753,51 @@ function flagStockIssues(filename) {
                 customerOrders.push(...matchingOrders);
             }
 
+            // 2. Get from customer portal
+            const portalOrders = window.customerPortalOrders || [];
+            const matchingPortalOrders = portalOrders.filter(order =>
+                order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
+            );
+            customerOrders.push(...matchingPortalOrders);
+
             // Check for stock differences
             for (const item of customer.items) {
                 const productKey = findMappedProduct(item.description);
-                const matchingOrder = customerOrders.find(order =>
-                    (order.product && order.product.toLowerCase().includes(productKey.toLowerCase())) ||
-                    (order.originalDescription && order.originalDescription.toLowerCase().includes(item.description.toLowerCase()))
-                );
 
-                if (matchingOrder) {
-                    const qtyDiff = item.quantity - (matchingOrder.quantity || 0);
-                    const weightDiff = item.weight - (matchingOrder.weight || 0);
+                // Find matching item across all orders
+                let matchingOrderQty = 0;
+                let matchingOrderWeight = 0;
+                let foundMatch = false;
+
+                for (const order of customerOrders) {
+                    if (order.products && Array.isArray(order.products)) {
+                        const matchingItem = order.products.find(p =>
+                            p.product && p.product.toLowerCase().includes(productKey.toLowerCase())
+                        );
+                        if (matchingItem) {
+                            matchingOrderQty += matchingItem.quantity || 0;
+                            matchingOrderWeight += matchingItem.weight || 0;
+                            foundMatch = true;
+                        }
+                    } else if (
+                        (order.product && order.product.toLowerCase().includes(productKey.toLowerCase())) ||
+                        (order.originalDescription && order.originalDescription.toLowerCase().includes(item.description.toLowerCase()))
+                    ) {
+                        matchingOrderQty += order.quantity || 0;
+                        matchingOrderWeight += order.weight || 0;
+                        foundMatch = true;
+                    }
+                }
+
+                if (foundMatch) {
+                    const qtyDiff = item.quantity - matchingOrderQty;
+                    const weightDiff = item.weight - matchingOrderWeight;
 
                     if (Math.abs(qtyDiff) > 0.1 || Math.abs(weightDiff) > 0.1) {
                         stockIssues.push({
                             customer: referenceName,
                             product: productKey,
-                            ordered: { quantity: matchingOrder.quantity || 0, weight: matchingOrder.weight || 0 },
+                            ordered: { quantity: matchingOrderQty, weight: matchingOrderWeight },
                             delivered: { quantity: item.quantity, weight: item.weight },
                             difference: { quantity: qtyDiff, weight: weightDiff },
                             issueType: qtyDiff < 0 ? 'shortage' : 'surplus'
