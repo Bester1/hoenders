@@ -2370,7 +2370,8 @@ function deleteInvoice(invoiceId) {
     const orderIdToRevert = invoice.orderId || invoice.order_id;
     if (orderIdToRevert) {
         // Find in orders (manual orders)
-        const order = orders.find(o => o.orderId === orderIdToRevert || o.order_id === orderIdToRevert);
+        const currentOrders = getCurrentOrders();
+        const order = currentOrders.find(o => o.orderId === orderIdToRevert || o.order_id === orderIdToRevert);
         if (order) {
             order.status = 'pending';
         }
