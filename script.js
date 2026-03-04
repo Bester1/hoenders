@@ -3756,18 +3756,34 @@ function parseInvoicePage(pageText, pageNumber) {
 
             // If we're in table data, try to parse the line
             if (inTableData) {
-                const parts = line.split(/\s+/);
+                // First, pre-sanitize the entire line for common OCR space-in-decimals issues (e.g. "1 51" -> "1.51")
+                // This regex looks for a digit, a space, and two digits, and replaces the space with a dot
+                let sanitizedLine = line.replace(/(\d)\s(\d{2})\b/g, '$1.$2');
+                // Replace European commas with dots
+                sanitizedLine = sanitizedLine.replace(/(\d),(\d)/g, '$1.$2');
+
+                const parts = sanitizedLine.split(/\s+/);
 
                 // Check if this line has the 4 number pattern at the end (quantity, weight, price, total)
                 if (parts.length >= 4) {
                     const lastFour = parts.slice(-4);
+
                     const quantity = parseInt(lastFour[0]);
-                    const weight = parseFloat(lastFour[1]);
+                    let weight = parseFloat(lastFour[1]);
                     const unitPrice = parseFloat(lastFour[2]);
                     const total = parseFloat(lastFour[3]);
 
                     // Check if the last 4 parts are all valid numbers
                     if (!isNaN(quantity) && !isNaN(weight) && !isNaN(unitPrice) && !isNaN(total)) {
+
+                        // Fix massive OCR decimal loss (e.g 151kg instead of 1.51kg)
+                        // If weight is implausibly high for a single box (e.g > 50kg), try to reverse engineer it
+                        if (weight > 50 && unitPrice > 0 && total > 0) {
+                            const engineeredWeight = parseFloat((total / unitPrice).toFixed(2));
+                            console.log(`⚠️ OCR likely missed decimal point in weight (${weight}). Recalculating from Total / Price = ${engineeredWeight}`);
+                            weight = engineeredWeight;
+                        }
+
                         // This line has the numbers - extract the description part
                         const descriptionParts = parts.slice(0, -4);
                         const currentDescription = descriptionParts.join(' ');
@@ -3793,17 +3809,17 @@ function parseInvoicePage(pageText, pageNumber) {
                     } else {
                         // This line doesn't end with valid numbers - might be part of a multi-line product name
                         if (pendingDescription) {
-                            pendingDescription += ' ' + line;
+                            pendingDescription += ' ' + sanitizedLine;
                         } else {
-                            pendingDescription = line;
+                            pendingDescription = sanitizedLine;
                         }
                     }
                 } else {
                     // Line has less than 4 parts - likely part of a multi-line product name
                     if (pendingDescription) {
-                        pendingDescription += ' ' + line;
+                        pendingDescription += ' ' + sanitizedLine;
                     } else {
-                        pendingDescription = line;
+                        pendingDescription = sanitizedLine;
                     }
                 }
             }
