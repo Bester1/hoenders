@@ -2327,7 +2327,10 @@ function updateInvoicesDisplay(importId = null) {
                         </button>` : ''}
                     <button onclick="downloadInvoice('${invoice.invoiceId}')" class="btn-small btn-secondary">Download PDF</button>
                     <button onclick="addInvoiceToEmailQueue('${invoice.invoiceId}')" class="btn-small btn-success">
-                        <i class="fas fa-envelope"></i> Add to Email Queue
+                        <i class="fas fa-envelope"></i> Queue
+                    </button>
+                    <button onclick="deleteInvoice('${invoice.invoiceId}')" class="btn-small btn-danger">
+                        <i class="fas fa-trash"></i> Delete
                     </button>
                 </div>
             </div>
@@ -2335,6 +2338,78 @@ function updateInvoicesDisplay(importId = null) {
     }).join('');
 
     container.innerHTML = invoicesHTML;
+}
+
+// Delete an invoice manually
+function deleteInvoice(invoiceId) {
+    if (!confirm(`Are you sure you want to delete invoice ${invoiceId}? This process will revert the associated order back to 'pending'.`)) {
+        return;
+    }
+
+    // 1. Find the invoice and remove it from the global array
+    const invoiceIndex = invoices.findIndex(inv => inv.invoiceId === invoiceId);
+    if (invoiceIndex === -1) {
+        alert("Invoice not found in the system.");
+        return;
+    }
+
+    const invoice = invoices[invoiceIndex];
+    invoices.splice(invoiceIndex, 1);
+
+    // 2. Remove from associated import, if applicable
+    for (const importId in imports) {
+        if (imports[importId].invoices) {
+            const importInvoiceIndex = imports[importId].invoices.findIndex(inv => inv.invoiceId === invoiceId);
+            if (importInvoiceIndex !== -1) {
+                imports[importId].invoices.splice(importInvoiceIndex, 1);
+            }
+        }
+    }
+
+    // 3. Revert order status to pending
+    const orderIdToRevert = invoice.orderId || invoice.order_id;
+    if (orderIdToRevert) {
+        // Find in currentOrders
+        const currentOrder = currentOrders.find(o => o.orderId === orderIdToRevert || o.order_id === orderIdToRevert);
+        if (currentOrder) {
+            currentOrder.status = 'pending';
+        }
+
+        // Find in imports
+        for (const importId in imports) {
+            if (imports[importId].orders) {
+                const importOrder = imports[importId].orders.find(o => o.orderId === orderIdToRevert || o.order_id === orderIdToRevert);
+                if (importOrder) {
+                    importOrder.status = 'pending';
+                }
+            }
+        }
+
+        // Find in customer portal orders
+        if (window.customerPortalOrders) {
+            const portalOrder = window.customerPortalOrders.find(o => o.order_id === orderIdToRevert);
+            if (portalOrder) {
+                portalOrder.status = 'pending';
+            }
+        }
+    }
+
+    // 4. Remove from email queue if it hasn't been sent yet
+    const emailIndex = emailQueue.findIndex(e => e.orderData && (e.orderData.invoiceId === invoiceId || e.orderData.order_id === orderIdToRevert));
+    if (emailIndex !== -1 && emailQueue[emailIndex].status === 'pending') {
+        emailQueue.splice(emailIndex, 1);
+        updateEmailQueueDisplay();
+    }
+
+    // 5. Update UI
+    updateInvoicesDisplay();
+    updateOrdersTable();
+    updateDashboard();
+
+    // Save state
+    saveToStorage();
+
+    addActivity(`Deleted invoice ${invoiceId} manually.`);
 }
 
 // Pricing management
