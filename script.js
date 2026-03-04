@@ -3643,18 +3643,47 @@ function parseInvoicePage(pageText, pageNumber) {
         // First, try to find "Reference" followed by the customer name
         const referenceMatch = pageText.match(/Reference\s+((?:[A-Z][a-z]+(?:\s+[A-Z][a-z]*)*(?:\s*-\s*[A-Z][a-z]*)?)|(?:[A-Z]+(?:\s+[A-Z]+)*))/);
 
+        // Check if the reference match is picking up "E" from "E-pos:" (common OCR squashing artifact)
         if (referenceMatch) {
-            customerReference = referenceMatch[1].trim();
-            console.log(`✅ Found Reference match: "${customerReference}"`);
-        } else {
+            const matchValue = referenceMatch[1].trim();
+            if (matchValue === 'E' || matchValue === 'E-pos' || matchValue === 'E pos') {
+                console.log(`⚠️ Discarding Reference match "${matchValue}" as it is likely OCR column drift.`);
+            } else {
+                customerReference = matchValue;
+                console.log(`✅ Found Reference match: "${customerReference}"`);
+            }
+        }
+
+        if (!customerReference) {
             // Try a more flexible approach - look for Reference and get the next line or nearby text
             const lines = pageText.split('\n');
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
-                if (line.toLowerCase().includes('reference')) {
+
+                // Specific OCR drift fallback: "Reference E-pos:" on one line, with Name squashed below between "SOUTH AFRICA" and "orders@"
+                if (line.toLowerCase().includes('reference') && line.toLowerCase().includes('e-pos')) {
+                    // The next line typically looks like: "SOUTH AFRICA [Name] orders@..."
+                    if (i + 1 < lines.length) {
+                        const nextLine = lines[i + 1].trim();
+                        // Extract text occurring between "SOUTH AFRICA" and "orders@" (case insensitive)
+                        const squashedMatch = nextLine.match(/south\s+africa\s+(.*?)\s+orders@/i);
+                        if (squashedMatch && squashedMatch[1]) {
+                            const potentialName = squashedMatch[1].trim();
+                            // Ensure we didn't just grab garbage
+                            if (potentialName.length > 2) {
+                                customerReference = potentialName;
+                                console.log(`✅ Found Reference from OCR squash pattern: "${customerReference}"`);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (line.toLowerCase().includes('reference') && !customerReference) {
                     // Check if the name is on the same line
                     const refInLine = line.match(/reference\s+([A-Z][A-Za-z\s\-]+)/i);
-                    if (refInLine) {
+                    // Make sure it isn't "E-pos" again
+                    if (refInLine && !refInLine[1].toLowerCase().includes('e-pos') && refInLine[1].trim() !== 'E') {
                         customerReference = refInLine[1].trim();
                         console.log(`✅ Found Reference in same line: "${customerReference}"`);
                         break;
@@ -3680,8 +3709,9 @@ function parseInvoicePage(pageText, pageNumber) {
         if (!customerReference) {
             console.log(`🔍 Debug - looking for Reference in text:`, pageText.substring(0, 500));
             // Try one more pattern - any capitalized name after reference
+            // Avoid matching 'E-pos'
             const anyRefMatch = pageText.match(/reference[^\n\r]*?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i);
-            if (anyRefMatch) {
+            if (anyRefMatch && !anyRefMatch[1].toLowerCase().includes('e-pos')) {
                 customerReference = anyRefMatch[1].trim();
                 console.log(`✅ Found Reference with flexible pattern: "${customerReference}"`);
             }
