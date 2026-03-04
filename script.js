@@ -1460,15 +1460,14 @@ async function migrateToDatabase() {
             console.log('Data migration completed successfully');
             addActivity('Data migrated to Supabase database');
 
-            // Optionally clear localStorage after successful migration
-            // You can uncomment these lines if you want to clean up localStorage
-            // localStorage.removeItem('plaasHoendersImports');
-            // localStorage.removeItem('plaasHoendersCurrentImportId');
-            // localStorage.removeItem('plaasHoendersInvoices');
-            // localStorage.removeItem('plaasHoendersEmailQueue');
-            // localStorage.removeItem('plaasHoendersPricing');
+            // Clear localStorage after successful migration to prevent stale data overriding database
+            localStorage.removeItem('plaasHoendersImports');
+            localStorage.removeItem('plaasHoendersCurrentImportId');
+            localStorage.removeItem('plaasHoendersInvoices');
+            localStorage.removeItem('plaasHoendersEmailQueue');
+            // localStorage.removeItem('plaasHoendersPricing'); // Preserve pricing
             localStorage.removeItem('plaasHoendersGmailConfig');
-            // localStorage.removeItem('plaasHoendersAnalysisHistory');
+            localStorage.removeItem('plaasHoendersAnalysisHistory');
 
             return true;
         }
