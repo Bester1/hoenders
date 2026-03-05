@@ -2318,6 +2318,15 @@ function updateInvoicesDisplay(importId = null) {
                     <p><strong>Subtotal:</strong> R${invoice.subtotal.toFixed(2)}</p>
                     ${invoice.tax > 0 ? `<p><strong>VAT (15%):</strong> R${invoice.tax.toFixed(2)}</p>` : ''}
                     <p><strong>Total:</strong> R${invoice.total.toFixed(2)}</p>
+                    ${(function () {
+                const butcheryTotal = (invoice.items || []).reduce((sum, item) => {
+                    if (item.costPrice && item.costPrice > 0) {
+                        return sum + (item.costPrice * (item.weight || item.quantity || 1));
+                    }
+                    return sum;
+                }, 0);
+                return butcheryTotal > 0 ? `<p style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ccc; color: #555;"><strong>Butchery Cost:</strong> R${butcheryTotal.toFixed(2)}</p>` : '';
+            })()}
                 </div>
                 <div class="invoice-actions">
                     <button onclick="previewInvoice('${invoice.invoiceId}')" class="btn-small btn-primary">Preview</button>
@@ -3252,24 +3261,10 @@ function previewInvoice(invoiceId) {
                                 </thead>
                                 <tbody>
                                     ${invoice.items.map(item => {
-        // Calculate margin if cost price exists
-        let marginHtml = '';
-        if (item.costPrice && item.costPrice > 0) {
-            const margin = ((item.unitPrice - item.costPrice) / item.costPrice) * 100;
-            let marginColor = '#4caf50'; // Green
-            if (margin < 5) marginColor = '#f44336'; // Red
-            else if (margin < 15) marginColor = '#ff9800'; // Orange
-
-            marginHtml = `<div style="font-size: 0.75rem; color: ${marginColor}; font-weight: bold;">
-                                                (${margin > 0 ? '+' : ''}${margin.toFixed(1)}% margin)
-                                            </div>`;
-        }
-
         return `
                                             <tr>
                                                 <td>
                                                     ${item.product || item.originalDescription}
-                                                    ${marginHtml}
                                                 </td>
                                                 <td>${item.quantity}</td>
                                                 ${invoice.source === 'PDF' && item.weight ? `<td>${item.weight.toFixed(2)}</td>` : ''}
