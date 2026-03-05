@@ -2326,7 +2326,21 @@ function updateInvoicesDisplay(importId = null) {
                     }
                     return sum;
                 }, 0);
-                return butcheryTotal > 0 ? `<p style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ccc; color: #555;"><strong>Butchery Cost:</strong> R${butcheryTotal.toFixed(2)}</p>` : '';
+
+                if (butcheryTotal > 0) {
+                    const margin = ((invoice.total - butcheryTotal) / butcheryTotal) * 100;
+                    let marginColor = '#4caf50'; // Green
+                    if (margin < 5) marginColor = '#f44336'; // Red
+                    else if (margin < 15) marginColor = '#ff9800'; // Orange
+
+                    return `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ccc; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #555;"><strong>Butchery Cost:</strong> R${butcheryTotal.toFixed(2)}</span>
+                        <span style="color: ${marginColor}; font-weight: bold; font-size: 0.85em; background: #f8f9fa; padding: 2px 6px; border-radius: 4px; border: 1px solid #eee;">
+                            ${margin > 0 ? '+' : ''}${margin.toFixed(1)}% margin
+                        </span>
+                    </div>`;
+                }
+                return '';
             })()}
                 </div>
                 <div class="invoice-actions">
