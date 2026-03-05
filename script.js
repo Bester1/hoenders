@@ -3250,15 +3250,33 @@ function previewInvoice(invoiceId) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${invoice.items.map(item => `
-                                        <tr>
-                                            <td>${item.product || item.originalDescription}</td>
-                                            <td>${item.quantity}</td>
-                                            ${invoice.source === 'PDF' && item.weight ? `<td>${item.weight.toFixed(2)}</td>` : ''}
-                                            <td>R${(item.unitPrice || 0).toFixed(2)}</td>
-                                            <td>R${(item.total || 0).toFixed(2)}</td>
-                                        </tr>
-                                    `).join('')}
+                                    ${invoice.items.map(item => {
+        // Calculate margin if cost price exists
+        let marginHtml = '';
+        if (item.costPrice && item.costPrice > 0) {
+            const margin = ((item.unitPrice - item.costPrice) / item.costPrice) * 100;
+            let marginColor = '#4caf50'; // Green
+            if (margin < 5) marginColor = '#f44336'; // Red
+            else if (margin < 15) marginColor = '#ff9800'; // Orange
+
+            marginHtml = `<div style="font-size: 0.75rem; color: ${marginColor}; font-weight: bold;">
+                                                (${margin > 0 ? '+' : ''}${margin.toFixed(1)}% margin)
+                                            </div>`;
+        }
+
+        return `
+                                            <tr>
+                                                <td>
+                                                    ${item.product || item.originalDescription}
+                                                    ${marginHtml}
+                                                </td>
+                                                <td>${item.quantity}</td>
+                                                ${invoice.source === 'PDF' && item.weight ? `<td>${item.weight.toFixed(2)}</td>` : ''}
+                                                <td>R${(item.unitPrice || 0).toFixed(2)}</td>
+                                                <td>R${(item.total || 0).toFixed(2)}</td>
+                                            </tr>
+                                        `;
+    }).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -3700,6 +3718,37 @@ async function analyzePDFContent(arrayBuffer, filename) {
 
 // Parse invoice page text to extract customer and items
 function parseInvoicePage(pageText, pageNumber) {
+    // Helper to clean numeric strings from OCR artifacts
+    const cleanNumeric = (str) => {
+        if (!str) return '0';
+        let s = str.toString().trim();
+
+        // Remove R symbol and currency markers
+        s = s.replace(/R/g, '').replace(/ZAR/g, '');
+
+        // Replace common OCR errors: 'S' or 's' as '5', 'I' or 'l' as '1', 'O' as '0'
+        s = s.replace(/[Ss]/g, '5')
+            .replace(/[Il|]/g, '1')
+            .replace(/[Oo]/g, '0');
+
+        // Handle space-decimal drift (e.g. "1 51" -> "1.51")
+        s = s.replace(/(\d)\s+(\d{2})(\D|$)/, '$1.$2$3');
+
+        // Replace commas with dots
+        s = s.replace(/,/g, '.');
+
+        // Remove everything except digits and dots
+        s = s.replace(/[^\d.]/g, '');
+
+        // Handle multiple dots (keep only the first one)
+        const parts = s.split('.');
+        if (parts.length > 2) {
+            s = parts[0] + '.' + parts[1];
+        }
+
+        return s || '0';
+    };
+
     try {
         // Debug: Log the first 1000 characters of page text to see structure
         console.log(`📄 Page ${pageNumber} text sample:`, pageText.substring(0, 1000));
@@ -3830,72 +3879,124 @@ function parseInvoicePage(pageText, pageNumber) {
             }
 
             // If we're in table data, try to parse the line
+            // If we're in table data, try to parse the line
             if (inTableData) {
-                // First, pre-sanitize the entire line for common OCR space-in-decimals issues (e.g. "1 51" -> "1.51")
-                // This regex looks for a digit, a space, and two digits, and replaces the space with a dot
-                let sanitizedLine = line.replace(/(\d)\s(\d{2})\b/g, '$1.$2');
-                // Replace European commas with dots
-                sanitizedLine = sanitizedLine.replace(/(\d),(\d)/g, '$1.$2');
+                // Pre-process: split parts by whitespace and handle dot-merged numbers
+                const rawParts = line.split(/\s+/);
+                const parts = [];
+                rawParts.forEach(p => {
+                    const dots = (p.match(/\./g) || []).length;
+                    if (dots >= 2) {
+                        const sub = p.split('.');
+                        for (let k = 0; k < sub.length; k += 2) {
+                            if (sub[k + 1]) parts.push(sub[k] + "." + sub[k + 1]);
+                            else parts.push(sub[k]);
+                        }
+                    } else {
+                        parts.push(p);
+                    }
+                });
 
-                const parts = sanitizedLine.split(/\s+/);
+                if (parts.length < 3) {
+                    pendingDescription += line + ' ';
+                    continue;
+                }
 
-                // Check if this line has the 4 number pattern at the end (quantity, weight, price, total)
-                if (parts.length >= 4) {
-                    const lastFour = parts.slice(-4);
+                // FIND ALL VALID TRIPLETS (Weight, Price, Total)
+                const tripletIndices = [];
+                for (let j = 2; j < parts.length; j++) {
+                    const rawTotal = parts[j];
+                    const rawPrice = parts[j - 1];
+                    const rawWeight = parts[j - 2];
 
-                    const quantity = parseInt(lastFour[0]);
-                    let weight = parseFloat(lastFour[1]);
-                    const unitPrice = parseFloat(lastFour[2]);
-                    const total = parseFloat(lastFour[3]);
+                    if (/^[A-Za-z]{2,}$/.test(rawTotal) || /^[A-Za-z]{2,}$/.test(rawPrice) || /^[A-Za-z]{2,}$/.test(rawWeight)) {
+                        continue;
+                    }
 
-                    // Check if the last 4 parts are all valid numbers
-                    if (!isNaN(quantity) && !isNaN(weight) && !isNaN(unitPrice) && !isNaN(total)) {
+                    const total = parseFloat(cleanNumeric(rawTotal));
+                    const price = parseFloat(cleanNumeric(rawPrice));
+                    const weight = parseFloat(cleanNumeric(rawWeight));
 
-                        // Fix massive OCR decimal loss (e.g 151kg instead of 1.51kg)
-                        // If weight is implausibly high for a single box (e.g > 50kg), try to reverse engineer it
-                        if (weight > 50 && unitPrice > 0 && total > 0) {
-                            const engineeredWeight = parseFloat((total / unitPrice).toFixed(2));
-                            console.log(`⚠️ OCR likely missed decimal point in weight (${weight}). Recalculating from Total / Price = ${engineeredWeight}`);
-                            weight = engineeredWeight;
+                    if (!isNaN(total) && !isNaN(price) && !isNaN(weight) && price > 0 && weight > 0) {
+                        // Validate with math (allowing for minor rounding)
+                        if (Math.abs((weight * price) - total) < 3.0) { // Slight tolerance for rounding differences
+                            tripletIndices.push({
+                                weight: weight,
+                                price: price,
+                                total: total,
+                                totalIdx: j
+                            });
+                            // Skip the next 2 to avoid overlapping triplet detection
+                            j += 2;
+                        }
+                    }
+                }
+
+                // FALLBACK: If no math matches but it looks like a standard row (3 numbers at end)
+                if (tripletIndices.length === 0 && parts.length >= 3) {
+                    const total = parseFloat(cleanNumeric(parts[parts.length - 1]));
+                    const price = parseFloat(cleanNumeric(parts[parts.length - 2]));
+                    let weight = parseFloat(cleanNumeric(parts[parts.length - 3]));
+
+                    if (!isNaN(total) && !isNaN(price) && !isNaN(weight)) {
+                        // Fix massive decimal error
+                        if (weight > 50 && price > 0) {
+                            weight = parseFloat((total / price).toFixed(2));
+                        }
+                        tripletIndices.push({
+                            weight: weight,
+                            price: price,
+                            total: total,
+                            totalIdx: parts.length - 1
+                        });
+                    }
+                }
+
+                if (tripletIndices.length > 0) {
+                    let lastIdx = -1;
+                    tripletIndices.forEach((triplet, i) => {
+                        // Extract description for this specific item
+                        const startIdx = lastIdx + 1;
+                        const endIdx = triplet.totalIdx - 2;
+
+                        // Prevent negative slice indices and ensure valid array bounds
+                        let descriptionParts = [];
+                        if (startIdx >= 0 && endIdx >= startIdx && endIdx <= parts.length) {
+                            descriptionParts = parts.slice(startIdx, endIdx);
                         }
 
-                        // This line has the numbers - extract the description part
-                        const descriptionParts = parts.slice(0, -4);
-                        const currentDescription = descriptionParts.join(' ');
+                        let currentDesc = descriptionParts.join(' ');
+                        let fullDescription = (i === 0 ? pendingDescription + ' ' + currentDesc : currentDesc).trim();
 
-                        // Combine with any pending description from previous lines
-                        const fullDescription = pendingDescription ?
-                            `${pendingDescription} ${currentDescription}`.trim() : currentDescription;
+                        // Extract quantity
+                        let quantity = 1;
+                        for (let k = descriptionParts.length - 1; k >= 0; k--) {
+                            const num = parseInt(cleanNumeric(descriptionParts[k]));
+                            if (!isNaN(num) && num > 0 && num < 100) {
+                                quantity = num;
+                                break;
+                            }
+                        }
 
                         if (fullDescription) {
+                            const itemCode = (descriptionParts[0] || "Unknown").substring(0, 15);
                             items.push({
                                 description: fullDescription,
-                                quantity: quantity,     // Actual count (3, 1, 4)
-                                weight: weight,         // Weight in kg (2.99, 1.00, 4.05)
-                                price: unitPrice,       // Price per unit (88.50, 60.00)
-                                total: total           // Total amount (264.62, 60.00, 243.00)
+                                itemCode: itemCode,
+                                quantity: quantity,
+                                weight: triplet.weight,
+                                price: triplet.price,
+                                total: triplet.total
                             });
 
-                            console.log(`📦 Found item: ${fullDescription} - Count: ${quantity}, Weight: ${weight}kg, Price: R${unitPrice}, Total: R${total}`);
+                            console.log(`📦 Greedy Found item: ${fullDescription} - Count: ${quantity}, Weight: ${triplet.weight}kg, Price: R${triplet.price}, Total: R${triplet.total}`);
                         }
-
-                        // Reset pending description
-                        pendingDescription = '';
-                    } else {
-                        // This line doesn't end with valid numbers - might be part of a multi-line product name
-                        if (pendingDescription) {
-                            pendingDescription += ' ' + sanitizedLine;
-                        } else {
-                            pendingDescription = sanitizedLine;
-                        }
-                    }
+                        lastIdx = triplet.totalIdx;
+                    });
+                    pendingDescription = ''; // Reset
                 } else {
-                    // Line has less than 4 parts - likely part of a multi-line product name
-                    if (pendingDescription) {
-                        pendingDescription += ' ' + sanitizedLine;
-                    } else {
-                        pendingDescription = sanitizedLine;
-                    }
+                    // Line doesn't end with valid numbers, could be part of a multi-line description
+                    pendingDescription += line + ' ';
                 }
             }
         }
@@ -4552,6 +4653,7 @@ async function importPDFAsOrders(filename) {
                         quantity: item.quantity,
                         weight: item.weight, // Actual delivered weight from PDF!
                         unitPrice: unitPrice,
+                        costPrice: item.price, // Store Butcher's original cost price
                         total: parseFloat(total.toFixed(2))
                     };
                 } else {
