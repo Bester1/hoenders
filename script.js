@@ -116,6 +116,7 @@ const productMapping = {
     'boud/dy': 'BOUDE EN DYE',
     'heel': 'HEEL HOENDER',
     'halwe hoender': 'HEEL HALWE HOENDERS',
+    'halwe': 'HEEL HALWE HOENDERS',
     'strips': 'STRIPS',
     'ontbeen': 'ONTBEENDE HOENDER',
     'lewer': 'LEWER',
