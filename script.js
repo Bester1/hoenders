@@ -126,7 +126,8 @@ const productMapping = {
     'plat': 'PLAT HOENDER (FLATTY\'S)',
     'braaipak': 'BRAAIPAKKE',
     'pep rol': 'GEVULDE HOENDER ROLLE OPSIE 2',
-    'groen vye': 'INGELEGDE GROEN VYE'
+    'groen vye': 'INGELEGDE GROEN VYE',
+    'nekke': 'NEKKIES'
 };
 
 // Jan 2026 Braaikuikens - EXACT COST and SELLING prices from supplier
