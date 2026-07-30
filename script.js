@@ -126,6 +126,14 @@ const productMapping = {
     'plat': 'PLAT HOENDER (FLATTY\'S)',
     'braaipak': 'BRAAIPAKKE',
     'pep rol': 'GEVULDE HOENDER ROLLE OPSIE 2',
+    // Opsie 1 (Vye/Feta/Cheddar). Without this the butchery's short form
+    // "Vye rol" matches nothing, findMappedProduct returns the raw text
+    // "VYE ROL 1", that is not a pricing key, and the line is silently
+    // dropped from the customer invoice. Cost Tanya Bezuidenhout R280.54
+    // on the July 2026 run.
+    'vye rol': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+    'vyerol': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+    'peprol': 'GEVULDE HOENDER ROLLE OPSIE 2',
     'groen vye': 'INGELEGDE GROEN VYE',
     'nekke': 'NEKKIES'
 };
@@ -5226,12 +5234,18 @@ function findExistingCustomer(customerName) {
 function findMappedProduct(description) {
     const desc = description.toLowerCase().trim();
 
-    // Special handling for pak variations
-    if (desc.includes('4') && (desc.includes('bors') || desc.includes('pak'))) {
-        return 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)';
-    }
-    if (desc.includes('2') && (desc.includes('bors') || desc.includes('pak'))) {
-        return 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)';
+    // Special handling for pak variations.
+    //
+    // This shortcut runs BEFORE the productMapping lookup, so whatever it
+    // claims wins. It used to fire on any description containing a 2 or a 4
+    // plus the substring "pak" — which "braaipak 2" satisfies, silently
+    // billing braaipakke as breast portions at the wrong price. Only a
+    // standalone "pak" counts now, and never inside another word.
+    const isBors = desc.includes('bors');
+    const isLoosePak = /\bpak\b/.test(desc) && !/braaipak/.test(desc);
+    if (isBors || isLoosePak) {
+        if (desc.includes('4')) return 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)';
+        if (desc.includes('2')) return 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)';
     }
 
     // Try to find matching product from description
