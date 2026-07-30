@@ -2369,7 +2369,9 @@ function updateInvoicesDisplay(importId = null) {
         `;
     }).join('');
 
-    container.innerHTML = invoicesHTML;
+    // The whole run at a glance. Clicking into 21 invoices one at a time is how
+    // a missing line goes unnoticed until a customer asks where his wings are.
+    container.innerHTML = renderReconciliation(displayInvoices) + invoicesHTML;
 }
 
 // Delete an invoice manually
@@ -3768,6 +3770,8 @@ function parseInvoicePage(pageText, pageNumber) {
         return s || '0';
     };
 
+    let statedTotal = null;   // the butchery's own TOTAL ZAR for this page
+
     try {
         // Debug: Log the first 1000 characters of page text to see structure
         console.log(`📄 Page ${pageNumber} text sample:`, pageText.substring(0, 1000));
@@ -3890,9 +3894,17 @@ function parseInvoicePage(pageText, pageNumber) {
                 continue;
             }
 
-            // Skip table separator lines or subtotal/total lines
+            // Table separator / totals. The TOTAL ZAR line was previously just
+            // discarded, which threw away the single number that can prove no
+            // line was lost: the butchery's own total. Capture it, then stop.
             if (line.includes('---') || line.toLowerCase().includes('subtotal') ||
                 line.toLowerCase().includes('total vat') || line.toLowerCase().includes('total zar')) {
+                if (line.toLowerCase().includes('total zar')) {
+                    const totalMatch = line.match(/([\d\s,]+\.\d{2})\s*$/);
+                    if (totalMatch) {
+                        statedTotal = parseFloat(totalMatch[1].replace(/[\s,]/g, ''));
+                    }
+                }
                 inTableData = false; // Stop processing when we hit totals
                 continue;
             }
@@ -4043,10 +4055,30 @@ function parseInvoicePage(pageText, pageNumber) {
             return null;
         }
 
+        // Compare what we parsed against what the butchery says it charged.
+        // A mismatch means a line was dropped by the extractor — exactly how
+        // John van Eeden's vlerkies disappeared on the July 2026 run while his
+        // invoice still looked perfectly ordinary.
+        const parsedTotal = items.reduce((sum, i) => sum + (i.total || 0), 0);
+        const totalMismatch = (statedTotal !== null &&
+            Math.abs(parsedTotal - statedTotal) > 0.02)
+            ? { statedTotal, parsedTotal: Number(parsedTotal.toFixed(2)),
+                missing: Number((statedTotal - parsedTotal).toFixed(2)) }
+            : null;
+
+        if (totalMismatch) {
+            console.error(`❌ PAGE ${pageNumber} (${customerReference}): parsed ` +
+                `R${totalMismatch.parsedTotal} but the butchery invoice says ` +
+                `R${statedTotal}. R${totalMismatch.missing} of line items was ` +
+                `NOT read and will be missing from this customer's invoice.`);
+        }
+
         return {
             reference: customerReference,
             pageNumber: pageNumber,
-            items: items
+            items: items,
+            statedTotal: statedTotal,
+            totalMismatch: totalMismatch
         };
 
     } catch (error) {
@@ -5263,9 +5295,140 @@ function findMappedProduct(description) {
         }
     }
 
-    // Default: try to extract product name from description
+    // Default: NOT a silent success.
+    //
+    // Returning description.toUpperCase() here is what caused every
+    // mapping-omission bug so far ('nekke', 'halwe', 'vye rol'): the unknown
+    // name is not a pricing key, so the line gets no price and quietly
+    // disappears from the customer's invoice. The invoice still looks
+    // perfectly normal — just short by one item and, in Tanya Bezuidenhout's
+    // case, below what the bird cost.
+    //
+    // The name is still returned so nothing downstream breaks, but it is
+    // recorded so the run can be blocked before it reaches a customer.
     const cleanDescription = description.split(' R')[0].trim(); // Remove price part
-    return cleanDescription.toUpperCase();
+    const fallbackName = cleanDescription.toUpperCase();
+    unmappedProducts.add(`${description.trim()} -> ${fallbackName}`);
+    console.error(`❌ UNMAPPED PRODUCT: "${description.trim()}" has no entry in ` +
+        `productMapping and is not a pricing key. It will have NO PRICE and ` +
+        `will be missing from the invoice. Add it to productMapping.`);
+    return fallbackName;
+}
+
+// Products the importer could not map on this run. Checked before invoices go
+// out; see reconcileRun().
+const unmappedProducts = new Set();
+
+function isKnownProduct(name) {
+    return Boolean(name && pricing && pricing[name]);
+}
+
+/**
+ * Cross-check a set of invoices against what the butchery actually charged,
+ * BEFORE anything is emailed.
+ *
+ * Every problem found by hand on the July 2026 run would have been caught here:
+ * John van Eeden's vlerkies missing (invoice below cost), Tanya Bezuidenhout's
+ * vye rol dropped by an unmapped name, and Devon billed at list price instead
+ * of his own.
+ */
+function reconcileRun(invoiceList) {
+    const rows = (invoiceList || []).map(invoice => {
+        const items = invoice.items || [];
+        const cost = items.reduce((sum, item) =>
+            sum + ((item.costPrice || 0) * (item.weight || item.quantity || 1)), 0);
+        const billed = invoice.total || 0;
+        const margin = cost > 0 ? ((billed - cost) / cost) * 100 : null;
+
+        const problems = [];
+        const unknown = items.filter(i => !isKnownProduct(i.product));
+        if (unknown.length) {
+            problems.push(`unmapped: ${unknown.map(i =>
+                i.product || i.originalDescription).join(', ')}`);
+        }
+        if (cost > 0 && billed < cost) {
+            problems.push(`BELOW COST by R${(cost - billed).toFixed(2)}`);
+        } else if (margin !== null && margin < 8) {
+            problems.push(`margin only ${margin.toFixed(1)}%`);
+        }
+        if (!invoice.customerEmail) problems.push('no email address');
+        // The only check that can catch a line missing from BOTH the invoice
+        // and its costs, because it compares against the butchery's own total
+        // rather than against the invoice itself.
+        if (invoice.totalMismatch) {
+            problems.push(`R${invoice.totalMismatch.missing.toFixed(2)} of butchery ` +
+                `lines were not read (their total R${invoice.totalMismatch.statedTotal.toFixed(2)}, ` +
+                `we read R${invoice.totalMismatch.parsedTotal.toFixed(2)})`);
+        }
+
+        return {
+            invoiceId: invoice.invoiceId,
+            customer: invoice.customerName || '(unknown)',
+            itemCount: items.length,
+            cost, billed, margin, problems,
+        };
+    });
+
+    return {
+        rows,
+        totalCost: rows.reduce((s, r) => s + r.cost, 0),
+        totalBilled: rows.reduce((s, r) => s + r.billed, 0),
+        flagged: rows.filter(r => r.problems.length),
+        unmapped: Array.from(unmappedProducts),
+    };
+}
+
+function renderReconciliation(invoiceList) {
+    const rec = reconcileRun(invoiceList);
+    const overall = rec.totalCost > 0
+        ? ((rec.totalBilled - rec.totalCost) / rec.totalCost) * 100 : 0;
+
+    const banner = rec.flagged.length
+        ? `<div style="background:#ffebee;border-left:4px solid #f44336;padding:10px;margin-bottom:10px;">
+             <strong>${rec.flagged.length} invoice(s) need attention before sending.</strong>
+           </div>`
+        : `<div style="background:#e8f5e9;border-left:4px solid #4caf50;padding:10px;margin-bottom:10px;">
+             <strong>All ${rec.rows.length} invoices reconcile against the butchery.</strong>
+           </div>`;
+
+    const rows = rec.rows.map(r => {
+        const bad = r.problems.length > 0;
+        return `<tr style="${bad ? 'background:#fff5f5;' : ''}">
+            <td>${r.customer}</td>
+            <td style="text-align:right">${r.itemCount}</td>
+            <td style="text-align:right">R${r.cost.toFixed(2)}</td>
+            <td style="text-align:right">R${r.billed.toFixed(2)}</td>
+            <td style="text-align:right;color:${r.margin === null ? '#888'
+                : r.margin < 0 ? '#f44336' : r.margin < 8 ? '#ff9800' : '#4caf50'}">
+                ${r.margin === null ? '-' : r.margin.toFixed(1) + '%'}</td>
+            <td style="color:#f44336">${r.problems.join('; ')}</td>
+        </tr>`;
+    }).join('');
+
+    return `<div class="reconciliation" style="margin-bottom:20px;">
+        <h3>Butchery reconciliation</h3>
+        ${banner}
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+            <thead><tr style="background:#f0f0f0;">
+                <th style="text-align:left">Customer</th><th>Items</th>
+                <th>Butchery cost</th><th>Invoiced</th><th>Margin</th>
+                <th style="text-align:left">Problems</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr style="font-weight:bold;border-top:2px solid #333;">
+                <td>TOTAL</td><td></td>
+                <td style="text-align:right">R${rec.totalCost.toFixed(2)}</td>
+                <td style="text-align:right">R${rec.totalBilled.toFixed(2)}</td>
+                <td style="text-align:right">${overall.toFixed(1)}%</td><td></td>
+            </tr></tfoot>
+        </table></div>
+        ${rec.unmapped.length ? `<div style="margin-top:10px;color:#f44336;">
+            <strong>Unmapped product names this run:</strong><br>
+            ${rec.unmapped.join('<br>')}<br>
+            <em>Add these to productMapping - their lines have no price and are
+            missing from the invoices above.</em></div>` : ''}
+    </div>`;
 }
 
 // Generate invoice specifically from PDF data (with weights) - Multi-product version
@@ -5283,7 +5446,11 @@ function generateInvoiceFromPDFDataMultiProduct(order) {
         tax: 0, // NO VAT
         total: order.total, // Total = subtotal (no VAT)
         status: 'generated',
-        source: 'PDF'
+        source: 'PDF',
+        // Carried through so the reconciliation view can show that the
+        // butchery charged for more than we managed to read.
+        statedButcheryTotal: order.statedTotal || null,
+        totalMismatch: order.totalMismatch || null
     };
 
     // Add to collections
