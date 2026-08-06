@@ -1797,6 +1797,23 @@ function generateEmailBodyMultiProduct(orderData) {
         .replace(/\n/g, '<br>'); // Convert line breaks to HTML
 }
 
+/**
+ * The invoice a queued email will actually deliver.
+ *
+ * The queue carries orderData, not the invoice, and the two bulk paths fill it
+ * differently: addInvoiceToEmailQueue() sets invoiceId, while the PDF run
+ * (addToEmailQueueMultiProduct) queues the raw order and only has orderId. Try
+ * both before falling back to the address, so a run is never waved through
+ * merely because its emails could not be matched.
+ */
+function invoiceForQueuedEmail(email) {
+    const data = email.orderData || {};
+    return invoices.find(inv => data.invoiceId && inv.invoiceId === data.invoiceId)
+        || invoices.find(inv => data.orderId && (inv.orderId === data.orderId || inv.order_id === data.orderId))
+        || invoices.find(inv => inv.customerEmail && inv.customerEmail === email.to)
+        || null;
+}
+
 async function sendQueuedEmails() {
     if (emailQueue.length === 0) {
         alert('No emails in queue to send.');
@@ -1807,6 +1824,41 @@ async function sendQueuedEmails() {
     if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'YOUR_SCRIPT_URL_HERE') {
         alert('Please configure Google Apps Script URL first. See GOOGLE_APPS_SCRIPT_SETUP.md');
         return;
+    }
+
+    // Reconcile before sending, not after.
+    //
+    // reconcileRun() already knew about every July 2026 problem, but it was
+    // only ever rendered as a banner on the invoices tab — nothing consulted it
+    // on the way out. The 30 July run went to customers without anyone looking
+    // at that tab. A bad invoice looks completely normal, so the check has to
+    // stand in the send path itself.
+    const pending = emailQueue.filter(e => e.status === 'pending');
+    const queuedInvoices = pending.map(invoiceForQueuedEmail).filter(Boolean);
+    const unmatched = pending.length - queuedInvoices.length;
+    const rec = reconcileRun(queuedInvoices);
+
+    if (rec.flagged.length || rec.unmapped.length || unmatched) {
+        const detail = [
+            ...rec.flagged.map(r => `• ${r.customer}: ${r.problems.join('; ')}`),
+            ...(rec.unmapped.length
+                ? [`• products the importer could not map: ${rec.unmapped.join(', ')}`]
+                : []),
+            ...(unmatched
+                ? [`• ${unmatched} queued email(s) could not be matched to an invoice, so they were NOT checked`]
+                : []),
+        ].join('\n');
+
+        const proceed = confirm(
+            `${rec.flagged.length + (unmatched ? 1 : 0)} problem(s) found in this run:\n\n` +
+            `${detail}\n\n` +
+            `These invoices will look normal to the customer. Send anyway?`
+        );
+        if (!proceed) {
+            addActivity(`Send cancelled: ${rec.flagged.length} invoice(s) failed reconciliation`);
+            return;
+        }
+        addActivity(`Send proceeded despite ${rec.flagged.length} reconciliation warning(s)`);
     }
 
     const sendBtn = document.querySelector('[onclick="sendQueuedEmails()"]');
@@ -4640,6 +4692,12 @@ async function importPDFAsOrders(filename) {
     // Confirm import
     const confirmMessage = `Import ${totalItems} items for ${totalCustomers} customers from ${filename}?`;
     if (!confirm(confirmMessage)) return;
+
+    // Start this run's unmapped list empty. The Set is module-level and used to
+    // survive every import for the life of the page, so one bad name would warn
+    // on every send afterwards — which just teaches you to click through the
+    // warning that matters.
+    unmappedProducts.clear();
 
     try {
         // Process each customer separately
