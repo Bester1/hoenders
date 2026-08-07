@@ -84,7 +84,16 @@ const productMapping = {
     'Halwe Hoender - Half Chicken  R68/kg': 'HEEL HALWE HOENDERS',
     'Plat Hoender - Flatty R79/kg': 'PLAT HOENDER (FLATTY\'S)',
     'Braai pakke Heel hoender opgesny R74/kg': 'BRAAIPAKKE',
-    'Bors stukke met been en vel R73/kg 2 of 4 in pak.': 'BORSSTUKKE MET BEEN EN VEL',
+    // NOT mapped to a bare 'BORSSTUKKE MET BEEN EN VEL'. That name is not a
+    // pricing key — only the (2 IN PAK) and (4 IN PAK) variants are — so it
+    // priced at nothing and the line vanished from the invoice, the same shape
+    // as the vye rol bug. The pack count decides the key, and the shortcut
+    // above resolves it whenever the description carries a 2 or a 4. When it
+    // carries neither the count is genuinely unknown, so let it fall through
+    // to the unmapped list and stop the run, rather than guess a label. Both
+    // variants cost the same, so guessing would not cost money — it would just
+    // print the wrong pack size on a customer's invoice, which is what the
+    // 30 July run did to Justin, Sonja and Estene.
     'Boude en dye, 2 boude en 2 dye in pak.+-800gr R81/Kg': 'BOUDE EN DYE',
     'Guns (Boude en dye aan mekaar vas) R81/kg. 3 in pak': 'GUNS Boud en dy aanmekaar',
     'Fillets sonder vel R100/kg +-900gr 4 fillets per pak': 'FILETTE (sonder vel)',

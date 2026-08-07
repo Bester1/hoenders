@@ -1,0 +1,44 @@
+# This workflow does NOT deploy. GitHub Pages serves this repo directly from
+# the main branch (Pages build_type is "legacy"), and that has worked on every
+# commit. The previous version of this file tried to deploy a second time via
+# actions/deploy-pages, which cannot succeed while Pages is in branch mode, and
+# it failed on every single push from at least 30 July 2026 onward. A workflow
+# that is always red teaches you to ignore red.
+#
+# It also assumed an architecture this repo does not use: secrets-injected
+# config. There are no repository secrets set, and the Supabase anon key is
+# deliberately public here because this is a static site with row-level
+# security doing the real work. Scanning for that key and failing on it was
+# checking for the wrong thing.
+#
+# What is left is the check that would have caught the bugs that actually
+# reached customers.
+name: Validate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # No `cache: 'npm'` here. There is no lockfile in this repo, and that
+      # setting made setup-node fail before any real check ran -- the reason
+      # every previous run was red.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate invoicing logic
+        run: node scripts/validate-invoicing.cjs
