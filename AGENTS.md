@@ -83,12 +83,32 @@ are the same event and only the first was being reported. And the import
 summary no longer generates `errorsFound` with `Math.random()` over a hardcoded
 `pagesProcessed: 25`.
 
-**Do not guess a pack size.** The same run produced `abors 6` — Nieuwoudt's
-`Abors` with the pack size lost to OCR. 2-pak and 4-pak are different products
-at different prices, so it stays unmapped and gets named in the reconciliation
-for a human to settle. Guessing from the shape of the data is what once billed
-braaipakke as breast portions. `vierke` → `VLERKIES` was aliased because the
-l/i confusion is unambiguous.
+`vierke` → `VLERKIES` aliased (OCR l/i confusion). The same run produced
+`abors 6`: Nieuwoudt writes **`4Bors`**, and OCR mangles it to `A4bors` or,
+once the digit is lost, `abors`. Bes confirmed on 4 Sept 2026 that these are
+the 4-pak, so `abors` / `a4bors` map there. `2bors` exists in the same runs and
+is mapped separately, so the alias is never a bare `bors`.
+
+**A stray digit in a line is not a claim about the product.** The `isBors`
+shortcut tested `desc.includes('4')` and `desc.includes('2')` against the whole
+description — which includes the quantity. So `4Bors 2`, two packs of four,
+resolved to the 2-pak at the 2-pak's price. Only a digit attached to the
+product word counts now. This block had already been narrowed once for exactly
+this reason (`braaipak 2` billing as breast portions); the narrowing did not go
+far enough.
+
+## Re-importing the same PDF adds, it does not replace
+
+Everything lives in **browser localStorage** (`plaasHoendersImports`,
+`plaasHoendersInvoices`, `plaasHoendersEmailQueue`, `plaasHoendersAnalysisHistory`).
+Nothing deduplicates, and every id is `Date.now()`-based, so a second import of
+the same file produces a second, unrelated-looking set of invoices while the
+first set survives and can still be emailed. That matters most immediately
+after a parser fix, which is exactly when a file gets re-imported. The import
+now detects a matching `sourceFile` and makes you confirm.
+
+Because it is localStorage: it is per-browser and per-profile, it is not backed
+up anywhere, and clearing site data destroys every invoice and the email queue.
 
 ## Two price tables, and they drift
 

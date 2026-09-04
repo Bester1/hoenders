@@ -114,12 +114,13 @@ const productMapping = {
     'vlerke': 'VLERKIES',
     // OCR reads the l in "vlerke" as an i often enough that it cost two lines
     // on the Sept 2026 run ("vierke 5", "vierke 13"). Unambiguous, so aliased.
-    // NOTE: "abors" from the same run is NOT aliased here. It is Nieuwoudt's
-    // "Abors" with the pack size lost, and 2-pak and 4-pak are different
-    // products at different prices — guessing which is exactly the move that
-    // once billed braaipakke as breast portions. It stays unmapped and the
-    // reconciliation names it and the rand value, for a human to decide.
     'vierke': 'VLERKIES',
+    // Nieuwoudt writes "4Bors", which OCR mangles to "A4bors" and sometimes to
+    // "abors" once the digit is lost. Confirmed by Bes 2026-09-04 that these
+    // are the 4-pak, not the 2-pak. "2bors" appears in the same runs and is
+    // already mapped separately, so this alias must NOT be a bare "bors".
+    'abors': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
+    'a4bors': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
     '4bors': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
     '2bors': 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)',
     '4 in pak': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
@@ -4893,6 +4894,32 @@ async function importPDFAsOrders(filename) {
 
         console.log(`📋 Total orders created: ${allOrders.length} for ${customers.length} customers`);
 
+        // Re-importing the same PDF ADDS a second set of invoices; it does not
+        // replace the first. Nothing here deduplicates, and every id is
+        // Date.now()-based so the two sets look unrelated. That matters most
+        // right after a parser fix, which is exactly when a file gets
+        // re-imported: the old, short invoices survive and can still be sent.
+        const priorImports = Object.values(imports)
+            .filter(imp => imp && imp.sourceFile === filename);
+        if (priorImports.length) {
+            const priorInvoiceCount = priorImports
+                .reduce((n, imp) => n + (imp.invoices ? imp.invoices.length : 0), 0);
+            console.warn(`⚠️ "${filename}" has been imported ${priorImports.length} ` +
+                `time(s) before, producing ${priorInvoiceCount} invoice(s) that are ` +
+                `still here. This import ADDS to them.`);
+            const proceed = confirm(
+                `"${filename}" was already imported ${priorImports.length} time(s), ` +
+                `and ${priorInvoiceCount} invoice(s) from that run are still stored.\n\n` +
+                `Importing again ADDS a second set — it does not replace the first, ` +
+                `and the older invoices can still be emailed.\n\n` +
+                `Delete the earlier invoices first if this is a re-run after a fix.\n\n` +
+                `Continue anyway?`);
+            if (!proceed) {
+                console.log('Import cancelled by user (duplicate source file).');
+                return;
+            }
+        }
+
         // Create new import
         const importId = 'PDF-' + Date.now();
         const importName = `Multi-Customer PDF: ${filename} (${totalCustomers} customers, ${new Date().toLocaleString()})`;
@@ -5434,8 +5461,17 @@ function findMappedProduct(description) {
     const isBors = desc.includes('bors');
     const isLoosePak = /\bpak\b/.test(desc) && !/braaipak/.test(desc);
     if (isBors || isLoosePak) {
-        if (desc.includes('4')) return 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)';
-        if (desc.includes('2')) return 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)';
+        // Only a digit ATTACHED to the product word is the pack size.
+        // `desc.includes('4')` also matched the quantity, so "4Bors 2" — two
+        // packs of four — came back as the 2-pak, at the 2-pak's price. Same
+        // shape as the braaipak bug this block was already narrowed for once:
+        // a stray digit somewhere in the line is not a claim about the product.
+        const packSize = desc.match(/(\d)\s*bors|bors\w*\s*\((\d)/);
+        const size = packSize && (packSize[1] || packSize[2]);
+        if (size === '4') return 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)';
+        if (size === '2') return 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)';
+        // No attached digit: fall through to productMapping, where 'abors'
+        // resolves to the 4-pak because Bes confirmed Nieuwoudt's "4Bors".
     }
 
     // Try to find matching product from description
