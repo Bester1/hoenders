@@ -4065,11 +4065,43 @@ function parseInvoicePage(pageText, pageNumber) {
 
                     if (!isNaN(total) && !isNaN(price) && !isNaN(weight) && price > 0 && weight > 0) {
                         // Validate with math (allowing for minor rounding)
-                        if (Math.abs((weight * price) - total) < 3.0) { // Slight tolerance for rounding differences
+                        let useWeight = weight, useTotal = total, repaired = null;
+                        let matches = Math.abs((weight * price) - total) < 3.0;
+
+                        // OCR drops the decimal point. "477,12" is read as
+                        // "47712" and "1.15" as "115"; the row then fails its
+                        // own arithmetic and — worse than erroring — gets
+                        // absorbed into the NEXT item's description, so the
+                        // money leaves the invoice with no trace. R951.96 went
+                        // this way on the Sept 2026 run.
+                        //
+                        // A repair is only accepted when it makes
+                        // weight x price = total true to the cent. That is what
+                        // keeps this from being a guess: the row has to prove
+                        // itself against its own two other numbers, and a wrong
+                        // repair cannot. Anything that will not reconcile stays
+                        // broken and gets caught by the page-total check.
+                        if (!matches) {
+                            if (Math.abs((weight * price) - (total / 100)) < 0.02) {
+                                useTotal = total / 100; matches = true;
+                                repaired = 'total missing decimal point';
+                            } else if (Math.abs(((weight / 100) * price) - total) < 0.02) {
+                                useWeight = weight / 100; matches = true;
+                                repaired = 'weight missing decimal point';
+                            }
+                        }
+
+                        if (matches) {
+                            if (repaired) {
+                                console.warn(`🔧 Repaired OCR damage (${repaired}): ` +
+                                    `${weight} x ${price} = ${total} -> ` +
+                                    `${useWeight} x ${price} = ${useTotal}`);
+                            }
                             tripletIndices.push({
-                                weight: weight,
+                                weight: useWeight,
                                 price: price,
-                                total: total,
+                                total: useTotal,
+                                repaired: repaired,
                                 totalIdx: j
                             });
                             // Skip the next 2 to avoid overlapping triplet detection
