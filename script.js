@@ -3846,6 +3846,29 @@ function extractStatedTotal(pageText) {
     return found;
 }
 
+/**
+ * Is this string actually a person's name, or OCR debris?
+ *
+ * A reference is not just a label: it is handed to findExistingCustomer(),
+ * which matches on substrings and on any single word of three characters. Feed
+ * that "R" — which is what the old extractor produced for every page of the
+ * Sept 2026 run, having grabbed the R of "R1 505,39" — and it will happily
+ * attach the invoice to whichever customer in the database happens to match.
+ * Garbage in the reference does not produce a blank invoice; it produces a
+ * confident invoice for the wrong person.
+ */
+function isPlausibleReference(value) {
+    const v = (value || '').trim();
+    if (v.length < 3) return false;                    // "R", "E", initials alone
+    if (!/[A-Za-z]{3,}/.test(v)) return false;         // needs a real word
+    if (/^\s*R?\s*[\d\s.,]+$/.test(v)) return false;    // an amount
+    if (/^\+?\d[\d\s]{6,}$/.test(v)) return false;      // a phone number
+    if (/\d{2}\s*(sept|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug)/i.test(v)) return false; // a date
+    if (/^(e-pos|epos|reference|view online|tax invoice)$/i.test(v)) return false;
+    if (/^unidentified\b/i.test(v)) return false;      // our own placeholder
+    return true;
+}
+
 // Parse invoice page text to extract customer and items
 function parseInvoicePage(pageText, pageNumber) {
     // Helper to clean numeric strings from OCR artifacts
@@ -3898,12 +3921,29 @@ function parseInvoicePage(pageText, pageNumber) {
         // Look for Reference field - based on the actual PDF text format
         let customerReference = null;
 
-        // From the logs, we can see the pattern is:
-        // "Reference [Customer Name]" directly in the text
-        // Let's extract it properly
+        // Nieuwoudt's current Xero template prints the header as two lines:
+        //
+        //     Amount due Due date Issue date Invoice number Reference
+        //     R1 505,39 16 Sept 2026 02 Sept 2026 INV-17192 Tilana v Heerden
+        //
+        // so the reference is whatever follows the invoice number. Verified on
+        // all 21 pages of ADRIAAN BESTER.pdf.
+        //
+        // Everything below this was written for an older template ("Reference
+        // E-pos:", "SOUTH AFRICA ... orders@") and is kept as a fallback. The
+        // first of those patterns matched "Reference", then the newline, then
+        // the "R" of "R1 505,39" — so EVERY customer on the Sept 2026 run came
+        // out as "R", and each one was then handed to findExistingCustomer(),
+        // which substring-matches. That is how an invoice appeared for a
+        // customer who is nowhere on the butchery PDF at all.
+        const headerRef = pageText.match(/INV-\d+\s+([^\n]+)/);
+        if (headerRef && isPlausibleReference(headerRef[1])) {
+            customerReference = headerRef[1].trim();
+            console.log(`✅ Found Reference on the header row: "${customerReference}"`);
+        }
 
         // First, try to find "Reference" followed by the customer name
-        const referenceMatch = pageText.match(/Reference\s+((?:[A-Z][a-z]+(?:\s+[A-Z][a-z]*)*(?:\s*-\s*[A-Z][a-z]*)?)|(?:[A-Z]+(?:\s+[A-Z]+)*))/);
+        const referenceMatch = customerReference ? null : pageText.match(/Reference\s+((?:[A-Z][a-z]+(?:\s+[A-Z][a-z]*)*(?:\s*-\s*[A-Z][a-z]*)?)|(?:[A-Z]+(?:\s+[A-Z]+)*))/);
 
         // Check if the reference match is picking up "E" from "E-pos:" (common OCR squashing artifact)
         if (referenceMatch) {
@@ -3945,7 +3985,7 @@ function parseInvoicePage(pageText, pageNumber) {
                     // Check if the name is on the same line
                     const refInLine = line.match(/reference\s+([A-Z][A-Za-z\s\-]+)/i);
                     // Make sure it isn't "E-pos" again
-                    if (refInLine && !refInLine[1].toLowerCase().includes('e-pos') && refInLine[1].trim() !== 'E') {
+                    if (refInLine && isPlausibleReference(refInLine[1])) {
                         customerReference = refInLine[1].trim();
                         console.log(`✅ Found Reference in same line: "${customerReference}"`);
                         break;
@@ -3956,7 +3996,9 @@ function parseInvoicePage(pageText, pageNumber) {
                         const nextLine = lines[j].trim();
                         // Look for a name pattern (first name last name)
                         const nameMatch = nextLine.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*(?:\s*-\s*[A-Z][a-z]*)?)$/);
-                        if (nameMatch && !nextLine.toLowerCase().includes('nieuwoudt') && !nextLine.toLowerCase().includes('braaikuikens')) {
+                        if (nameMatch && isPlausibleReference(nameMatch[1]) &&
+                            !nextLine.toLowerCase().includes('nieuwoudt') &&
+                            !nextLine.toLowerCase().includes('braaikuikens')) {
                             customerReference = nameMatch[1].trim();
                             console.log(`✅ Found Reference in next line: "${customerReference}"`);
                             break;
@@ -3980,9 +4022,20 @@ function parseInvoicePage(pageText, pageNumber) {
         }
 
         if (!customerReference) {
-            console.log(`⚠️ No Reference found on page ${pageNumber}`);
-            console.log(`Full page text for debugging:`, pageText);
-            return null;
+            // Do NOT drop the page. Returning null here discarded the whole
+            // invoice — customer, line items and money — because one field at
+            // the top did not OCR. That is how a 21-page butchery run produced
+            // 13 invoices with nothing saying the other 8 had gone.
+            //
+            // Keep it, name it unmistakably, and let the reconciliation view
+            // show it. An invoice you can see and fix beats one you never knew
+            // existed. isPlausibleReference() rejects this prefix, so it will
+            // never be matched to a real customer by accident.
+            const invNo = (pageText.match(/INV-\d+/) || [])[0] || `page ${pageNumber}`;
+            customerReference = `UNIDENTIFIED ${invNo}`;
+            console.warn(`⚠️ No usable Reference on page ${pageNumber}. Keeping the ` +
+                `invoice as "${customerReference}" — give it a customer by hand ` +
+                `before sending. It will NOT be auto-matched to anyone.`);
         }
         console.log(`📋 Found customer: ${customerReference} on page ${pageNumber}`);
 
@@ -5355,6 +5408,18 @@ function flagStockIssues(filename) {
 // Helper function to find existing customer from previous orders
 function findExistingCustomer(customerName) {
     console.log(`🔍 Looking for existing customer: "${customerName}"`);
+
+    // Refuse to match on debris. This function matches on substrings and on
+    // any single word of three characters, so a reference like "R" does not
+    // fail to match — it matches something, and the invoice is then addressed
+    // to a real customer who never ordered. Returning null instead creates a
+    // clearly-unknown customer that a human can see and fix.
+    if (typeof isPlausibleReference === 'function' && !isPlausibleReference(customerName)) {
+        console.warn(`⚠️ Reference "${customerName}" is not a usable name (OCR debris). ` +
+            `Refusing to match it to any existing customer — a wrong match here ` +
+            `sends someone else's invoice to a real person.`);
+        return null;
+    }
 
     // FIRST: Search through customer portal orders (most likely source)
     const portalOrders = window.customerPortalOrders || [];
