@@ -4217,7 +4217,39 @@ function parseInvoicePage(pageText, pageNumber) {
         // A mismatch means a line was dropped by the extractor — exactly how
         // John van Eeden's vlerkies disappeared on the July 2026 run while his
         // invoice still looked perfectly ordinary.
-        const parsedTotal = items.reduce((sum, i) => sum + (i.total || 0), 0);
+        let parsedTotal = items.reduce((sum, i) => sum + (i.total || 0), 0);
+
+        // Last line of defence: a row where BOTH the weight and the total lost
+        // their decimal point is internally consistent, so no per-row check can
+        // see it. Only the butchery's own page total can.
+        //
+        // Scale a suspect row down by 100 and keep the change ONLY if the page
+        // then reconciles to the cent against their total. A wrong correction
+        // cannot pass that test, so this repairs without guessing — and if
+        // nothing makes the page balance, everything is left alone and the
+        // mismatch is reported instead.
+        if (statedTotal !== null && Math.abs(parsedTotal - statedTotal) > 0.02) {
+            const overshoot = items
+                .map((it, idx) => ({ idx, it }))
+                .filter(({ it }) => it.total > statedTotal)
+                .sort((a, b) => b.it.total - a.it.total);
+            for (const { idx } of overshoot) {
+                const it = items[idx];
+                const trial = parsedTotal - it.total + (it.total / 100);
+                if (Math.abs(trial - statedTotal) <= 0.02) {
+                    console.warn(`🔧 Page ${pageNumber}: "${it.description}" was 100x too ` +
+                        `large (${it.weight}kg x R${it.price} = R${it.total}). Scaled to ` +
+                        `${(it.weight / 100).toFixed(2)}kg = R${(it.total / 100).toFixed(2)}; ` +
+                        `the page now matches the butchery's R${statedTotal}.`);
+                    it.weight = Number((it.weight / 100).toFixed(2));
+                    it.total = Number((it.total / 100).toFixed(2));
+                    it.repaired = 'weight and total both missing decimal point';
+                    parsedTotal = trial;
+                    break;
+                }
+            }
+        }
+
         const totalMismatch = (statedTotal !== null &&
             Math.abs(parsedTotal - statedTotal) > 0.02)
             ? { statedTotal, parsedTotal: Number(parsedTotal.toFixed(2)),
@@ -5973,7 +6005,24 @@ async function processScannedPDFWithAI(pdfDoc, filename, numPages) {
             console.log(`🔍 OCR processing page ${pageNum}/${numPages}...`);
 
             const page = await pdfDoc.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
+            // 4.17 = ~300 DPI, which is what Tesseract wants for text this
+            // small. The previous 2.0 was ~144 DPI and lost decimal points
+            // wholesale: "6.75" came back as "675", "6.72" as "672".
+            //
+            // Not cosmetic. When the weight AND the total lose their point
+            // together, weight x price = total still holds (672 x 71 = 47712),
+            // so the row passes every per-row check and is accepted at 100x
+            // its real value. That is how an R18,000 delivery was reported as
+            // R212,918.61 on 4 Sept 2026.
+            //
+            // Measured end to end on ADRIAAN BESTER.pdf, 21 pages, whole
+            // pipeline including the repairs below:
+            //     144 DPI  17 reconcile, 3 flagged, 1 unverified
+            //     252 DPI  17 reconcile, 4 flagged, 0 unverified
+            //     300 DPI  19 reconcile, 1 flagged, 1 unverified
+            // Re-measure before changing this; higher is not automatically
+            // better and 252 was worse than 144 on two pages.
+            const viewport = page.getViewport({ scale: 4.17 });
 
             // Create canvas to render PDF page as image
             const canvas = document.createElement('canvas');
