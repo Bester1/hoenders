@@ -12,6 +12,7 @@ A comprehensive web-based admin panel for managing chicken meat orders, generati
 
 ### 📦 Order Management
 - Import orders from Google Sheets (CSV format)
+- Import the monthly butchery invoice PDF (see below)
 - Process multiple orders simultaneously
 - Track order status (pending, invoiced, completed)
 - Customer information management
@@ -36,6 +37,34 @@ A comprehensive web-based admin panel for managing chicken meat orders, generati
 - Cost price vs selling price tracking
 - Profit margin calculations
 - Easy product management (add, edit, delete)
+
+### 🧾 Butchery invoice import (the monthly round)
+
+Nieuwoudt's invoice PDF is imported, matched to customers, and turned into the
+customer invoices. **Read `AGENTS.md` before touching this path** — a wrong
+invoice looks exactly like a right one, and every failure here has been silent.
+
+- The supplier PDF has **no text layer**: it is a "Microsoft Print to PDF" of a
+  Xero invoice, so every character is a separate image (~1,000 a page, 600 PPI).
+  Pages are rendered at **300 DPI** (`scale: 4.17`) before OCR — a clean 2:1
+  downsample of those tiles. **Re-measure before changing it**: 252 DPI scored
+  *worse* than 144.
+- Four guards, in the order they catch things:
+  1. every row must satisfy `weight x price = total`;
+  2. lost decimal points are repaired at /100 and /10, but **only** when the
+     repair makes that equation true to the cent;
+  3. the page must reconcile against the butchery's own stated total, and a page
+     whose total cannot be read is reported `unverified`, never "clean";
+  4. `packWeightAnomaly()` checks kg-per-pack against `PACK_WEIGHTS` — the only
+     check that still works when the page total is unreadable.
+- `node scripts/validate-invoicing.cjs` asserts all of it stays wired in;
+  `node test_parsing.js` carries real damaged lines as regression cases.
+
+**The better input, when it arrives:** every page of the supplier PDF carries a
+QR code to its Xero online invoice, which offers the same invoice as a proper
+PDF *and* as CSV — both exact, no OCR. Nieuwoudt has been asked to send the CSV
+export instead. In their data `Reference` is the customer, `Description` is the
+number of packs, and `Quantity` is the kilograms.
 
 ### ⚙️ Settings
 - Business information configuration
