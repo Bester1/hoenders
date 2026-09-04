@@ -4134,13 +4134,21 @@ function parseInvoicePage(pageText, pageNumber) {
                         // itself against its own two other numbers, and a wrong
                         // repair cannot. Anything that will not reconcile stays
                         // broken and gets caught by the page-total check.
+                        // Both /10 and /100: a lost point can move one place
+                        // ("2.1" -> "21") or two ("1.15" -> "115"), depending on
+                        // how many decimals the figure had.
                         if (!matches) {
-                            if (Math.abs((weight * price) - (total / 100)) < 0.02) {
-                                useTotal = total / 100; matches = true;
-                                repaired = 'total missing decimal point';
-                            } else if (Math.abs(((weight / 100) * price) - total) < 0.02) {
-                                useWeight = weight / 100; matches = true;
-                                repaired = 'weight missing decimal point';
+                            for (const f of [100, 10]) {
+                                if (Math.abs((weight * price) - (total / f)) < 0.02) {
+                                    useTotal = total / f; matches = true;
+                                    repaired = `total missing decimal point (/${f})`;
+                                    break;
+                                }
+                                if (Math.abs(((weight / f) * price) - total) < 0.02) {
+                                    useWeight = weight / f; matches = true;
+                                    repaired = `weight missing decimal point (/${f})`;
+                                    break;
+                                }
                             }
                         }
 
@@ -4286,20 +4294,30 @@ function parseInvoicePage(pageText, pageNumber) {
                 .map((it, idx) => ({ idx, it }))
                 .filter(({ it }) => it.total > statedTotal)
                 .sort((a, b) => b.it.total - a.it.total);
-            for (const { idx } of overshoot) {
-                const it = items[idx];
-                const trial = parsedTotal - it.total + (it.total / 100);
-                if (Math.abs(trial - statedTotal) <= 0.02) {
-                    console.warn(`🔧 Page ${pageNumber}: "${it.description}" was 100x too ` +
-                        `large (${it.weight}kg x R${it.price} = R${it.total}). Scaled to ` +
-                        `${(it.weight / 100).toFixed(2)}kg = R${(it.total / 100).toFixed(2)}; ` +
-                        `the page now matches the butchery's R${statedTotal}.`);
-                    it.weight = Number((it.weight / 100).toFixed(2));
-                    it.total = Number((it.total / 100).toFixed(2));
-                    it.repaired = 'weight and total both missing decimal point';
-                    parsedTotal = trial;
-                    break;
+            // /10 as well as /100. Wanda Byrnes and Nikki Griffiths were each
+            // over-billed by R1,691.55 on the same line — Strips "2.1" read as
+            // "21" — because 21 x 89.50 = 1879.50 is perfectly self-consistent
+            // and only the page total disagreed. /100 did not fit, so nothing
+            // was corrected and nothing was flagged either.
+            let done = false;
+            for (const f of [100, 10]) {
+                for (const { idx } of overshoot) {
+                    const it = items[idx];
+                    const trial = parsedTotal - it.total + (it.total / f);
+                    if (Math.abs(trial - statedTotal) <= 0.02) {
+                        console.warn(`🔧 Page ${pageNumber}: "${it.description}" was ${f}x too ` +
+                            `large (${it.weight}kg x R${it.price} = R${it.total}). Scaled to ` +
+                            `${(it.weight / f).toFixed(2)}kg = R${(it.total / f).toFixed(2)}; ` +
+                            `the page now matches the butchery's R${statedTotal}.`);
+                        it.weight = Number((it.weight / f).toFixed(2));
+                        it.total = Number((it.total / f).toFixed(2));
+                        it.repaired = `weight and total both missing decimal point (/${f})`;
+                        parsedTotal = trial;
+                        done = true;
+                        break;
+                    }
                 }
+                if (done) break;
             }
         }
 

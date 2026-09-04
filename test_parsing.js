@@ -50,10 +50,13 @@ function parseLine(line) {
             let useWeight = weight, useTotal = total, repaired = null;
             let matches = Math.abs((weight * price) - total) < 3.0;
             if (!matches) {
-                if (Math.abs((weight * price) - (total / 100)) < 0.02) {
-                    useTotal = total / 100; matches = true; repaired = 'total';
-                } else if (Math.abs(((weight / 100) * price) - total) < 0.02) {
-                    useWeight = weight / 100; matches = true; repaired = 'weight';
+                for (const f of [100, 10]) {
+                    if (Math.abs((weight * price) - (total / f)) < 0.02) {
+                        useTotal = total / f; matches = true; repaired = 'total/' + f; break;
+                    }
+                    if (Math.abs(((weight / f) * price) - total) < 0.02) {
+                        useWeight = weight / f; matches = true; repaired = 'weight/' + f; break;
+                    }
                 }
             }
             if (matches) {
@@ -98,12 +101,40 @@ const tests = [
     { expected: 2, total: 270.02, line: "FILLETS 1 1.31 88,50 115,94 plat 1 214 72,00 154,08" },
     // INV-17188: "2.19" OCR'd as "2:19" (colon for decimal point).
     { expected: 5, total: 875.64, line: "boud/dy 3 2.57 71,00 182,47 FILLETS 3 3.36 88,50 297,36 heel 1 2.32 59,00 136,88 Strips 2 0.96 89,50 85,92 vlerke 2 2:19 79,00 173,01" },
+    // Wanda Byrnes INV-17183 and Nikki Griffiths INV-17180 were each
+    // over-billed R1,691.55: Strips "2.1" read as "21", and 21 x 89.50 =
+    // 1879.50 is self-consistent so only the page total disagreed.
+    { expected: 2, total: 371.15, line: "FILLETS 2 2.07 88,50 183,20 Strips 4 21 89,50 1879,50" },
 ];
+
+// Mirrors the page-level repair in parseInvoicePage(): a row where BOTH the
+// weight and the total lost their decimal point is internally consistent, so
+// no per-row check can see it. Only the butchery's own page total can.
+function pageRepair(items, statedTotal) {
+    let parsed = items.reduce((s, i) => s + i.total, 0);
+    if (statedTotal === undefined || statedTotal === null) return parsed;
+    if (Math.abs(parsed - statedTotal) <= 0.02) return parsed;
+    const overshoot = items.map((it, idx) => ({ idx, it }))
+        .filter(({ it }) => it.total > statedTotal)
+        .sort((a, b) => b.it.total - a.it.total);
+    for (const f of [100, 10]) {
+        for (const { idx } of overshoot) {
+            const it = items[idx];
+            const trial = parsed - it.total + it.total / f;
+            if (Math.abs(trial - statedTotal) <= 0.02) {
+                it.weight = Number((it.weight / f).toFixed(2));
+                it.total = Number((it.total / f).toFixed(2));
+                return trial;
+            }
+        }
+    }
+    return parsed;
+}
 
 let failures = 0;
 tests.forEach((t, i) => {
     const result = parseLine(t.line);
-    const totalFound = result.reduce((s, it) => s + it.total, 0);
+    const totalFound = pageRepair(result, t.total);
     const countOk = result.length === t.expected;
     const totalOk = t.total === undefined || Math.abs(totalFound - t.total) < 0.02;
     const ok = countOk && totalOk;
