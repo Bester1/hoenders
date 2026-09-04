@@ -97,6 +97,37 @@ product word counts now. This block had already been narrowed once for exactly
 this reason (`braaipak 2` billing as breast portions); the narrowing did not go
 far enough.
 
+## The check that does not need the butchery's total
+
+**4 Sept 2026, found after the invoices had gone out.** Devon's FILETTE line billed
+**4.00 kg over 15 packs** — the weight had been taken from the quantity column. It was
+internally consistent (`weight x price = total`), so every per-row check passed, and
+his page total would not OCR, so the page-level check never ran either. He was
+over-billed **R184.37**.
+
+Every guard before this one compares a row against arithmetic. This one compares it
+against reality: **`packWeightAnomaly()` checks kg-per-pack against `PACK_WEIGHTS`**
+and flags anything outside 2.5x either way. It is the only check that still works when
+the butchery total is unreadable.
+
+`PACK_WEIGHTS` is measured, not guessed — taken from the 21 real invoices of the Sept
+run, with the observed range in a comment on each line. Products absent from that run
+use their own `packaging` string in `DEFAULT_PRICING`. Several of the old estimates
+were badly out (BORSSTUKKE 0.8 against a real 1.13-2.48; the gevulde rolle 1.4 against
+their own "± 1.7kg - 2kg") and would have cried wolf on ordinary lines. **Re-measure
+before changing a figure**, and keep the observed range in the comment.
+
+Validated across all 74 line items of the Sept run: **one flag**, and that one is a
+genuine quantity misread. Both known bugs are caught — Devon's fillets and Wanda's
+x10 strips — while Devon's correct 11-pack strips line stays clean.
+`validate-invoicing.cjs` asserts the guard is still called from `reconcileRun()`, that
+it still catches those six lines, and that every priced product has a pack weight (a
+product without one is silently unprotected).
+
+It never corrects anything. When kg-per-pack is wrong, the quantity may be the bad
+number rather than the weight, and nothing here can tell which — so it flags and
+leaves it to a human.
+
 ## Re-importing the same PDF adds, it does not replace
 
 Everything lives in **browser localStorage** (`plaasHoendersImports`,

@@ -50,32 +50,100 @@ function getCurrentImportInvoices() {
     return currentImportId && imports[currentImportId] ? imports[currentImportId].invoices : [];
 }
 
+/**
+ * Typical weight of ONE pack, per product.
+ *
+ * Measured from the 21 real invoices of the Sept 2026 Nieuwoudt run rather than
+ * guessed, because these numbers are now load-bearing: packWeightAnomaly()
+ * uses them to catch OCR damage that no arithmetic check can see. Observed
+ * per-pack ranges from that run are in the comments.
+ *
+ * Several of the previous estimates were well out (BORSSTUKKE was 0.8 against
+ * a real 1.13-2.48, VLERKIES 0.5 against 0.95-1.10) which would have produced
+ * false alarms on ordinary lines. Re-measure before changing one.
+ */
+const PACK_WEIGHTS = {
+    'HEEL HOENDER': 2.2,                        // observed 2.05 - 2.47
+    'HEEL HALWE HOENDERS': 1.25,                // observed 1.21 - 1.31
+    'PLAT HOENDER (FLATTY\'S)': 2.14,           // observed 2.14 (1 sample)
+    'BRAAIPAKKE': 2.2,                          // observed 2.17 - 2.26
+    'BORSSTUKKE MET BEEN EN VEL': 1.3,          // observed 1.13 - 2.48
+    'BOUDE EN DYE': 0.9,                        // observed 0.84 - 0.99
+    'GUNS Boud en dy aanmekaar': 1.25,          // observed 1.19 - 1.32
+    'FILETTE (sonder vel)': 1.1,                // observed 1.00 - 1.31
+    'STRIPS': 0.5,                              // observed 0.47 - 0.53
+    'ONTBEENDE HOENDER': 1.33,                  // observed 1.33 (1 sample)
+    'VLERKIES': 1.0,                            // observed 0.95 - 1.10
+    // Not in the Sept run; taken from each product's own `packaging` string in
+    // DEFAULT_PRICING rather than guessed. The rolle were 1.4 here while their
+    // packaging says "± 1.7kg - 2kg", which would have flagged every real one.
+    'GEVULDE HOENDER ROLLE VAKUUM VERPAK': 1.85, // "± 1.7kg - 2kg"
+    'GEVULDE HOENDER ROLLE OPSIE 2': 1.85,       // "± 1.7kg - 2kg"
+    'MAGIES': 0.5,                               // "In 500g sakkies verpak"
+    'LEWER': 0.5,                               // observed 0.50
+    'NEKKIES': 0.5,                             // observed 0.50
+    'HOENDER KAASWORS': 0.5,                    // "± 500g VAKUUM VERPAK"
+    'HOENDER PATTIES': 0.58,                    // observed 0.575 - 0.58
+    'INGELEGDE GROEN VYE': 0.375,               // 375g per jar
+    'SUIWER HEUNING': 1.0                       // per potjie; observed 1.00
+};
+
+// Every real line in the Sept run sat within 1.5x of its figure above, so 2.5x
+// leaves room for genuinely heavy packs without letting real damage through.
+const PACK_WEIGHT_TOLERANCE = 2.5;
+
 // Estimate product weight based on typical butchery weights
 function estimateProductWeight(product, quantity) {
-    const weightEstimates = {
-        'HEEL HOENDER': 1.8, // Full chicken ~1.8kg average
-        'HEEL HALWE HOENDERS': 0.9, // Half chicken ~0.9kg
-        'PLAT HOENDER (FLATTY\'S)': 1.2, // Flattened chicken ~1.2kg
-        'BRAAIPAKKE': 1.8, // Cut up chicken ~1.8kg
-        'BORSSTUKKE MET BEEN EN VEL': 0.8, // Breast pieces ~0.8kg per pack
-        'BOUDE EN DYE': 0.8, // Thighs and drumsticks ~0.8kg per pack
-        'GUNS Boud en dy aanmekaar': 0.7, // Connected thigh/drum ~0.7kg
-        'FILETTE (sonder vel)': 0.9, // Breast fillets ~0.9kg per pack
-        'STRIPS': 0.5, // Chicken strips ~0.5kg per pack
-        'ONTBEENDE HOENDER': 1.3, // Deboned chicken ~1.3kg
-        'VLERKIES': 0.5, // Wings ~0.5kg per pack
-        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': 1.4, // Stuffed rolls ~1.4kg
-        'LEWER': 0.5, // Liver ~0.5kg per pack
-        'NEKKIES': 0.5, // Necks ~0.5kg per pack
-        'HOENDER KAASWORS': 0.5, // Chicken cheese sausage ~0.5kg
-        'HOENDER PATTIES': 0.5, // Chicken patties ~0.5kg per pack
-        'INGELEGDE GROEN VYE': 0.375, // Pickled figs ~375g per jar
-        'SUIWER HEUNING': 0.5 // Honey ~500g per jar
-    };
-
-    const baseWeight = weightEstimates[product] || 1.0; // Default 1kg if not found
+    const baseWeight = PACK_WEIGHTS[product] || 1.0; // Default 1kg if not found
     const sanitizedQuantity = SecurityUtils.sanitizeNumber(quantity, 1);
     return parseFloat((baseWeight * sanitizedQuantity).toFixed(2));
+}
+
+/**
+ * Does this line's weight make sense for the number of packs delivered?
+ *
+ * The check every other guard misses. A row is normally validated by its own
+ * arithmetic (weight x price = total) and, failing that, against the butchery's
+ * page total. Both are blind to a row that is internally consistent but simply
+ * describes the wrong thing — and blind entirely when the page total does not
+ * OCR, which is when this bites.
+ *
+ * Devon, 4 Sept 2026: his FILETTE line billed 4.00 kg over 15 packs, 0.27 kg a
+ * pack against a real 1.0-1.31. The weight had been taken from the wrong
+ * column. His page total was unreadable, so nothing else could see it, and he
+ * was over-billed R184.37 before a human spotted it.
+ *
+ * Returns null when the line looks normal, or a description of the anomaly.
+ * It never corrects anything: the quantity might be the wrong number rather
+ * than the weight, and there is no way to tell which from here.
+ */
+function packWeightAnomaly(product, quantity, weight) {
+    const qty = Number(quantity);
+    const kg = Number(weight);
+    if (!product || !isFinite(qty) || !isFinite(kg) || qty <= 0 || kg <= 0) return null;
+
+    // Pack-size variants share one figure: "... (4 IN PAK)" uses the base name.
+    let base = PACK_WEIGHTS[product];
+    if (base === undefined) {
+        const key = Object.keys(PACK_WEIGHTS).find(k => product.startsWith(k));
+        base = key ? PACK_WEIGHTS[key] : undefined;
+    }
+    if (base === undefined) return null;   // unknown product: not our call to judge
+
+    const perPack = kg / qty;
+    const ratio = perPack / base;
+    if (ratio <= PACK_WEIGHT_TOLERANCE && ratio >= 1 / PACK_WEIGHT_TOLERANCE) return null;
+
+    return {
+        product, quantity: qty, weight: kg,
+        perPack: Number(perPack.toFixed(3)),
+        expectedPerPack: base,
+        ratio: Number(ratio.toFixed(2)),
+        message: `${product}: ${kg}kg over ${qty} pak(ke) is ${perPack.toFixed(2)}kg each, ` +
+                 `against a usual ${base}kg — ${ratio > 1 ? ratio.toFixed(1) + 'x too heavy' :
+                  (1 / ratio).toFixed(1) + 'x too light'}. Check the weight AND the ` +
+                 `quantity against the butchery invoice before sending.`
+    };
 }
 
 // Product mapping for CSV columns to standardized names
@@ -5707,6 +5775,13 @@ function reconcileRun(invoiceList) {
         if (invoice.unverified) {
             problems.push('NOT VERIFIED — no butchery total could be read on this ' +
                 'page, so a missing line would not show up here');
+        }
+        // Weight-vs-pack-count sanity. This is the only check that can see a
+        // row which is internally consistent but describes the wrong thing,
+        // and the only one that still works when the page total will not OCR.
+        for (const item of items) {
+            const odd = packWeightAnomaly(item.product, item.quantity, item.weight);
+            if (odd) problems.push(odd.message);
         }
         // Unmapped products are dropped from the invoice entirely. The customer
         // is then billed less than the butchery charged, and the invoice looks
