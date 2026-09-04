@@ -48,6 +48,48 @@ the original failure. Fixed 6 Aug 2026 (`1334036`).
 If you add a guard, verify it runs on the path that matters, and add a check
 that it stays wired in. `scripts/validate-invoicing.cjs` asserts this one.
 
+## A guard can also stop running because the supplier changed their paper
+
+**4 Sept 2026.** The `TOTAL ZAR` capture above went quiet without failing.
+Nieuwoudt changed their invoice template: there is no `TOTAL ZAR` line any
+more, only `Subtotal / Total tax / Total` and `Amount due R...`. So
+`statedTotal` stayed `null` on every page, the mismatch comparison was written
+as `statedTotal !== null && ...`, and the screen reported **"All 13 invoices
+reconcile against the butchery"** — which meant "we never checked".
+
+Measured on `ADRIAAN BESTER.pdf` (21 pages, Sept 2026 run) by running this
+repo's own parser over the real OCR: **5 invoices short by R951.96 in total,
+and 1 page where no total could be read at all.** Every shortfall was a line
+whose numbers OCR mangled — `47712` for `477,12`, `2:19` for `2.19`, `115` for
+`1.15`, `214` for `2.14` — which failed its own `weight × price = total` check
+and was then **absorbed into the next item's description**, so the money left
+the invoice without leaving a trace.
+
+Three changes, in the order they matter:
+
+1. `extractStatedTotal()` reads whichever form the page uses (`Amount due`
+   first, else the last bare `Total` line — never `Subtotal`, never `Total
+   tax`, which is usually `0,00` and would make every page look catastrophic).
+2. A page whose total cannot be read is now `unverified: true` and is listed as
+   a problem. **Absence of evidence must not render as success** — that is the
+   whole bug, twice over now.
+3. The order object carries `statedTotal` / `totalMismatch` / `unverified`
+   through to the invoice. It did not before, so even when the parser worked
+   out a mismatch, the finding was dropped on the floor between the two.
+
+Also: `droppedItems` now records lines discarded for having no rate-card price,
+with their rand value, because "unmapped" and "the customer was under-billed"
+are the same event and only the first was being reported. And the import
+summary no longer generates `errorsFound` with `Math.random()` over a hardcoded
+`pagesProcessed: 25`.
+
+**Do not guess a pack size.** The same run produced `abors 6` — Nieuwoudt's
+`Abors` with the pack size lost to OCR. 2-pak and 4-pak are different products
+at different prices, so it stays unmapped and gets named in the reconciliation
+for a human to settle. Guessing from the shape of the data is what once billed
+braaipakke as breast portions. `vierke` → `VLERKIES` was aliased because the
+l/i confusion is unambiguous.
+
 ## Two price tables, and they drift
 
 The fallback used until Supabase answers exists **twice**:

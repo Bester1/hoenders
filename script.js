@@ -112,6 +112,14 @@ const productMapping = {
     'heuning': 'SUIWER HEUNING',
     'fillets': 'FILETTE (sonder vel)',
     'vlerke': 'VLERKIES',
+    // OCR reads the l in "vlerke" as an i often enough that it cost two lines
+    // on the Sept 2026 run ("vierke 5", "vierke 13"). Unambiguous, so aliased.
+    // NOTE: "abors" from the same run is NOT aliased here. It is Nieuwoudt's
+    // "Abors" with the pack size lost, and 2-pak and 4-pak are different
+    // products at different prices — guessing which is exactly the move that
+    // once billed braaipakke as breast portions. It stays unmapped and the
+    // reconciliation names it and the rand value, for a human to decide.
+    'vierke': 'VLERKIES',
     '4bors': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
     '2bors': 'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)',
     '4 in pak': 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)',
@@ -3798,6 +3806,45 @@ async function analyzePDFContent(arrayBuffer, filename) {
     }
 }
 
+/**
+ * The butchery's own total for a page, in whichever form their template uses.
+ *
+ * This exists because the previous capture only understood "TOTAL ZAR", and
+ * when Nieuwoudt changed their template the check that protects every customer
+ * invoice went quiet without failing. Nothing announced it. The July 2026 run
+ * lost John van Eeden's vlerkies exactly this way.
+ *
+ * Their current layout prints the figure three times:
+ *     Subtotal      1505,39
+ *     Total tax     0,00
+ *     Total       1 505,39
+ *     Amount due   R1505,39
+ *
+ * "Subtotal" and "Total tax" must not be taken — the first equals the total
+ * only when tax is zero, and the second is usually 0,00, which would make
+ * every page look catastrophically short rather than fine.
+ */
+function extractStatedTotal(pageText) {
+    if (!pageText) return null;
+    const num = (raw) => {
+        const v = parseFloat(String(raw).replace(/\s/g, '').replace(/,/g, '.'));
+        return isNaN(v) ? null : v;
+    };
+    // Preferred: the explicit amount due.
+    const due = pageText.match(/amount\s+due\s*R?\s*([\d\s]+[,.]\d{2})/i);
+    if (due) return num(due[1]);
+    // Otherwise the last bare "Total" line that is neither Subtotal nor tax.
+    let found = null;
+    const re = /^[^\S\n]*total[^\S\n]+R?\s*([\d\s]+[,.]\d{2})[^\S\n]*$/gim;
+    let m;
+    while ((m = re.exec(pageText)) !== null) {
+        const line = m[0].toLowerCase();
+        if (line.includes('subtotal') || line.includes('tax') || line.includes('vat')) continue;
+        found = num(m[1]);
+    }
+    return found;
+}
+
 // Parse invoice page text to extract customer and items
 function parseInvoicePage(pageText, pageNumber) {
     // Helper to clean numeric strings from OCR artifacts
@@ -3815,6 +3862,12 @@ function parseInvoicePage(pageText, pageNumber) {
 
         // Handle space-decimal drift (e.g. "1 51" -> "1.51")
         s = s.replace(/(\d)\s+(\d{2})(\D|$)/, '$1.$2$3');
+
+        // OCR reads the decimal point as a colon often enough to matter:
+        // "vlerke 2 2:19 79,00 173,01" cost a whole line on INV-17188, because
+        // 2:19 became 219, the row failed its own arithmetic, and the R173.01
+        // was silently absorbed into the next item's description.
+        s = s.replace(/[:;]/g, '.');
 
         // Replace commas with dots
         s = s.replace(/,/g, '.');
@@ -4116,6 +4169,17 @@ function parseInvoicePage(pageText, pageNumber) {
             return null;
         }
 
+        // Nieuwoudt changed their invoice template: there is no "TOTAL ZAR"
+        // line any more, only "Subtotal / Total tax / Total" and "Amount due
+        // R...". The capture above therefore stopped finding anything, so
+        // statedTotal stayed null, so the mismatch check below never ran, so
+        // the screen said "All 13 invoices reconcile against the butchery"
+        // while 7 of 21 pages were short. Verified against ADRIAAN BESTER.pdf
+        // on 2026-09-04. Read the total from whichever form the page uses.
+        if (statedTotal === null) {
+            statedTotal = extractStatedTotal(pageText);
+        }
+
         // Compare what we parsed against what the butchery says it charged.
         // A mismatch means a line was dropped by the extractor — exactly how
         // John van Eeden's vlerkies disappeared on the July 2026 run while his
@@ -4134,11 +4198,20 @@ function parseInvoicePage(pageText, pageNumber) {
                 `NOT read and will be missing from this customer's invoice.`);
         }
 
+        if (statedTotal === null) {
+            console.warn(`⚠️ PAGE ${pageNumber} (${customerReference}): no butchery ` +
+                `total could be read, so nothing here has been verified. This is ` +
+                `NOT the same as reconciling.`);
+        }
+
         return {
             reference: customerReference,
             pageNumber: pageNumber,
             items: items,
             statedTotal: statedTotal,
+            // Absence of a total is absence of evidence. Carried explicitly so
+            // reconcileRun cannot report an unchecked page as a clean one.
+            unverified: statedTotal === null,
             totalMismatch: totalMismatch
         };
 
@@ -4349,9 +4422,12 @@ async function simulateAIAnalysis(filename) {
             summary: {
                 totalItems: allItems.length,
                 customersFound: extractedCustomers.length,
-                pagesProcessed: 25, // Simulate 25-page PDF
-                errorsFound: Math.floor(Math.random() * 2),
-                warningsFound: Math.floor(Math.random() * 2),
+                // These three were `25` hardcoded and two `Math.random()` calls.
+                // An import summary that invents its own error count is worse
+                // than none: it reads as a clean run that was actually checked.
+                pagesProcessed: extractedCustomers.length,
+                errorsFound: extractedCustomers.filter(c => c.totalMismatch).length,
+                warningsFound: extractedCustomers.filter(c => c.unverified).length,
                 totalValue: total.toFixed(2)
             },
             findings: [
@@ -4756,7 +4832,7 @@ async function importPDFAsOrders(filename) {
             }
 
             // Create ONE order per customer with multiple items (better approach)
-            const products = customer.items.map(item => {
+            const productsRaw = customer.items.map(item => {
                 const mappedProduct = findMappedProduct(item.description);
 
                 // ONLY use your rate card pricing - NEVER use butchery prices
@@ -4779,7 +4855,14 @@ async function importPDFAsOrders(filename) {
                     console.log(`❌ SKIPPED: No rate card pricing found for "${item.description}" (mapped to "${mappedProduct}") - item not included in invoice`);
                     return null; // This will filter out the item
                 }
-            }).filter(product => product !== null); // Remove skipped items
+            });
+            // Items with no rate-card price are dropped from the invoice. Keep
+            // what was dropped: the customer is billed less than the butchery
+            // charged, and without this the shortfall has no name attached.
+            const droppedItems = productsRaw
+                .map((p, idx) => (p === null ? customer.items[idx] : null))
+                .filter(Boolean);
+            const products = productsRaw.filter(product => product !== null);
 
             const customerOrder = {
                 orderId: `ORD-PDF-${Date.now()}-P${customer.pageNumber}`,
@@ -4793,7 +4876,15 @@ async function importPDFAsOrders(filename) {
                 status: 'pending',
                 pdfReference: referenceName,
                 pageNumber: customer.pageNumber,
-                source: 'PDF'
+                source: 'PDF',
+                // Carried from the parsed page. Without these the mismatch the
+                // parser worked out never reached the invoice, and the
+                // reconciliation view had nothing to fail on — the check ran,
+                // found a problem, and the finding was dropped on the floor.
+                statedTotal: customer.statedTotal ?? null,
+                totalMismatch: customer.totalMismatch ?? null,
+                unverified: customer.unverified === true,
+                droppedItems: droppedItems
             };
 
             allOrders.push(customerOrder);
@@ -5427,6 +5518,22 @@ function reconcileRun(invoiceList) {
                 `lines were not read (their total R${invoice.totalMismatch.statedTotal.toFixed(2)}, ` +
                 `we read R${invoice.totalMismatch.parsedTotal.toFixed(2)})`);
         }
+        // A page whose total could not be read has not passed the check; it
+        // never took it. Reporting that as reconciled is how this went wrong
+        // in the first place.
+        if (invoice.unverified) {
+            problems.push('NOT VERIFIED — no butchery total could be read on this ' +
+                'page, so a missing line would not show up here');
+        }
+        // Unmapped products are dropped from the invoice entirely. The customer
+        // is then billed less than the butchery charged, and the invoice looks
+        // perfectly ordinary. Name them here rather than only in a warning box.
+        if (invoice.droppedItems && invoice.droppedItems.length) {
+            const lost = invoice.droppedItems.reduce((s, i) => s + (i.total || 0), 0);
+            problems.push(`${invoice.droppedItems.length} line(s) dropped for having no ` +
+                `rate-card price (${invoice.droppedItems.map(i => i.description).join(', ')}) ` +
+                `— R${lost.toFixed(2)} of butchery cost is NOT on this invoice`);
+        }
 
         return {
             invoiceId: invoice.invoiceId,
@@ -5455,7 +5562,7 @@ function renderReconciliation(invoiceList) {
              <strong>${rec.flagged.length} invoice(s) need attention before sending.</strong>
            </div>`
         : `<div style="background:#e8f5e9;border-left:4px solid #4caf50;padding:10px;margin-bottom:10px;">
-             <strong>All ${rec.rows.length} invoices reconcile against the butchery.</strong>
+             <strong>All ${rec.rows.length} invoices reconcile against the butchery's own totals.</strong>
            </div>`;
 
     const rows = rec.rows.map(r => {
@@ -5517,7 +5624,9 @@ function generateInvoiceFromPDFDataMultiProduct(order) {
         // Carried through so the reconciliation view can show that the
         // butchery charged for more than we managed to read.
         statedButcheryTotal: order.statedTotal || null,
-        totalMismatch: order.totalMismatch || null
+        totalMismatch: order.totalMismatch || null,
+        unverified: order.unverified === true,
+        droppedItems: order.droppedItems || []
     };
 
     // Add to collections
