@@ -1919,7 +1919,8 @@ function updateStepIndicators(activeStep) {
  */
 function populateAllProducts() {
     try {
-        // Get all 18 products with categories from shared-utils.js
+        // Products come from the price table; which of them render, and in
+        // what order, is decided by getProductCategories() in shared-utils.js.
         const pricing = getCustomerPricing();
         const categories = getProductCategories();
 
@@ -1933,6 +1934,11 @@ function populateAllProducts() {
 
         // Create products organized by categories
         Object.entries(categories).forEach(([categoryKey, category]) => {
+            // Skip a category with nothing priced in it, rather than emitting a
+            // heading with no products beneath it. See createProductCards().
+            const available = category.products.filter(name => pricing[name]);
+            if (!available.length) return;
+
             // Add category header
             const categoryHeader = document.createElement('div');
             categoryHeader.className = 'col-span-full mb-6 text-center';
@@ -1946,12 +1952,8 @@ function populateAllProducts() {
             productGrid.appendChild(categoryHeader);
 
             // Add products in this category
-            category.products.forEach(productName => {
+            available.forEach(productName => {
                 const priceData = pricing[productName];
-                if (!priceData) {
-                    console.warn(`No pricing data for ${productName}`);
-                    return;
-                }
 
                 // Get display info and create safe product key
                 const displayInfo = getProductDisplayInfo(productName);
@@ -4475,6 +4477,11 @@ function createProductCards(pricing, categories) {
     let cardsHTML = '';
 
     Object.entries(categories).forEach(([categoryKey, category]) => {
+        // A category whose products are all unpriced would otherwise render as
+        // a bare heading with nothing under it. That is the state the limited
+        // extras land in once their Supabase rows are deactivated.
+        const available = category.products.filter(name => pricing[name]);
+        if (!available.length) return;
         cardsHTML += `
             <div class="product-category" data-category="${categoryKey}">
                 <div class="category-header">
@@ -4482,7 +4489,7 @@ function createProductCards(pricing, categories) {
                     <p class="category-description">${category.description}</p>
                 </div>
                 <div class="category-products">
-                    ${createCategoryProductCards(category.products, pricing)}
+                    ${createCategoryProductCards(available, pricing)}
                 </div>
             </div>
         `;

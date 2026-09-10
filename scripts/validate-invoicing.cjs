@@ -294,6 +294,67 @@ try {
     fail(`could not check product resolution: ${e.message}`);
 }
 
+// --- 6. Every priced product must be visible on the order form -------------
+//
+// populateAllProducts() renders the products named in getProductCategories(),
+// NOT the price table. A product that is priced but in no category is simply
+// never drawn — orderable in the admin, invisible to the customer, and silent
+// either way. MAGIES sat like that; so did the four Sept 2026 extras until
+// 2026-09-10, after they had already been added to the database.
+//
+// The same function's description comes from getProductDisplayInfo(), which
+// falls back to the raw uppercase pricing key plus "Vars hoender produk van
+// die plaas". Ten products were showing that filler, including one half of the
+// gevulde-rolle pair while the other half read correctly.
+try {
+    const src = read('shared-utils.js');
+    const sandbox = {};
+    new Function('sandbox', 'window', 'navigator',
+        src + ';sandbox.pricing = getCustomerPricing();' +
+        'sandbox.cats = getProductCategories();' +
+        'sandbox.display = getProductDisplayInfo;'
+    )(sandbox, {}, { userAgent: '' });
+
+    const categorised = new Map();
+    for (const [key, cat] of Object.entries(sandbox.cats)) {
+        for (const name of cat.products) {
+            categorised.set(name, [...(categorised.get(name) || []), key]);
+        }
+    }
+    const priced = Object.keys(sandbox.pricing);
+
+    const invisible = priced.filter(n => !categorised.has(n));
+    if (invisible.length) {
+        fail(`priced but in no category, so never rendered on the order form: ` +
+             `${invisible.join(', ')}`);
+    } else {
+        ok(`every priced product appears in a category (${priced.length})`);
+    }
+
+    const twice = [...categorised].filter(([n, keys]) => keys.length > 1);
+    if (twice.length) {
+        fail(`listed in more than one category, so rendered twice: ` +
+             twice.map(([n, k]) => `${n} (${k.join(', ')})`).join('; '));
+    }
+
+    const ghosts = [...categorised.keys()].filter(n => !sandbox.pricing[n]);
+    if (ghosts.length) {
+        console.log(`note  in a category but not in the fallback price table, so ` +
+                    `they render only when the database supplies them: ${ghosts.join(', ')}`);
+    }
+
+    const filler = priced.filter(n =>
+        sandbox.display(n).description === 'Vars hoender produk van die plaas');
+    if (filler.length) {
+        fail(`no display entry, so these show the raw pricing key and the generic ` +
+             `"Vars hoender produk van die plaas": ${filler.join(', ')}`);
+    } else {
+        ok(`every priced product has a real name and description`);
+    }
+} catch (e) {
+    fail(`could not check order-form visibility: ${e.message}`);
+}
+
 console.log('');
 if (failures) {
     console.error(`${failures} check(s) failed.`);

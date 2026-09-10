@@ -174,6 +174,50 @@ function getProductDisplayInfo(productName) {
             displayName: 'Ontbeende Hoender',
             description: 'Heel hoender sonder bene, maklik om te sny'
         },
+        // Everything below was falling through to the generic
+        // "Vars hoender produk van die plaas" fallback, and showing the raw
+        // uppercase pricing key as its name. Opsie 2 of the gevulde rolle had
+        // an entry and Opsie 1 did not, so the pair rendered inconsistently.
+        'GEVULDE HOENDER ROLLE VAKUUM VERPAK': {
+            displayName: 'Gevulde Hoender Rolle Opsie 1',
+            description: 'Groenvye, feta, cheddar, sweet chilli'
+        },
+        'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)': {
+            displayName: 'Borsstukke met Been en Vel (2 in pak)',
+            description: 'Sappige borsstukke met been en vel - 2 in \'n pak'
+        },
+        'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)': {
+            displayName: 'Borsstukke met Been en Vel (4 in pak)',
+            description: 'Sappige borsstukke met been en vel - 4 in \'n pak'
+        },
+        'STRIPS': {
+            displayName: 'Strips',
+            description: 'Hoenderstrips sonder been - ± 500g per pak, vakuumverpak'
+        },
+        'HOENDER PATTIES': {
+            displayName: 'Hoender Patties',
+            description: 'Hoenderfrikkadelle - 4 in \'n pak, 120-140g elk'
+        },
+        'HOENDER KAASWORS': {
+            displayName: 'Hoender Kaaswors',
+            description: 'Hoenderwors met kaas - ± 500g, vakuumverpak'
+        },
+        'LEWER': {
+            displayName: 'Lewer',
+            description: 'Vars hoenderlewer - in 500g bakkies verpak'
+        },
+        'MAGIES': {
+            displayName: 'Magies',
+            description: 'Hoendermagies - in 500g sakkies verpak'
+        },
+        'NEKKIES': {
+            displayName: 'Nekkies',
+            description: 'Hoendernekkies - in 500g sakkies verpak'
+        },
+        'INGELEGDE GROEN VYE': {
+            displayName: 'Ingelegde Groen Vye',
+            description: 'Ingelegde groen vye - 375ml potjie'
+        },
         'SOSATIE': {
             displayName: 'Sosatie',
             description: 'Gemarineerde hoender sosaties'
@@ -317,9 +361,30 @@ function getProductCategories() {
             icon: 'fas fa-plus-circle',
             products: [
                 'LEWER',
+                'MAGIES',
                 'NEKKIES',
                 'INGELEGDE GROEN VYE',
                 'SUIWER HEUNING'
+            ]
+        },
+        // Nieuwoudt's once-off extras, Sept 2026. A product that is priced but
+        // named in no category here is NEVER RENDERED — populateAllProducts()
+        // walks these lists, not the price table — which is how MAGIES stayed
+        // invisible while being perfectly orderable everywhere else, and why
+        // these four did not appear when they were added to the database.
+        //
+        // To retire them after the round, deactivate the Supabase rows: the
+        // category then has no priced products and is skipped entirely, so
+        // this block can stay put until the extras are wanted again.
+        'extras': {
+            name: 'Beperkte Ekstras',
+            description: 'Beperkte getalle - eerste kom, eerste bedien',
+            icon: 'fas fa-bolt',
+            products: [
+                'DYE SOSATIES (BBQ)',
+                'ONTBEENDE DYE',
+                'ONTBEENDE DYE (KERRIE)',
+                'BOUDE (6 IN PAK)'
             ]
         }
     };
