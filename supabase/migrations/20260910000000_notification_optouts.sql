@@ -21,10 +21,13 @@ create policy "anyone may opt out"
     on public.notification_optouts for insert
     to anon, authenticated with check (true);
 
+-- Deliberately NO update policy, and no delete policy. A policy permissive
+-- enough to let afmeld.html upsert also lets anyone rewrite somebody else's
+-- row, and changing the address on an opt-out puts that person back on the
+-- list. Verified against the live table on 2026-09-10: with `using (true)` an
+-- anon PATCH renamed an existing row. Opt-out rows are immutable; the page
+-- inserts and treats a duplicate key as success.
 drop policy if exists "anyone may re-opt-out" on public.notification_optouts;
-create policy "anyone may re-opt-out"
-    on public.notification_optouts for update
-    to anon, authenticated using (true) with check (true);
 
 -- The admin dashboard must be able to read it, or it will refuse to send.
 drop policy if exists "the list is readable" on public.notification_optouts;

@@ -65,11 +65,18 @@
                 const msg = document.getElementById('msg');
                 btn.disabled = true;
                 btn.textContent = 'Besig...';
-                // upsert, so clicking the link twice is not an error
+                // Insert, ignoring a duplicate, rather than upserting. An upsert
+                // needs UPDATE permission on the table, and an UPDATE policy wide
+                // enough to allow it also lets anyone rewrite somebody else's row
+                // — changing the address on an opt-out puts that person back on
+                // the list. Opt-out rows are immutable by design: the only public
+                // operations are "add mine" and "read the list".
+                //
+                // A duplicate is not an error here. Someone clicking the link a
+                // second time is still opted out, which is the outcome they want.
                 const { error } = await client.from('notification_optouts')
-                    .upsert({ email, opted_out_at: new Date().toISOString() },
-                            { onConflict: 'email' });
-                if (error) {
+                    .insert({ email }, { count: 'exact' });
+                if (error && error.code !== '23505') {
                     btn.disabled = false;
                     btn.textContent = 'Probeer weer';
                     msg.className = 'msg err';
