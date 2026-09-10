@@ -433,6 +433,67 @@ try {
     fail(`could not check the notice guards: ${e.message}`);
 }
 
+// --- 8. Closing the portal must actually close it --------------------------
+//
+// Closing a round used to be cosmetic. checkOrderingStatus() disabled the Place
+// Order button at page load, and then checkProceedButton() set
+// `placeOrderBtn.disabled = false` the moment the customer ticked the address
+// and phone boxes — that handler knew nothing about the ordering status. The
+// banner stayed on screen saying "Bestelling is tans gesluit" while the button
+// underneath it worked, so a closed round still took orders.
+//
+// Every path that enables the button now goes through setPlaceOrderEnabled(),
+// which refuses while orderingOpen is false.
+try {
+    const src = read('customer.js');
+    const grab = (marker) => {
+        const a = src.indexOf(marker);
+        if (a < 0) throw new Error(`could not find ${marker}`);
+        let i = src.indexOf('{', a), depth = 0;
+        for (; i < src.length; i++) {
+            if (src[i] === '{') depth++;
+            else if (src[i] === '}') { depth--; if (!depth) return src.slice(a, i + 1); }
+        }
+        throw new Error('unbalanced braces after ' + marker);
+    };
+
+    const btn = { disabled: false, style: {}, textContent: 'Plaas Bestelling', title: '' };
+    const sandbox = {};
+    new Function('sandbox', 'document',
+        'var orderingOpen = true;' + grab('function setPlaceOrderEnabled') +
+        ';sandbox.set = setPlaceOrderEnabled; sandbox.open = v => { orderingOpen = v; };'
+    )(sandbox, { getElementById: id => (id === 'placeOrder' ? btn : null) });
+
+    let bad = 0;
+    const check = (cond, msg) => { if (!cond) { bad++; fail(msg); } };
+
+    sandbox.open(false);
+    sandbox.set(true, 'Plaas Bestelling');
+    check(btn.disabled === true,
+        'a CLOSED round still enables Place Order when both confirmation boxes ' +
+        'are ticked — closing the portal does nothing');
+
+    sandbox.open(true);
+    sandbox.set(false, 'Plaas Bestelling');
+    check(btn.disabled === true, 'an open round enables Place Order before the boxes are ticked');
+    sandbox.set(true, 'Plaas Bestelling');
+    check(btn.disabled === false, 'an open round will not enable Place Order at all');
+
+    // Nothing outside setPlaceOrderEnabled() and updateOrderingUI() may enable it.
+    const enables = [...src.matchAll(/placeOrder(?:Btn)?\.disabled\s*=\s*false/g)];
+    check(enables.length <= 1,
+        `${enables.length} places set placeOrder.disabled = false directly; only ` +
+        `updateOrderingUI() may, or a closed round can be reopened from anywhere`);
+
+    check(/await checkOrderingStatus\(\);/.test(grab("placeOrder.addEventListener('click'")),
+        'the order is submitted without re-reading the ordering status, so a portal ' +
+        'left open in a tab can still order into a closed round');
+
+    if (!bad) ok('closing the portal actually prevents ordering');
+} catch (e) {
+    fail(`could not check the ordering gate: ${e.message}`);
+}
+
 console.log('');
 if (failures) {
     console.error(`${failures} check(s) failed.`);

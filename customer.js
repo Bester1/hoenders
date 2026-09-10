@@ -1758,6 +1758,17 @@ function setupBeautifulPortalEventListeners() {
                 return;
             }
 
+            // A portal left open in a tab has a stale ordering status. Re-read it
+            // before writing an order rather than trusting what the page decided
+            // when it loaded, which may have been hours or days ago.
+            await checkOrderingStatus();
+            if (!orderingOpen) {
+                alert('Bestellings is intussen gesluit. Skakel of e-pos gerus vir Adriaan ' +
+                      'as jy nog iets wil bestel.');
+                setPlaceOrderEnabled(false);
+                return;
+            }
+
             // Disable button and show loading state
             placeOrder.disabled = true;
             const originalText = placeOrder.textContent;
@@ -1768,10 +1779,9 @@ function setupBeautifulPortalEventListeners() {
                 await handleOrderPlacement();
             } catch (error) {
                 console.error('Order placement failed:', error);
-                // Re-enable button on error
-                placeOrder.disabled = false;
-                placeOrder.textContent = originalText;
-                placeOrder.style.opacity = '1';
+                // Let them retry — but through the gate, so a round that closed
+                // while the order was in flight does not come back open here.
+                setPlaceOrderEnabled(true, originalText);
             }
         });
     }
@@ -2521,11 +2531,10 @@ function populateOrderReview() {
 
     if (addressCheckbox && phoneCheckbox && placeOrderBtn) {
         const checkProceedButton = () => {
-            if (addressCheckbox.checked && phoneCheckbox.checked) {
-                placeOrderBtn.disabled = false;
-            } else {
-                placeOrderBtn.disabled = true;
-            }
+            // Ticking both boxes is necessary but not sufficient: this used to
+            // set disabled = false outright, which re-opened a closed round.
+            setPlaceOrderEnabled(addressCheckbox.checked && phoneCheckbox.checked,
+                'Plaas Bestelling');
         };
 
         addressCheckbox.addEventListener('change', checkProceedButton);
@@ -3544,12 +3553,7 @@ async function handleOrderPlacement() {
         populateConfirmationOrderSummary(orderData);
 
         // Re-enable button after successful order (will be reset by new order button later)
-        const placeOrderBtn = document.getElementById('placeOrder');
-        if (placeOrderBtn) {
-            placeOrderBtn.disabled = false;
-            placeOrderBtn.textContent = 'Plaas Bestelling';
-            placeOrderBtn.style.opacity = '1';
-        }
+        setPlaceOrderEnabled(true, 'Plaas Bestelling');
 
         // Clear cart after successful order
         clearCart();
@@ -6791,6 +6795,36 @@ async function loadProductsFromDB() {
     }
 }
 // Ordering Status Control for Customer Portal
+/**
+ * Whether the portal is currently accepting orders.
+ *
+ * Closing used to be cosmetic. checkOrderingStatus() disabled the Place Order
+ * button at page load, and then checkProceedButton() re-enabled it the moment
+ * the customer ticked the address and phone boxes, because that handler knew
+ * nothing about the ordering status. The banner stayed on screen saying
+ * "Bestelling is tans gesluit" while the button underneath it worked, so a
+ * closed round still took orders.
+ *
+ * Everything that enables the button now goes through setPlaceOrderEnabled(),
+ * which will not enable it while this is false.
+ */
+let orderingOpen = true;
+
+function setPlaceOrderEnabled(wantEnabled, label) {
+    const btn = document.getElementById('placeOrder');
+    if (!btn) return;
+    const enabled = wantEnabled && orderingOpen;
+    btn.disabled = !enabled;
+    btn.style.opacity = enabled ? '1' : '0.5';
+    if (!orderingOpen) {
+        btn.textContent = 'Bestelling Gesluit';
+        btn.title = 'Bestelling is tans gesluit';
+    } else if (label) {
+        btn.textContent = label;
+        btn.title = '';
+    }
+}
+
 async function checkOrderingStatus() {
     try {
         if (!supabaseClient) return;
@@ -6806,14 +6840,17 @@ async function checkOrderingStatus() {
                 console.warn('Could not fetch ordering status:', error);
             }
             // If settings not found, assume open
+            orderingOpen = true;
             updateOrderingUI(true);
             return;
         }
 
         const isOpen = data && data.orders_open !== false;
+        orderingOpen = isOpen;
         updateOrderingUI(isOpen);
     } catch (e) {
         console.error('Error checking ordering status:', e);
+        orderingOpen = true;
         updateOrderingUI(true);
     }
 }

@@ -77,7 +77,13 @@ async function loadNoticeCustomers() {
     noticeCustomers = [...byEmail.values()].map(c => {
         const days = Math.floor((today - new Date(c.lastOrder)) / 86400000);
         return { ...c, daysSinceOrder: days, segment: noticeSegment(days) };
-    }).sort((a, b) => b.orders - a.orders);
+    }).sort((a, b) =>
+        // Most frequent first, which is the order to work down when deciding who
+        // to tell. Ties break on who ordered most recently, then on spend, so the
+        // list is stable rather than in whatever order the rows came back.
+        b.orders - a.orders ||
+        (a.daysSinceOrder - b.daysSinceOrder) ||
+        b.spend - a.spend);
 
     if (noEmail) {
         console.warn(`${noEmail} order row(s) carry no email address and are not on the list`);
@@ -411,7 +417,27 @@ function suggestRoundDates() {
     if (typeof DELIVERY_SCHEDULE_2026 === 'undefined') return null;
     const today = new Date().toISOString().split('T')[0];
     const next = DELIVERY_SCHEDULE_2026.find(r => r.delivery >= today);
-    return next ? { month: next.month, cutoff: next.cutoff, delivery: next.delivery } : null;
+    if (!next) return null;
+
+    // The stated deadline is the 15th of the delivery month, which is what the
+    // customers are told. DELIVERY_SCHEDULE_2026's own cutoff column is not used
+    // for this: it varies month to month and no round has ever been closed on it.
+    const cutoff = `${next.delivery.slice(0, 7)}-15`;
+
+    // The date orders actually stop being accepted — a week before delivery,
+    // which is the grace Bes gives in practice. Shown to the sender only. It is
+    // deliberately NOT in the customer email: an advertised grace period is just
+    // a later deadline, and then that one needs a grace period too.
+    const grace = new Date(next.delivery + 'T00:00:00');
+    grace.setDate(grace.getDate() - 7);
+
+    return {
+        month: next.month,
+        cutoff,
+        delivery: next.delivery,
+        graceUntil: grace.toISOString().split('T')[0],
+        scheduleCutoff: next.cutoff
+    };
 }
 
 function formatAfrikaansDate(iso) {
@@ -488,8 +514,14 @@ function prefillRoundDates() {
     if (cutoff && !cutoff.value) cutoff.value = suggestion.cutoff;
     if (delivery && !delivery.value) delivery.value = suggestion.delivery;
     if (note) {
-        note.innerHTML = `Voorgestel uit die ${suggestion.month}-skedule. ` +
-            `<strong>Gaan dit na</strong> — die rondtes volg nie die skedule presies nie ` +
-            `(die vorige rondte is die 5de afgelewer, nie die 26ste soos hier nie).`;
+        note.innerHTML =
+            `Sperdatum is die 15de, soos die kliënte dit gesê word. ` +
+            `Aflewering voorgestel uit die ${suggestion.month}-skedule — ` +
+            `<strong>gaan dit na</strong>, die rondtes volg nie die skedule presies nie ` +
+            `(die vorige rondte is die 5de afgelewer, nie die 26ste soos daar nie).<br>` +
+            `Jy vat gewoonlik bestellings tot ongeveer ` +
+            `<strong>${formatAfrikaansDate(suggestion.graceUntil)}</strong> ` +
+            `(’n week voor aflewering). Dit staan nie in die e-pos nie — ` +
+            `’n aangekondigde uitstel is net ’n later sperdatum.`;
     }
 }
