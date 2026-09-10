@@ -85,7 +85,15 @@ const PACK_WEIGHTS = {
     'HOENDER KAASWORS': 0.5,                    // "± 500g VAKUUM VERPAK"
     'HOENDER PATTIES': 0.58,                    // observed 0.575 - 0.58
     'INGELEGDE GROEN VYE': 0.375,               // 375g per jar
-    'SUIWER HEUNING': 1.0                       // per potjie; observed 1.00
+    'SUIWER HEUNING': 1.0,                      // per potjie; observed 1.00
+    // Sept 2026 once-off extras from Ansie. No run has been weighed yet, so
+    // these come from her own stated pack sizes, not from measurement. Take
+    // the midpoint of the range she gave and RE-MEASURE off the first butchery
+    // invoice that carries them.
+    'DYE SOSATIES (BBQ)': 0.6,                  // "4 in 'n pak - weeg +- 600g"
+    'ONTBEENDE DYE': 0.9,                       // "6 in pak - +- 800g - 1kg"
+    'ONTBEENDE DYE (KERRIE)': 1.0,              // "6 in 'n pak - +- 1kg"
+    'BOUDE (6 IN PAK)': 0.8                     // "6 in pak - +- 800g"
 };
 
 // Every real line in the Sept run sat within 1.5x of its figure above, so 2.5x
@@ -177,6 +185,35 @@ const productMapping = {
     'Hoender Patties 4 in pak (120-140gr/patty) R120/kg': 'HOENDER PATTIES',
     'Heuning 500ml R70': 'SUIWER HEUNING',
     // Additional mappings for butchery invoice items (simplified names)
+    //
+    // ORDER MATTERS IN THIS BLOCK. findMappedProduct() returns the FIRST
+    // productMapping entry whose key or value is a substring of the
+    // description, walking the object in insertion order. Two collisions here
+    // are live, and both silently mis-price rather than failing:
+    //
+    //   * 'ontbeen' -> ONTBEENDE HOENDER (below) also matches "ontbeende dye".
+    //     Left later in the object, an ontbeende-dye line would bill at
+    //     R115/R132 instead of R145/R167 — R35/kg under, on a normal-looking
+    //     invoice. So both dye aliases go FIRST.
+    //   * 'ONTBEENDE DYE' is itself a substring of the kerrie line, so the
+    //     KERRIE aliases must precede the plain ones or curry bills as plain
+    //     (R150 cost read as R145).
+    //
+    // validate-invoicing.cjs pins both orderings.
+    'ontbeende dye in kerrie': 'ONTBEENDE DYE (KERRIE)',
+    'ontbeende dye kerrie': 'ONTBEENDE DYE (KERRIE)',
+    'kerrie dye': 'ONTBEENDE DYE (KERRIE)',
+    'kerrie': 'ONTBEENDE DYE (KERRIE)',
+    'ontbeende dye': 'ONTBEENDE DYE',
+    'ontb dye': 'ONTBEENDE DYE',
+    'dye sosaties': 'DYE SOSATIES (BBQ)',
+    'sosatie': 'DYE SOSATIES (BBQ)',
+    // Bare 'boude' is safe ONLY because it sits after the two entries that
+    // resolve boude-en-dye: the long-form key at the top of this object (whose
+    // VALUE, "BOUDE EN DYE", is what actually matches the butchery's short
+    // form) and 'boud/dy' below, which does not contain the string "boude" at
+    // all. Do not move this line up. Pinned by the validator.
+    'boude': 'BOUDE (6 IN PAK)',
     'heuning': 'SUIWER HEUNING',
     'fillets': 'FILETTE (sonder vel)',
     'vlerke': 'VLERKIES',
@@ -251,7 +288,18 @@ const DEFAULT_PRICING = {
     'INGELEGDE GROEN VYE': { cost: 65.00, selling: 75.00, packaging: '375ml potjie', unit: 'per potjie' },
     'HOENDER PATTIES': { cost: 105.00, selling: 120.00, packaging: '4 in pak (120-140g per patty)', unit: 'per kg' },
     'HOENDER KAASWORS': { cost: 150.00, selling: 165.00, packaging: '± 500g VAKUUM VERPAK', unit: 'per kg' },
-    'SUIWER HEUNING': { cost: 65.00, selling: 70.00, packaging: '500g potjie', unit: 'per potjie' }
+    'SUIWER HEUNING': { cost: 65.00, selling: 70.00, packaging: '500g potjie', unit: 'per potjie' },
+    // Sept 2026 once-off extras offered by Nieuwoudt in limited numbers.
+    // Selling prices are cost + ~15%, matching the rest of this table. Costs
+    // are Ansie's quoted figures and are NOT yet confirmed against a butchery
+    // invoice — note that BOUDE at R81 is R10/kg dearer than BOUDE EN DYE, and
+    // ONTBEENDE DYE at R145 is R30/kg dearer than ONTBEENDE HOENDER. Both were
+    // queried with her on 2026-09-10. Deactivate these in Supabase after the
+    // round rather than deleting the rows.
+    'DYE SOSATIES (BBQ)': { cost: 170.00, selling: 195.00, packaging: '4 in pak - ± 600g in braaisous - BEPERKTE GETALLE, NIE ALTYD BESKIKBAAR NIE' },
+    'ONTBEENDE DYE': { cost: 145.00, selling: 167.00, packaging: '6 in pak - ± 800g - 1kg - BEPERKTE GETALLE, NIE ALTYD BESKIKBAAR NIE' },
+    'ONTBEENDE DYE (KERRIE)': { cost: 150.00, selling: 172.00, packaging: '6 in pak - ± 1kg in kerrie - BEPERKTE GETALLE, NIE ALTYD BESKIKBAAR NIE' },
+    'BOUDE (6 IN PAK)': { cost: 81.00, selling: 93.00, packaging: '6 in pak - ± 800g - BEPERKTE GETALLE, NIE ALTYD BESKIKBAAR NIE' }
 };
 
 // Secure Configuration and Database Connection with Fallback

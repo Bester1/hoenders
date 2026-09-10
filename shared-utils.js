@@ -94,7 +94,14 @@ function getCustomerPricing() {
         'INGELEGDE GROEN VYE': { cost: 65.00, selling: 75.00, packaging: '375ml potjie', unit: 'per potjie' },
         'HOENDER PATTIES': { cost: 105.00, selling: 120.00, packaging: '4 in pak (120-140g per patty)', unit: 'per kg' },
         'HOENDER KAASWORS': { cost: 150.00, selling: 165.00, packaging: '± 500g VAKUUM VERPAK', unit: 'per kg' },
-        'SUIWER HEUNING': { cost: 65.00, selling: 70.00, packaging: '500g potjie', unit: 'per potjie' }
+        'SUIWER HEUNING': { cost: 65.00, selling: 70.00, packaging: '500g potjie', unit: 'per potjie' },
+        // Sept 2026 once-off extras. Must stay identical to DEFAULT_PRICING in
+        // script.js — the validator fails if these two tables drift, which is
+        // how customers once saw one price while the invoice used another.
+        'DYE SOSATIES (BBQ)': { cost: 170.00, selling: 195.00, packaging: '4 in pak - ± 600g in braaisous - BEPERKTE GETALLE, NIE ALTYD BESKIKBAAR NIE' },
+        'ONTBEENDE DYE': { cost: 145.00, selling: 167.00, packaging: '6 in pak - ± 800g - 1kg - BEPERKTE GETALLE, NIE ALTYD BESKIKBAAR NIE' },
+        'ONTBEENDE DYE (KERRIE)': { cost: 150.00, selling: 172.00, packaging: '6 in pak - ± 1kg in kerrie - BEPERKTE GETALLE, NIE ALTYD BESKIKBAAR NIE' },
+        'BOUDE (6 IN PAK)': { cost: 81.00, selling: 93.00, packaging: '6 in pak - ± 800g - BEPERKTE GETALLE, NIE ALTYD BESKIKBAAR NIE' }
     };
 
     // Use dynamic pricing if available, otherwise fallback
@@ -202,6 +209,22 @@ function getProductDisplayInfo(productName) {
         'EIERS': {
             displayName: 'Eiers',
             description: 'Vars plaas eiers'
+        },
+        'DYE SOSATIES (BBQ)': {
+            displayName: 'Dye Sosaties in Braaisous',
+            description: 'Gemarineerde dye sosaties in braaisous - 4 in \'n pak'
+        },
+        'ONTBEENDE DYE': {
+            displayName: 'Ontbeende Dye',
+            description: 'Dye sonder bene - 6 in \'n pak'
+        },
+        'ONTBEENDE DYE (KERRIE)': {
+            displayName: 'Ontbeende Dye in Kerrie',
+            description: 'Dye sonder bene, in kerriesous - 6 in \'n pak'
+        },
+        'BOUDE (6 IN PAK)': {
+            displayName: 'Boude',
+            description: 'Net boude - 6 in \'n pak'
         }
     };
 

@@ -226,6 +226,74 @@ try {
     fail(`could not check the pack-weight guard: ${e.message}`);
 }
 
+// --- 5. findMappedProduct() resolves the collisions in productMapping -------
+//
+// The mapping table is walked in INSERTION ORDER and the first substring hit
+// wins, so several entries are only correct because of where they sit in the
+// object. Nothing about the table's appearance says so, and getting it wrong
+// mis-prices a line rather than failing — the silent shape every incident here
+// has had. These cases pin the orderings that matter.
+//
+// Added 2026-09-10 with Nieuwoudt's once-off extras, which introduced two live
+// collisions: 'ontbeen' already matched "ontbeende dye", and 'ONTBEENDE DYE'
+// is a substring of the kerrie variant.
+try {
+    const src = read('script.js');
+    const grab = (marker) => {
+        const a = src.indexOf(marker);
+        let i = src.indexOf('{', a), depth = 0;
+        for (; i < src.length; i++) {
+            if (src[i] === '{') depth++;
+            else if (src[i] === '}') { depth--; if (depth === 0) return src.slice(a, i + 1); }
+        }
+        throw new Error('unbalanced braces after ' + marker);
+    };
+    const sandbox = {};
+    new Function('sandbox', 'console',
+        'var ' + grab('const productMapping').replace(/^const /, '') + ';' +
+        'var ' + grab('const DEFAULT_PRICING').replace(/^const /, '') + ';' +
+        'var pricing = DEFAULT_PRICING;' +
+        'var unmappedProducts = new Set();' +
+        grab('function findMappedProduct') + ';' +
+        'sandbox.f = findMappedProduct; sandbox.unmapped = unmappedProducts;'
+    )(sandbox, { error() {}, warn() {}, log() {} });
+
+    const cases = [
+        // [butchery description, expected product, why this case exists]
+        ['boud/dy',                     'BOUDE EN DYE',           "Nieuwoudt's own short form"],
+        ['boude en dye',                'BOUDE EN DYE',           'must not be stolen by the bare "boude" alias'],
+        ['boude en dye 2 in pak',       'BOUDE EN DYE',           'must not be stolen by "2 in pak" either'],
+        ['boude',                       'BOUDE (6 IN PAK)',       'the new boude-only line'],
+        ['Boude 6',                     'BOUDE (6 IN PAK)',       'with a pack count'],
+        ['boude 6 in pak',              'BOUDE (6 IN PAK)',       'survives the loose-pak shortcut'],
+        ['Ontbeende hoender',           'ONTBEENDE HOENDER',      'the original, still correct'],
+        ['ontbeen 2',                   'ONTBEENDE HOENDER',      'the short alias, still correct'],
+        ['Ontbeende dye',               'ONTBEENDE DYE',          'must beat the "ontbeen" alias'],
+        ['ontbeende dye 6',             'ONTBEENDE DYE',          'with a pack count'],
+        ['Ontbeende dye in kerrie',     'ONTBEENDE DYE (KERRIE)', 'must beat the plain dye entry'],
+        ['kerrie dye 4',                'ONTBEENDE DYE (KERRIE)', "Nieuwoudt's likely short form"],
+        ['Dye sosaties in barbeque sous', 'DYE SOSATIES (BBQ)',   'as Ansie wrote it'],
+        ['sosaties 4',                  'DYE SOSATIES (BBQ)',     'short form'],
+        ['vierke 13',                   'VLERKIES',               'OCR l/i regression, unchanged'],
+        ['vye rol 1',                   'GEVULDE HOENDER ROLLE VAKUUM VERPAK', "Tanya's dropped line"],
+    ];
+    let bad = 0;
+    for (const [desc, expected, why] of cases) {
+        const got = sandbox.f(desc);
+        if (got !== expected) {
+            bad++;
+            fail(`findMappedProduct("${desc}") -> ${got}, expected ${expected} (${why})`);
+        }
+    }
+    if (!bad) ok(`findMappedProduct resolves ${cases.length} known butchery descriptions`);
+    if (sandbox.unmapped.size) {
+        fail(`these descriptions have no mapping and would be dropped from an ` +
+             `invoice: ${[...sandbox.unmapped].join('; ')}`);
+    }
+} catch (e) {
+    fail(`could not check product resolution: ${e.message}`);
+}
+
 console.log('');
 if (failures) {
     console.error(`${failures} check(s) failed.`);
