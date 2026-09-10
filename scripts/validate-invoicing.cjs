@@ -343,6 +343,22 @@ try {
                     `they render only when the database supplies them: ${ghosts.join(', ')}`);
     }
 
+    // getEstimatedWeight() silently returns '1.0kg' for anything missing from
+    // its weightMap, which is what the customer sees quoted on the order form
+    // and in the confirmation. The four Sept 2026 extras all took that default
+    // — the sosaties quoting 1.0kg against a ±600g pack — and so did MAGIES.
+    // An entry that genuinely IS 1.0kg (NEKKIES, sold in 1kg bags) must still
+    // be written down, so the default never stands in for a real figure.
+    const weightSrc = read('shared-utils.js');
+    const wmap = objectLiteralAfter(weightSrc, 'const weightMap =', 'weightMap in shared-utils.js');
+    const noWeight = priced.filter(n => !(n in wmap));
+    if (noWeight.length) {
+        fail(`no entry in weightMap, so the order form quotes a default 1.0kg: ` +
+             `${noWeight.join(', ')}`);
+    } else {
+        ok(`every priced product has an explicit estimated weight`);
+    }
+
     const filler = priced.filter(n =>
         sandbox.display(n).description === 'Vars hoender produk van die plaas');
     if (filler.length) {

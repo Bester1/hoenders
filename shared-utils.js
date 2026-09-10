@@ -305,7 +305,17 @@ function getEstimatedWeight(productName) {
         'GEVULDE HOENDER ROLLE VAKUUM VERPAK': '1.75kg',  // Vye rol
         'GEVULDE HOENDER ROLLE OPSIE 2': '1.83kg',   // Pep rol
         'INGELEGDE GROEN VYE': '375ml potjie',       // Not kg - per unit
-        'SUIWER HEUNING': '500g potjie'              // Not kg - per unit
+        'SUIWER HEUNING': '500g potjie',             // Not kg - per unit
+        'MAGIES': '0.50kg',                          // 500g sakkies
+        // Sept 2026 extras. Without these the default 1.0kg applied: the
+        // sosaties quoted a customer 1.0kg against a ±600g pack, a 67%
+        // over-estimate on the confirmation email. The confirmation already
+        // differs from the weighed invoice and has been queried once, so a
+        // wrong estimate widens a gap that is awkward to explain.
+        'DYE SOSATIES (BBQ)': '0.60kg',              // 4 in pak
+        'ONTBEENDE DYE': '0.90kg',                   // 6 in pak, 800g - 1kg
+        'ONTBEENDE DYE (KERRIE)': '1.00kg',          // 6 in pak
+        'BOUDE (6 IN PAK)': '0.80kg'                 // 6 in pak
     };
 
     return weightMap[productName] || '1.0kg';
