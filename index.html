@@ -36,6 +36,7 @@
                 <li><a href="#pricing" class="nav-link"><i class="fas fa-tags"></i> Pricing</a></li>
                 <li><a href="#pdf-analysis" class="nav-link"><i class="fas fa-robot"></i> Import & Analyze Invoices</a>
                 </li>
+                <li><a href="#marketing" class="nav-link"><i class="fas fa-bullhorn"></i> Bemarking</a></li>
                 <li><a href="#settings" class="nav-link"><i class="fas fa-cog"></i> Settings</a></li>
             </ul>
         </nav>
@@ -830,6 +831,90 @@ Savings/Spaar rek</textarea>
                 </div>
             </section>
 
+            <!-- Marketing Section -->
+            <section id="marketing" class="content-section">
+                <div class="section-header">
+                    <h2>Bemarking</h2>
+                    <p>Stuur 'n e-pos aan die kliënte wat al by jou bestel het. Dit gaan
+                       deur dieselfde Gmail as die fakture en die bevestigings.</p>
+                </div>
+
+                <div id="marketingStatus" class="marketing-status">Nog nie gelaai nie.</div>
+
+                <div class="marketing-grid">
+                    <div class="marketing-panel">
+                        <h3>1. Kies wie</h3>
+                        <div id="marketingFilters" class="filter-buttons">
+                            <button class="filter-btn active" data-filter="all"
+                                    onclick="setMarketingFilter('all')">Almal</button>
+                            <button class="filter-btn" data-filter="active"
+                                    onclick="setMarketingFilter('active')">Aktief</button>
+                            <button class="filter-btn" data-filter="lapsed"
+                                    onclick="setMarketingFilter('lapsed')">Sluimerend</button>
+                            <button class="filter-btn" data-filter="dormant"
+                                    onclick="setMarketingFilter('dormant')">Weg</button>
+                            <button class="filter-btn" data-filter="once"
+                                    onclick="setMarketingFilter('once')">Net een bestelling</button>
+                        </div>
+                        <div class="marketing-actions">
+                            <button class="btn-secondary" onclick="selectAllMarketing(true)">Kies almal wat wys</button>
+                            <button class="btn-secondary" onclick="selectAllMarketing(false)">Maak keuse skoon</button>
+                            <button class="btn-secondary" onclick="initMarketing()">
+                                <i class="fas fa-sync"></i> Herlaai lys</button>
+                            <span class="marketing-counts">
+                                <strong id="marketingVisibleCount">0</strong> wys,
+                                <strong id="marketingSelectedCount">0</strong> gekies
+                            </span>
+                        </div>
+                        <div class="table-container marketing-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th></th><th>Naam</th><th>E-pos</th>
+                                        <th style="text-align:right">Bestellings</th>
+                                        <th>Laaste bestelling</th>
+                                        <th style="text-align:right">Totaal</th>
+                                        <th>Groep</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="marketingTableBody">
+                                    <tr><td colspan="7">Klik "Herlaai lys".</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="marketing-panel">
+                        <h3>2. Skryf die e-pos</h3>
+                        <label for="marketingSubject">Onderwerp</label>
+                        <input type="text" id="marketingSubject" class="form-input"
+                               placeholder="Bv. Ekstra produkte hierdie maand - beperkte getalle">
+                        <label for="marketingBody">Boodskap</label>
+                        <textarea id="marketingBody" class="form-input" rows="14"
+                                  placeholder="Gebruik {{naam}} vir die kliënt se naam."></textarea>
+                        <p class="marketing-hint">
+                            <code>{{naam}}</code> word vervang met die kliënt se naam.
+                            Jou kontakbesonderhede en die afmeld-skakel word outomaties
+                            onderaan elke e-pos gesit.
+                        </p>
+                        <div class="marketing-actions">
+                            <button class="btn-secondary" onclick="previewMarketingEmail()">
+                                <i class="fas fa-eye"></i> Wys voorskou</button>
+                            <button class="btn-secondary" onclick="sendMarketingTest()">
+                                <i class="fas fa-vial"></i> Stuur toets na myself</button>
+                            <button class="btn-primary" id="marketingSendBtn" disabled
+                                    onclick="startMarketingCampaign()">
+                                <i class="fas fa-paper-plane"></i> Stuur</button>
+                        </div>
+                        <div id="marketingPreview" class="marketing-preview" style="display:none">
+                            <h4>Voorskou</h4>
+                            <pre id="marketingPreviewBody"></pre>
+                        </div>
+                        <pre id="marketingLog" class="marketing-log"></pre>
+                    </div>
+                </div>
+            </section>
+
             <!-- Settings Section -->
             <section id="settings" class="content-section">
                 <div class="section-header">
@@ -1075,6 +1160,7 @@ Savings/Spaar rek</textarea>
     <script src="utils.js"></script>
     <script src="shared-components.js"></script>
     <script src="script.js"></script>
+    <script src="marketing.js"></script>
 </body>
 
 </html>

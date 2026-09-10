@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="af">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Afmeld — Plaas Hoenders</title>
+    <style>
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+               background: #fafaf9; color: #27272a;
+               font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+        .card { background: #fff; border: 1px solid #e7e5e4; border-radius: 14px;
+                padding: 32px; max-width: 460px; width: calc(100% - 32px);
+                box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+        h1 { font-size: 20px; margin: 0 0 6px; }
+        .sub { color: #78716c; font-size: 14px; margin: 0 0 20px; }
+        .addr { font-weight: 600; word-break: break-all; }
+        button { width: 100%; padding: 12px; border: 0; border-radius: 9px;
+                 background: #ea580c; color: #fff; font: inherit; font-weight: 600;
+                 cursor: pointer; }
+        button:disabled { background: #d6d3d1; cursor: default; }
+        .msg { margin-top: 16px; font-size: 14px; }
+        .ok { color: #15803d; } .err { color: #b91c1c; }
+        .foot { margin-top: 22px; font-size: 13px; color: #78716c; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🐔 Plaas Hoenders</h1>
+        <p class="sub">Bemarkings-e-posse afmeld</p>
+        <div id="content">Laai...</div>
+        <p class="foot">
+            Jy sal steeds e-posse oor jou eie bestellings kry — bevestigings en
+            fakture. Net die bemarkings-e-posse stop.
+        </p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Deliberately standalone: this page must work even if the rest of the
+        // app is broken, because a person who wants off the list has to be able
+        // to get off the list.
+        const SUPABASE_URL = 'https://ukdmlzuxgnjucwidsygj.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w';
+
+        const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const params = new URLSearchParams(location.search);
+        const email = (params.get('e') || '').trim().toLowerCase();
+        const content = document.getElementById('content');
+
+        function show(html) { content.innerHTML = html; }
+
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+            show('<p class="msg err">Hierdie skakel is nie geldig nie. ' +
+                 'Antwoord gerus net op die e-pos en ek haal jou met die hand af.</p>');
+        } else {
+            show(`<p>Haal <span class="addr">${email.replace(/[<>&]/g, '')}</span> ` +
+                 `van die bemarkingslys af?</p>` +
+                 `<button id="go">Ja, meld my af</button><div class="msg" id="msg"></div>`);
+
+            document.getElementById('go').addEventListener('click', async () => {
+                const btn = document.getElementById('go');
+                const msg = document.getElementById('msg');
+                btn.disabled = true;
+                btn.textContent = 'Besig...';
+                // upsert, so clicking the link twice is not an error
+                const { error } = await client.from('marketing_optouts')
+                    .upsert({ email, opted_out_at: new Date().toISOString() },
+                            { onConflict: 'email' });
+                if (error) {
+                    btn.disabled = false;
+                    btn.textContent = 'Probeer weer';
+                    msg.className = 'msg err';
+                    msg.textContent = 'Kon dit nie stoor nie. Antwoord asseblief op die ' +
+                        'e-pos en ek haal jou met die hand af.';
+                    return;
+                }
+                btn.remove();
+                msg.className = 'msg ok';
+                msg.textContent = 'Klaar. Jy sal geen bemarkings-e-posse meer kry nie.';
+            });
+        }
+    </script>
+</body>
+</html>

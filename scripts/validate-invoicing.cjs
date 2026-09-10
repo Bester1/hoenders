@@ -56,7 +56,7 @@ function objectLiteralAfter(src, marker, label) {
 // declarations are legal in a classic <script>). Parse them the way they are
 // actually loaded.
 const browserScripts = ['script.js', 'shared-utils.js', 'customer.js',
-    'security-utils.js', 'error-handler.js'];
+    'security-utils.js', 'error-handler.js', 'marketing.js'];
 for (const file of browserScripts) {
     try {
         // eslint-disable-next-line no-new-func
@@ -369,6 +369,65 @@ try {
     }
 } catch (e) {
     fail(`could not check order-form visibility: ${e.message}`);
+}
+
+// --- 7. The marketing send cannot bypass its own guards ---------------------
+//
+// A campaign goes to every customer at once and cannot be recalled, so the two
+// things that must never regress are checked here rather than trusted:
+//
+//   * sending is BLOCKED while the opt-out list is unknown. A missing or
+//     unreadable table must not read as "nobody has opted out" — the same
+//     absence-of-evidence bug that made 13 unchecked invoices report as
+//     reconciled in Sept 2026.
+//   * every message carries the sender's identity, why the person is getting
+//     it, and a working per-recipient unsubscribe link — appended by
+//     renderMarketingEmail(), not typed into the compose box where it can be
+//     deleted.
+try {
+    const sandbox = {};
+    new Function('sandbox', 'console', 'document',
+        read('marketing.js') +
+        ';sandbox.render = renderMarketingEmail;' +
+        'sandbox.can = canSendMarketing;' +
+        'sandbox.isOut = isOptedOut;' +
+        'sandbox.seg = marketingSegment;' +
+        'sandbox.setOut = v => { marketingOptOuts = v; };' +
+        'sandbox.setErr = v => { marketingOptOutError = v; };'
+    )(sandbox, { warn() {}, error() {}, log() {} }, {});
+
+    let bad = 0;
+    const check = (cond, msg) => { if (!cond) { bad++; fail(msg); } };
+
+    sandbox.setOut(null);
+    sandbox.setErr('the table does not exist');
+    check(sandbox.can().ok === false,
+        'a campaign may be sent while the opt-out list is unreadable');
+
+    sandbox.setOut(new Set());
+    check(sandbox.can().ok === true,
+        'a campaign is blocked even though the opt-out list loaded and is empty');
+
+    sandbox.setOut(new Set(['foo@bar.com']));
+    check(sandbox.isOut('  FOO@BAR.COM  ') === true,
+        'opt-out matching is case- or whitespace-sensitive, so an opted-out ' +
+        'address could still be mailed');
+
+    const body = sandbox.render('Hallo {{naam}}.', { name: 'Rienke Potgieter', email: 'r@x.co.za' });
+    check(/Hallo Rienke\./.test(body), '{{naam}} is not replaced with the first name');
+    check(body.includes('afmeld.html?e=r%40x.co.za'),
+        'no per-recipient unsubscribe link in the message footer');
+    check(/omdat jy al by Plaas Hoenders bestel het/.test(body),
+        'the message does not say why the person is receiving it');
+    check(/afmeld\.html\?e=/.test(sandbox.render('', { name: 'X', email: 'x@y.z' })),
+        'the footer can be lost when the body is empty');
+
+    check(sandbox.seg(10) === 'active' && sandbox.seg(100) === 'lapsed' &&
+          sandbox.seg(400) === 'dormant', 'customer segmentation boundaries have moved');
+
+    if (!bad) ok('marketing send guards hold (opt-out gate, footer, segments)');
+} catch (e) {
+    fail(`could not check the marketing guards: ${e.message}`);
 }
 
 console.log('');
