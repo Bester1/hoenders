@@ -2737,19 +2737,19 @@ function showSection(sectionId) {
         emails: 'Email Center',
         pricing: 'Pricing Management',
         'pdf-analysis': 'AI PDF Analysis',
-        marketing: 'Bemarking',
+        notices: 'Kennisgewings',
         settings: 'Settings'
     };
 
     document.getElementById('page-title').textContent = titles[sectionId] || 'Dashboard';
 
-    // The marketing list is a database read, so load it when the tab is first
+    // The customer list is a database read, so load it when the tab is first
     // opened rather than on every showSection() call. Without this the tab
     // opens empty and looks broken until someone finds the reload button.
-    if (sectionId === 'marketing' && typeof initMarketing === 'function'
-        && !showSection._marketingLoaded) {
-        showSection._marketingLoaded = true;
-        initMarketing();
+    if (sectionId === 'notices' && typeof initNotices === 'function'
+        && !showSection._noticesLoaded) {
+        showSection._noticesLoaded = true;
+        initNotices();
     }
 }
 

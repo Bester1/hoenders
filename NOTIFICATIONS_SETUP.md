@@ -1,6 +1,6 @@
-# Bemarking — one-time setup
+# Kennisgewings — one-time setup
 
-The Bemarking tab will not send anything until the opt-out table exists. That is
+The Kennisgewings tab will not send anything until the opt-out table exists. That is
 deliberate: an unreadable opt-out list is not an empty one, and mailing someone
 who asked to be left alone cannot be undone afterwards.
 
@@ -9,34 +9,34 @@ who asked to be left alone cannot be undone afterwards.
 Supabase dashboard → **SQL Editor** → **New query** → paste and run:
 
 ```sql
-create table if not exists public.marketing_optouts (
+create table if not exists public.notification_optouts (
     email        text primary key,
     opted_out_at timestamptz not null default now(),
     source       text default 'afmeld.html'
 );
 
-alter table public.marketing_optouts enable row level security;
+alter table public.notification_optouts enable row level security;
 
 -- Anyone with the link may opt themselves out. There is nothing to read here
 -- that identifies anyone beyond the address they typed in themselves, and an
 -- unsubscribe that requires a login is not an unsubscribe.
 create policy "anyone may opt out"
-    on public.marketing_optouts for insert
+    on public.notification_optouts for insert
     to anon, authenticated
     with check (true);
 
 create policy "anyone may re-opt-out"
-    on public.marketing_optouts for update
+    on public.notification_optouts for update
     to anon, authenticated
     using (true) with check (true);
 
 create policy "the list is readable"
-    on public.marketing_optouts for select
+    on public.notification_optouts for select
     to anon, authenticated
     using (true);
 ```
 
-Then reload the admin dashboard. The Bemarking tab should say
+Then reload the admin dashboard. The Kennisgewings tab should say
 `… kliënte gelaai` instead of blocking.
 
 ## Check it worked
@@ -44,14 +44,28 @@ Then reload the admin dashboard. The Bemarking tab should say
 Open `afmeld.html?e=test@example.com`, click through, then in the SQL editor:
 
 ```sql
-select * from public.marketing_optouts;
+select * from public.notification_optouts;
 ```
 
 Delete the test row when you are done:
 
 ```sql
-delete from public.marketing_optouts where email = 'test@example.com';
+delete from public.notification_optouts where email = 'test@example.com';
 ```
+
+## This is a notice, not a campaign
+
+These emails tell people who already order every month that a round is open.
+That is why the footer does not offer to stop sending them: opting out of
+"orders are open" means missing the round, which is not what someone clicking a
+footer link expects to agree to. The link is worded as leaving the order list
+and says what that costs.
+
+The round's dates are never filled in automatically. `DELIVERY_SCHEDULE_2026` is
+a plan the rounds do not follow — orders arrive after its stated cutoff every
+month, and its 26 September delivery contradicts the round actually delivered on
+5 September. The two date fields are pre-filled from it as a suggestion, labelled
+as such, and you confirm them before the message is built.
 
 ## How sending works
 

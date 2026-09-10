@@ -56,7 +56,7 @@ function objectLiteralAfter(src, marker, label) {
 // declarations are legal in a classic <script>). Parse them the way they are
 // actually loaded.
 const browserScripts = ['script.js', 'shared-utils.js', 'customer.js',
-    'security-utils.js', 'error-handler.js', 'marketing.js'];
+    'security-utils.js', 'error-handler.js', 'notifications.js'];
 for (const file of browserScripts) {
     try {
         // eslint-disable-next-line no-new-func
@@ -371,7 +371,7 @@ try {
     fail(`could not check order-form visibility: ${e.message}`);
 }
 
-// --- 7. The marketing send cannot bypass its own guards ---------------------
+// --- 7. The round notice cannot bypass its own guards ----------------------
 //
 // A campaign goes to every customer at once and cannot be recalled, so the two
 // things that must never regress are checked here rather than trusted:
@@ -382,18 +382,18 @@ try {
 //     reconciled in Sept 2026.
 //   * every message carries the sender's identity, why the person is getting
 //     it, and a working per-recipient unsubscribe link — appended by
-//     renderMarketingEmail(), not typed into the compose box where it can be
+//     renderNoticeEmail(), not typed into the compose box where it can be
 //     deleted.
 try {
     const sandbox = {};
     new Function('sandbox', 'console', 'document',
-        read('marketing.js') +
-        ';sandbox.render = renderMarketingEmail;' +
-        'sandbox.can = canSendMarketing;' +
+        read('notifications.js') +
+        ';sandbox.render = renderNoticeEmail;' +
+        'sandbox.can = canSendNotices;' +
         'sandbox.isOut = isOptedOut;' +
-        'sandbox.seg = marketingSegment;' +
-        'sandbox.setOut = v => { marketingOptOuts = v; };' +
-        'sandbox.setErr = v => { marketingOptOutError = v; };'
+        'sandbox.seg = noticeSegment;' +
+        'sandbox.setOut = v => { noticeOptOuts = v; };' +
+        'sandbox.setErr = v => { noticeOptOutError = v; };'
     )(sandbox, { warn() {}, error() {}, log() {} }, {});
 
     let bad = 0;
@@ -417,17 +417,20 @@ try {
     check(/Hallo Rienke\./.test(body), '{{naam}} is not replaced with the first name');
     check(body.includes('afmeld.html?e=r%40x.co.za'),
         'no per-recipient unsubscribe link in the message footer');
-    check(/omdat jy al by Plaas Hoenders bestel het/.test(body),
+    check(/omdat jy op die Plaas Hoenders bestellys is/.test(body),
         'the message does not say why the person is receiving it');
+    check(/nie weer hoor\s*\n?\s*wanneer .n nuwe rondte oop is nie/.test(body),
+        'the opt-out does not say that leaving the list means missing the round — ' +
+        'this is an operational notice, not a marketing campaign');
     check(/afmeld\.html\?e=/.test(sandbox.render('', { name: 'X', email: 'x@y.z' })),
         'the footer can be lost when the body is empty');
 
     check(sandbox.seg(10) === 'active' && sandbox.seg(100) === 'lapsed' &&
           sandbox.seg(400) === 'dormant', 'customer segmentation boundaries have moved');
 
-    if (!bad) ok('marketing send guards hold (opt-out gate, footer, segments)');
+    if (!bad) ok('notice send guards hold (opt-out gate, footer, segments)');
 } catch (e) {
-    fail(`could not check the marketing guards: ${e.message}`);
+    fail(`could not check the notice guards: ${e.message}`);
 }
 
 console.log('');
