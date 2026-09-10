@@ -316,3 +316,11 @@ firestore-debug.log
 # ========================================
 # End of .gitignore
 # ========================================
+
+# Supabase migrations are the exception to the *.sql and migrations/ rules
+# above: they are the schema changes this app depends on and belong in the
+# repo. supabase/.temp holds the linked project's connection details, so it
+# stays out.
+!supabase/migrations/
+!supabase/migrations/*.sql
+supabase/.temp/

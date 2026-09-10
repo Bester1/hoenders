@@ -6,34 +6,17 @@ who asked to be left alone cannot be undone afterwards.
 
 ## Create the table
 
-Supabase dashboard → **SQL Editor** → **New query** → paste and run:
+The SQL lives in `supabase/migrations/20260910000000_notification_optouts.sql`.
+Two ways to apply it, whichever suits:
 
-```sql
-create table if not exists public.notification_optouts (
-    email        text primary key,
-    opted_out_at timestamptz not null default now(),
-    source       text default 'afmeld.html'
-);
+**In the browser** — Supabase dashboard → **SQL Editor** → **New query** → paste
+the contents of that file → Run. Takes about thirty seconds.
 
-alter table public.notification_optouts enable row level security;
+**From the CLI** — the machine is already linked to the Hoender project:
 
--- Anyone with the link may opt themselves out. There is nothing to read here
--- that identifies anyone beyond the address they typed in themselves, and an
--- unsubscribe that requires a login is not an unsubscribe.
-create policy "anyone may opt out"
-    on public.notification_optouts for insert
-    to anon, authenticated
-    with check (true);
-
-create policy "anyone may re-opt-out"
-    on public.notification_optouts for update
-    to anon, authenticated
-    using (true) with check (true);
-
-create policy "the list is readable"
-    on public.notification_optouts for select
-    to anon, authenticated
-    using (true);
+```bash
+cd ~/hoenders
+supabase db query "$(cat supabase/migrations/20260910000000_notification_optouts.sql)"
 ```
 
 Then reload the admin dashboard. The Kennisgewings tab should say
