@@ -494,6 +494,56 @@ try {
     fail(`could not check the ordering gate: ${e.message}`);
 }
 
+// --- 9. The delivery schedule must be internally sane -----------------------
+//
+// DELIVERY_SCHEDULE_2026 feeds the dates in a notice that goes to every
+// customer at once, so a wrong row is wrong sixty times over. The table was
+// silently wrong from May 2026 onward — deliveries on the last Saturday of the
+// month when the rounds run on the first, each paired with the NEXT month's
+// cutoff, plus an April round that does not exist. Corrected 2026-09-12
+// against Ansie's own spreadsheet.
+//
+// These checks cannot tell whether a date is the one she intends. They catch
+// the shapes that are wrong on their face.
+try {
+    const sandbox = {};
+    new Function('sandbox', 'window', 'navigator',
+        read('shared-utils.js') + ';sandbox.s = DELIVERY_SCHEDULE_2026;'
+    )(sandbox, {}, { userAgent: '' });
+    const sched = sandbox.s;
+
+    let bad = 0;
+    const check = (cond, msg) => { if (!cond) { bad++; fail(msg); } };
+
+    for (const r of sched) {
+        // A cutoff on or after its own delivery means orders close after the
+        // birds arrive. Most rounds close in the PREVIOUS month, which is what
+        // a "15th of the delivery month" rule gets wrong.
+        check(r.cutoff < r.delivery,
+            `${r.month}: cutoff ${r.cutoff} is not before delivery ${r.delivery}`);
+        check(new Date(r.delivery + 'T00:00:00').getDay() === 6,
+            `${r.month}: delivery ${r.delivery} is not a Saturday`);
+    }
+    for (let i = 1; i < sched.length; i++) {
+        check(sched[i - 1].delivery < sched[i].delivery,
+            `rounds are out of order: ${sched[i - 1].delivery} then ${sched[i].delivery}`);
+        check(sched[i - 1].cutoff < sched[i].cutoff,
+            `cutoffs are out of order: ${sched[i - 1].cutoff} then ${sched[i].cutoff}`);
+    }
+
+    // The round the app currently points at, spelled out so a shift like the
+    // one corrected here shows up as a changed number rather than staying
+    // invisible inside a date comparison.
+    const oct = sched.find(r => r.month === 'October');
+    check(oct && oct.delivery === '2026-10-03' && oct.cutoff === '2026-09-15',
+        `the October 2026 round no longer reads delivery 2026-10-03 / cutoff ` +
+        `2026-09-15 — re-check against Ansie's spreadsheet before changing it`);
+
+    if (!bad) ok(`delivery schedule is consistent (${sched.length} rounds)`);
+} catch (e) {
+    fail(`could not check the delivery schedule: ${e.message}`);
+}
+
 console.log('');
 if (failures) {
     console.error(`${failures} check(s) failed.`);

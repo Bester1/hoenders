@@ -403,18 +403,36 @@ function getProductCategories() {
 
 
 // 2026 Delivery and Cut-off Schedule
+// Nieuwoudt's own 2026 delivery schedule, taken from the spreadsheet Ansie
+// sends out ("ADRIAAN  AFLEWERINGS 2026.xlsx", 12 Sept 2026). Read off that
+// file, not from anyone's recollection.
+//
+// The table this replaces was wrong from May onward. It had every delivery on
+// the LAST Saturday of the month when the rounds actually run on the FIRST,
+// and it paired each month with the cutoff that belongs to the month after —
+// so a September notice would have told customers the birds arrive on the
+// 26th when the real date was 3 October. It also carried an April round that
+// does not exist: the schedule jumps 28 March to 2 May.
+//
+// Every delivery is a Saturday. Cutoffs are Tuesdays except June (a Thursday)
+// and the last round (a Sunday), which is how Ansie has them.
+//
+// `tentative` marks a date she has not fixed yet — the last round is written
+// "21 of 28 November" on her sheet. Do not resolve it by guessing; ask her.
 const DELIVERY_SCHEDULE_2026 = [
-    { month: 'January', delivery: '2026-01-31', cutoff: '2026-01-15' },
-    { month: 'February', delivery: '2026-02-28', cutoff: '2026-02-10' },
-    { month: 'March', delivery: '2026-03-28', cutoff: '2026-03-10' },
-    { month: 'April', delivery: '2026-04-25', cutoff: '2026-04-14' },
-    { month: 'May', delivery: '2026-05-30', cutoff: '2026-05-12' },
-    { month: 'June', delivery: '2026-06-27', cutoff: '2026-06-11' },
-    { month: 'July', delivery: '2026-07-25', cutoff: '2026-07-14' },
-    { month: 'August', delivery: '2026-08-29', cutoff: '2026-08-11' },
-    { month: 'September', delivery: '2026-09-26', cutoff: '2026-09-15' },
-    { month: 'October', delivery: '2026-10-31', cutoff: '2026-10-13' },
-    { month: 'November', delivery: '2026-11-28', cutoff: '2026-11-08' }
+    { month: 'January',   delivery: '2026-01-31', cutoff: '2026-01-13' },
+    { month: 'February',  delivery: '2026-02-28', cutoff: '2026-02-10' },
+    { month: 'March',     delivery: '2026-03-28', cutoff: '2026-03-10' },
+    // No April round — 28 March goes straight to 2 May.
+    { month: 'May',       delivery: '2026-05-02', cutoff: '2026-04-14' },
+    { month: 'June',      delivery: '2026-06-06', cutoff: '2026-05-12' },
+    { month: 'July',      delivery: '2026-07-04', cutoff: '2026-06-11' },
+    { month: 'August',    delivery: '2026-08-01', cutoff: '2026-07-14' },
+    { month: 'September', delivery: '2026-09-05', cutoff: '2026-08-11' },
+    { month: 'October',   delivery: '2026-10-03', cutoff: '2026-09-15' },
+    { month: 'November',  delivery: '2026-11-07', cutoff: '2026-10-13' },
+    { month: 'November (2)', delivery: '2026-11-21', cutoff: '2026-11-08',
+      tentative: true, note: 'Ansie se blad sê "21 of 28 November" — bevestig by haar' }
 ];
 
 /**

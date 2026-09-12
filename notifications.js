@@ -419,10 +419,12 @@ function suggestRoundDates() {
     const next = DELIVERY_SCHEDULE_2026.find(r => r.delivery >= today);
     if (!next) return null;
 
-    // The stated deadline is the 15th of the delivery month, which is what the
-    // customers are told. DELIVERY_SCHEDULE_2026's own cutoff column is not used
-    // for this: it varies month to month and no round has ever been closed on it.
-    const cutoff = `${next.delivery.slice(0, 7)}-15`;
+    // Take the cutoff from the schedule. It is the authoritative source now
+    // that the table matches Ansie's own spreadsheet, and it is genuinely a
+    // 15th for the October round — but of SEPTEMBER, not October. A rule of
+    // "the 15th of the delivery month" produces a deadline AFTER the delivery
+    // for every round that closes in the previous month, which is most of them.
+    const cutoff = next.cutoff;
 
     // The date orders actually stop being accepted — a week before delivery,
     // which is the grace Bes gives in practice. Shown to the sender only. It is
@@ -435,6 +437,7 @@ function suggestRoundDates() {
         month: next.month,
         cutoff,
         delivery: next.delivery,
+        tentative: next.tentative === true,
         graceUntil: grace.toISOString().split('T')[0],
         scheduleCutoff: next.cutoff
     };
@@ -515,10 +518,11 @@ function prefillRoundDates() {
     if (delivery && !delivery.value) delivery.value = suggestion.delivery;
     if (note) {
         note.innerHTML =
-            `Sperdatum is die 15de, soos die kliënte dit gesê word. ` +
-            `Aflewering voorgestel uit die ${suggestion.month}-skedule — ` +
-            `<strong>gaan dit na</strong>, die rondtes volg nie die skedule presies nie ` +
-            `(die vorige rondte is die 5de afgelewer, nie die 26ste soos daar nie).<br>` +
+            `Uit Ansie se eie 2026-skedule (${suggestion.month}).` +
+            (suggestion.tentative
+                ? ` <strong>Sy het hierdie datum nog nie vasgemaak nie</strong> — ` +
+                  `haar blad sê "21 of 28 November". Bevestig by haar voor jy stuur.`
+                : ``) + `<br>` +
             `Jy vat gewoonlik bestellings tot ongeveer ` +
             `<strong>${formatAfrikaansDate(suggestion.graceUntil)}</strong> ` +
             `(’n week voor aflewering). Dit staan nie in die e-pos nie — ` +
