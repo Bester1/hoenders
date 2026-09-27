@@ -39,6 +39,12 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
         if (attachments && attachments.length > 0) {
             formData.append('attachments', JSON.stringify(attachments));
         }
+        // The Apps Script refuses to send without a signed-in Supabase user.
+        // supabaseClient is the portal's (customer.js) on the pages that load this.
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            formData.append('access_token', session?.access_token || '');
+        }
 
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
