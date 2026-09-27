@@ -376,6 +376,72 @@ async function initializeSecureConnections() {
     }
 }
 
+// --- Admin sign-in ----------------------------------------------------------
+//
+// Until 2026-09-27 this page had no login and did everything as the anon key,
+// so the database let anon read and delete every order -- and so could anyone
+// who opened the site. Now RLS only lets public.is_admin() touch orders,
+// imports, settings, customers and product prices, and this page signs in
+// with Google first. Hiding the page is only convenience; the database is
+// what enforces it.
+async function isAdminSession() {
+    const { data, error } = await supabaseClient.rpc('is_admin');
+    if (!error) return data === true;
+    // is_admin() does not exist until the migration has run.
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    return (user?.email || '').toLowerCase() === 'abester7@gmail.com';
+}
+
+async function requireAdminSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session && await isAdminSession()) {
+        showAdminBadge(session.user.email);
+        return true;
+    }
+    showAdminSignIn(session ? session.user.email : null);
+    return false;
+}
+
+function showAdminBadge(email) {
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:fixed;bottom:12px;right:12px;z-index:9999;background:#1f2937;color:#fff;padding:6px 10px;border-radius:6px;font:12px sans-serif;opacity:.85';
+    badge.textContent = email + ' · ';
+    const out = document.createElement('a');
+    out.href = '#';
+    out.textContent = 'Teken uit';
+    out.style.color = '#93c5fd';
+    out.onclick = async (e) => { e.preventDefault(); await supabaseClient.auth.signOut(); location.reload(); };
+    badge.appendChild(out);
+    document.body.appendChild(badge);
+}
+
+function showAdminSignIn(signedInAs) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-family:sans-serif';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;padding:32px;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:360px;text-align:center';
+    const h = document.createElement('h2');
+    h.textContent = 'Plaas Hoenders admin';
+    const p = document.createElement('p');
+    p.style.color = '#6b7280';
+    p.textContent = signedInAs
+        ? signedInAs + ' het nie admin-toegang nie.'
+        : 'Teken in met Google om voort te gaan.';
+    const btn = document.createElement('button');
+    btn.textContent = signedInAs ? 'Teken uit' : 'Teken in met Google';
+    btn.style.cssText = 'margin-top:12px;padding:10px 18px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:15px;cursor:pointer';
+    btn.onclick = async () => {
+        if (signedInAs) { await supabaseClient.auth.signOut(); location.reload(); return; }
+        // Must be a URL in the project's redirect allow-list, which has the
+        // directory form (…/hoenders/), not …/hoenders/index.html.
+        const back = location.href.split('#')[0].split('?')[0].replace(/index\.html$/, '');
+        await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: back } });
+    };
+    box.append(h, p, btn);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+}
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async function () {
     try {
@@ -385,6 +451,10 @@ document.addEventListener('DOMContentLoaded', async function () {
             console.error('❌ Cannot proceed without secure connections');
             return;
         }
+
+        // Every table this page reads is admin-only since 2026-09-27, so sign
+        // in before anything touches the database.
+        if (!(await requireAdminSession())) return;
 
         // Continue with normal app initialization
         initializeApp();

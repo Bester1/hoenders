@@ -3778,7 +3778,10 @@ async function saveOrderToDatabase(orderData) {
         console.log('💾 About to insert order record:', JSON.stringify(orderRecord, null, 2));
 
         // Create fresh client instance to prevent connection accumulation
-        const freshClient = supabase.createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+        // Must be the signed-in client. A bare createClient() here reads no
+        // session (the portal stores it under 'plaas-hoenders-auth'), so the
+        // insert ran as anon -- which only worked while orders was open to all.
+        const freshClient = supabaseClient;
 
         // Add timeout wrapper for database operation with increased timeout
         let insertWithTimeout = new Promise((resolve, reject) => {
@@ -3823,7 +3826,7 @@ async function saveOrderToDatabase(orderData) {
                 await new Promise(resolve => setTimeout(resolve, delay));
 
                 // Create fresh client instance for retry to prevent connection accumulation
-                const retryClient = createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+                const retryClient = supabaseClient; // signed in; see freshClient above
 
                 // Recreate the timeout promise for the retry
                 insertWithTimeout = new Promise((resolve, reject) => {
@@ -3863,7 +3866,7 @@ async function saveOrderToDatabase(orderData) {
             console.log('🔍 First order item sample:', JSON.stringify(orderItems[0], null, 2));
 
             // Create fresh client instance for order items to prevent connection accumulation
-            const itemsClient = supabase.createClient(FALLBACK_CONFIG.SUPABASE_URL, FALLBACK_CONFIG.SUPABASE_ANON_KEY);
+            const itemsClient = supabaseClient; // signed in; see freshClient above
 
             // Insert with .select() and timeout to force data return even with RLS
             const itemsInsertWithTimeout = new Promise((resolve, reject) => {
@@ -6829,11 +6832,19 @@ async function checkOrderingStatus() {
     try {
         if (!supabaseClient) return;
 
-        const { data, error } = await supabaseClient
-            .from('settings')
-            .select('orders_open')
-            .eq('id', 'main')
-            .single();
+        // settings is admin-only (it holds gmail_config and the email queue), so
+        // read the flag through get_orders_open(). Fall back to the table for a
+        // database the 2026-09-27 migration has not reached -- otherwise the
+        // PGRST116 branch below would read "no row" as "open".
+        let { data: open, error } = await supabaseClient.rpc('get_orders_open');
+        let data = error ? null : { orders_open: open };
+        if (error) {
+            ({ data, error } = await supabaseClient
+                .from('settings')
+                .select('orders_open')
+                .eq('id', 'main')
+                .single());
+        }
 
         if (error) {
             if (error.code !== 'PGRST116') {
