@@ -11,7 +11,12 @@
     <script>
         // Check if this is an email confirmation redirect from Supabase
         // If there's an access_token in the hash, redirect to customer portal
-        if (window.location.hash && window.location.hash.includes('access_token')) {
+        // ...unless it is the admin coming back from "Teken in met Google" on
+        // this page: requireAdminSession() in script.js sets the flag before
+        // leaving, and without this check the admin landed on the order form.
+        var adminLogin = false;
+        try { adminLogin = sessionStorage.getItem('hoenders-admin-login') === '1'; sessionStorage.removeItem('hoenders-admin-login'); } catch (e) {}
+        if (!adminLogin && window.location.hash && window.location.hash.includes('access_token')) {
             // Preserve the entire hash and redirect to customer portal
             window.location.href = '/hoenders/customer-portal.html' + window.location.hash;
         }

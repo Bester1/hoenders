@@ -435,6 +435,9 @@ function showAdminSignIn(signedInAs) {
         // Must be a URL in the project's redirect allow-list, which has the
         // directory form (…/hoenders/), not …/hoenders/index.html.
         const back = location.href.split('#')[0].split('?')[0].replace(/index\.html$/, '');
+        // index.html sends any returning access_token to the customer portal
+        // (for customers' email-confirmation links); this flag exempts us.
+        try { sessionStorage.setItem('hoenders-admin-login', '1'); } catch (e) {}
         await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: back } });
     };
     box.append(h, p, btn);
