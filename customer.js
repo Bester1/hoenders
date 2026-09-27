@@ -16,6 +16,15 @@ const FALLBACK_CONFIG = {
 // Email configuration for order confirmations
 let customerPortalGoogleScriptUrl = FALLBACK_CONFIG.GOOGLE_SCRIPT_URL;
 
+// One order per checkout. 2026-09-27 a second press 5.6s after the first
+// created a second order: the button was only disabled after an await, and
+// updateOrderingUI(true) re-enabled it while the save was still running.
+// orderInFlight is set synchronously on the first click and every enable path
+// respects it. pendingOrderId is reused by any retry of the same checkout, so
+// the orders primary key refuses a duplicate even if the guard is bypassed.
+let orderInFlight = false;
+let pendingOrderId = null;
+
 // Google Apps Script Email Function for customer portal
 async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
     if (!customerPortalGoogleScriptUrl) {
@@ -1753,35 +1762,47 @@ function setupBeautifulPortalEventListeners() {
     if (placeOrder) {
         placeOrder.addEventListener('click', async (e) => {
 
-            // Prevent multiple clicks
-            if (placeOrder.disabled) {
+            // Prevent multiple clicks. The flag is set before the first await:
+            // checking `disabled` alone let a second press through while the
+            // status check below was still in flight.
+            if (orderInFlight || placeOrder.disabled) {
                 return;
             }
-
-            // A portal left open in a tab has a stale ordering status. Re-read it
-            // before writing an order rather than trusting what the page decided
-            // when it loaded, which may have been hours or days ago.
-            await checkOrderingStatus();
-            if (!orderingOpen) {
-                alert('Bestellings is intussen gesluit. Skakel of e-pos gerus vir Adriaan ' +
-                      'as jy nog iets wil bestel.');
-                setPlaceOrderEnabled(false);
-                return;
-            }
-
-            // Disable button and show loading state
-            placeOrder.disabled = true;
+            orderInFlight = true;
             const originalText = placeOrder.textContent;
-            placeOrder.textContent = 'Plaas Bestelling...';
+            placeOrder.disabled = true;
+            placeOrder.textContent = 'Besig om jou bestelling te stoor…';
             placeOrder.style.opacity = '0.7';
 
             try {
-                await handleOrderPlacement();
+                // A portal left open in a tab has a stale ordering status. Re-read it
+                // before writing an order rather than trusting what the page decided
+                // when it loaded, which may have been hours or days ago.
+                await checkOrderingStatus();
+                if (!orderingOpen) {
+                    alert('Bestellings is intussen gesluit. Skakel of e-pos gerus vir Adriaan ' +
+                          'as jy nog iets wil bestel.');
+                    orderInFlight = false;
+                    setPlaceOrderEnabled(false);
+                    return;
+                }
+
+                const placed = await handleOrderPlacement();
+                if (!placed) {
+                    // Failed (message already shown) or empty cart: let them try
+                    // again. The retry reuses pendingOrderId.
+                    orderInFlight = false;
+                    setPlaceOrderEnabled(true, originalText);
+                }
             } catch (error) {
                 console.error('Order placement failed:', error);
                 // Let them retry — but through the gate, so a round that closed
                 // while the order was in flight does not come back open here.
+                // A retry reuses pendingOrderId, so it cannot create a second order.
+                orderInFlight = false;
                 setPlaceOrderEnabled(true, originalText);
+            } finally {
+                orderInFlight = false;
             }
         });
     }
@@ -3535,9 +3556,16 @@ async function handleOrderPlacement() {
         localStorage.setItem(`orderData_${savedOrderId}`, JSON.stringify(orderDataForInvoice));
         console.log('💾 Order data saved to localStorage for invoice generation');
 
-        // Send confirmation email to customer
+        // Saved: the next checkout gets a new id.
+        pendingOrderId = null;
+
+        // Send the confirmation email in the background. It used to be awaited
+        // here, before the thank-you screen, so the customer watched a busy
+        // button for several seconds after the order was already safe -- which
+        // is when the second press happened.
         console.log('📧 Sending confirmation email to customer...');
-        await sendOrderConfirmationEmail(savedOrderId, orderDataForInvoice);
+        sendOrderConfirmationEmail(savedOrderId, orderDataForInvoice)
+            .catch(err => console.error('Confirmation email failed (order is saved):', err));
 
         // Show confirmation step
         console.log('📱 Showing confirmation step...');
@@ -3557,6 +3585,7 @@ async function handleOrderPlacement() {
 
         // Clear cart after successful order
         clearCart();
+        return true;
 
     } catch (error) {
         console.error('❌ Error placing order:', error);
@@ -3574,6 +3603,8 @@ async function handleOrderPlacement() {
         }
 
         alert(userMessage);
+        // The caller re-enables the button; it used to stay dead after this.
+        return false;
     }
 }
 
@@ -3674,8 +3705,8 @@ async function saveOrderToDatabase(orderData) {
             throw new Error('No customer data available');
         }
 
-        // Generate order ID
-        const orderId = `ORD-${Date.now()}`;
+        // Generate order ID -- once per checkout, reused on retry (see pendingOrderId)
+        const orderId = pendingOrderId || (pendingOrderId = `ORD-${Date.now()}`);
         console.log('🆔 Generated order ID:', orderId);
 
         // Get pricing information
@@ -3852,7 +3883,19 @@ async function saveOrderToDatabase(orderData) {
 
         console.log('📡 Database response:', response);
 
-        if (response.error) {
+        if (response.error && response.error.code === '23505') {
+            // This checkout's order already exists: an earlier attempt reached
+            // the database but its response did not come back. Its items went in
+            // with it unless that attempt died in between, so check before adding.
+            const { count } = await supabaseClient
+                .from('order_items')
+                .select('id', { count: 'exact', head: true })
+                .eq('order_id', orderId);
+            if (count > 0) {
+                console.log('✅ Order was already saved by an earlier attempt:', orderId);
+                return orderId;
+            }
+        } else if (response.error) {
             console.error('❌ Error saving order:', response.error);
             throw new Error(`Database error: ${response.error.message}`);
         }
@@ -6873,7 +6916,9 @@ function updateOrderingUI(isOpen) {
 
     if (isOpen) {
         if (banner) banner.style.display = 'none';
-        if (placeOrderBtn) {
+        // Never re-enable mid-order: this runs from the status re-check inside
+        // the click handler, and doing so is how the duplicate order happened.
+        if (placeOrderBtn && !orderInFlight) {
             placeOrderBtn.disabled = false;
             placeOrderBtn.title = '';
             placeOrderBtn.style.opacity = '1';
