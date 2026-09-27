@@ -3,6 +3,19 @@
  * Handles customer authentication, registration, and session management
  */
 
+// On the live site, console.log/info/debug are silenced: this file logs the
+// customer record, cart and full order rows (name, phone, address) at nearly
+// every step, readable by anyone at the same computer. Warnings and errors
+// still show. To debug in a browser: localStorage.setItem('hoenders-debug','1')
+// and reload.
+(function () {
+    let debug = false;
+    try { debug = localStorage.getItem('hoenders-debug') === '1'; } catch (e) {}
+    if (location.hostname === 'bester1.github.io' && !debug) {
+        console.log = console.info = console.debug = function () {};
+    }
+})();
+
 // Initialize Supabase client with secure configuration and fallback
 let supabaseClient = null;
 
@@ -254,7 +267,7 @@ async function initializeSecureConnection() {
                 // Maximize session duration (30 days)
                 maxSessionTime: 30 * 24 * 60 * 60,  // 30 days in seconds
                 // Don't clear session on refresh
-                debug: true                          // Enable debug logging
+                debug: false                         // true logs session details to the console
             }
         });
 
