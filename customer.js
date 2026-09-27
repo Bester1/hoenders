@@ -84,6 +84,10 @@ async function sendEmailViaGoogleScript(to, subject, body, attachments = []) {
             if (attachments && attachments.length > 0) {
                 fields['attachments'] = JSON.stringify(attachments);
             }
+            // The Apps Script only sends for a signed-in user, and a customer
+            // only to their own address. See GoogleAppsScript.gs.
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            fields['access_token'] = session?.access_token || '';
 
             Object.entries(fields).forEach(([key, value]) => {
                 const input = document.createElement('input');

@@ -1,141 +1,109 @@
 // Google Apps Script for Plaas Hoenders Email Service
-// Deploy this as a Web App to handle email sending
+// Deploy as a Web App (Execute as: me, Who has access: Anyone).
+//
+// SECURITY (2026-09-27): until this version the web app sent any email anyone
+// POSTed to it -- any recipient, any HTML, any attachment -- from the owner's
+// Gmail, with no check at all. The /exec URL is in the public repo, so it was
+// an open relay for phishing from a real address.
+//
+// Now every send needs `access_token`: a Supabase session token, checked
+// against Supabase itself. The admin may send anything; any other signed-in
+// user (a customer) may only send to their own address, with no cc/bcc.
+//
+// Redeploy with Manage deployments -> Edit -> New version, NOT a new
+// deployment: a new deployment mints a new /exec URL the site does not use.
+
+const SUPABASE_URL = 'https://ukdmlzuxgnjucwidsygj.supabase.co';
+// Public anon key -- the same one in the site's JS; it only identifies the project.
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w';
+// Same id as public.is_admin() in supabase/migrations/20260927000000_lock_down_rls.sql
+const ADMIN_USER_IDS = ['ac60e2ad-9883-4ab9-8cc0-3c98050b5ef2'];
+
+function json_(obj) {
+  // ContentService has no setHeaders(): calling it threw AFTER MailApp had
+  // already sent, so every send "failed" while the mail went out.
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Returns the Supabase user for a session token, or null.
+function supabaseUser_(token) {
+  if (!token) return null;
+  const res = UrlFetchApp.fetch(SUPABASE_URL + '/auth/v1/user', {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token },
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200) return null;
+  return JSON.parse(res.getContentText());
+}
 
 function doPost(e) {
   try {
-    // Parse the incoming request (handle both JSON and form data)
     let data;
     if (e.postData && e.postData.type === 'application/json') {
       data = JSON.parse(e.postData.contents);
     } else {
-      // Handle form data or direct parameters
       data = e.parameter || {};
       if (data.attachments && typeof data.attachments === 'string') {
         try {
           data.attachments = JSON.parse(data.attachments);
         } catch (parseError) {
-          console.log('Could not parse attachments:', parseError);
           data.attachments = [];
         }
       }
     }
-    
-    // Log the received data for debugging
-    console.log('Received data:', data);
-    
-    // Validate required fields
+
     if (!data.to || !data.subject || !data.body) {
-      return ContentService.createTextOutput(JSON.stringify({
-        status: 'error',
-        message: 'Missing required fields: to, subject, body'
-      })).setMimeType(ContentService.MimeType.JSON);
+      return json_({ status: 'error', message: 'Missing required fields: to, subject, body' });
     }
-    
-    // Prepare email options
+
+    const user = supabaseUser_(data.access_token);
+    if (!user || !user.id) {
+      return json_({ status: 'error', message: 'Not signed in' });
+    }
+    const isAdmin = ADMIN_USER_IDS.indexOf(user.id) !== -1;
+    if (!isAdmin) {
+      const own = String(user.email || '').trim().toLowerCase();
+      const to = String(data.to).trim().toLowerCase();
+      if (!own || to !== own || data.cc || data.bcc) {
+        return json_({ status: 'error', message: 'Customers may only email themselves' });
+      }
+    }
+
     const emailOptions = {
       to: data.to,
       subject: data.subject,
       htmlBody: data.body,
       name: data.fromName || 'Plaas Hoenders'
     };
-    
-    // Add CC if provided
-    if (data.cc) {
-      emailOptions.cc = data.cc;
-    }
-    
-    // Add BCC if provided
-    if (data.bcc) {
-      emailOptions.bcc = data.bcc;
-    }
-    
-    // Add attachments if provided (as base64 strings)
+    if (isAdmin && data.cc) emailOptions.cc = data.cc;
+    if (isAdmin && data.bcc) emailOptions.bcc = data.bcc;
     if (data.attachments && data.attachments.length > 0) {
-      emailOptions.attachments = data.attachments.map(att => {
-        return Utilities.newBlob(
-          Utilities.base64Decode(att.data), 
-          att.mimeType, 
-          att.filename
-        );
-      });
+      emailOptions.attachments = data.attachments.map(att =>
+        Utilities.newBlob(Utilities.base64Decode(att.data), att.mimeType, att.filename));
     }
-    
-    // Send the email
+
     MailApp.sendEmail(emailOptions);
-    
-    // Log for tracking
-    console.log('Email sent to:', data.to, 'Subject:', data.subject);
-    
-    // Return success response with CORS headers
-    return ContentService.createTextOutput(JSON.stringify({
-      status: 'success',
-      message: 'Email sent successfully',
-      timestamp: new Date().toISOString()
-    }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization'
-    });
-    
+    console.log('Email sent by', isAdmin ? 'admin' : 'customer', user.id, 'to', data.to);
+
+    return json_({ status: 'success', message: 'Email sent successfully', timestamp: new Date().toISOString() });
   } catch (error) {
-    // Return error response with CORS headers
     console.error('Error sending email:', error);
-    return ContentService.createTextOutput(JSON.stringify({
-      status: 'error',
-      message: error.toString()
-    }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization'
-    });
+    return json_({ status: 'error', message: error.toString() });
   }
 }
 
-// Handle preflight OPTIONS requests for CORS
-function doOptions(e) {
-  return ContentService.createTextOutput('')
-    .setMimeType(ContentService.MimeType.TEXT)
-    .setHeaders({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS,PUT,DELETE',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,Accept,Origin',
-      'Access-Control-Max-Age': '86400'
-    });
-}
-
-// Test function to verify the script is working
 function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({
-    status: 'ready',
-    message: 'Plaas Hoenders Email Service is running',
-    version: '1.5'
-  }))
-  .setMimeType(ContentService.MimeType.JSON)
-  .setHeaders({
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization'
-  });
+  return json_({ status: 'ready', message: 'Plaas Hoenders Email Service is running', version: '2.0-auth' });
 }
 
-// Function to send test email (for testing in Apps Script editor)
-function sendTestEmail() {
-  const testData = {
-    to: Session.getActiveUser().getEmail(),
-    subject: 'Test Email from Plaas Hoenders',
-    body: '<h2>Test Email</h2><p>This is a test email from your Plaas Hoenders email service.</p>',
-    fromName: 'Plaas Hoenders System'
-  };
-  
-  const result = doPost({
-    postData: {
-      contents: JSON.stringify(testData)
-    }
+// Run this ONCE from the editor (select `authorize`, click Run) after pasting
+// this version: UrlFetchApp needs the "connect to an external service"
+// permission, and a web app running as you cannot ask for it itself. Until it
+// is granted, every send fails -- so run it BEFORE deploying the new version.
+function authorize() {
+  const res = UrlFetchApp.fetch(SUPABASE_URL + '/auth/v1/health', {
+    headers: { apikey: SUPABASE_ANON_KEY }, muteHttpExceptions: true
   });
-  
-  console.log(result.getContent());
+  console.log('Supabase reachable: HTTP ' + res.getResponseCode());
 }
