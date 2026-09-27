@@ -194,6 +194,38 @@ also assumed secrets-injected config: there are no repository secrets, and the
 Supabase anon key is deliberately public here, since this is a static site
 relying on row-level security.
 
+## Row-level security is the only thing protecting customer data
+
+Until 2026-09-27 it protected nothing. `orders`, `order_items`, `imports` and
+`settings` each had an `ALL / public / using (true)` policy, and `products`
+let anon insert and update — so anyone holding the public key (every visitor)
+could read all 309 orders with customer name, email, phone and address, change
+prices, or delete orders. Those policies existed because the admin page had no
+login and ran everything as anon.
+
+Since `supabase/migrations/20260927000000_lock_down_rls.sql`:
+
+- **Admin is `public.is_admin()`, pinned to an auth user id, never an email.**
+  The project has `mailer_autoconfirm = true`: anyone can register any email
+  address with a password and get a session without proving ownership. The old
+  email-based admin policies named `jobosza@gmail.com`, which had no account —
+  anyone could have registered it and been admin. To add an admin, add their
+  `auth.users.id` to the function.
+- `index.html` signs in with Google before loading anything
+  (`requireAdminSession()` in `script.js`). The OAuth `redirectTo` must be in
+  the project's allow-list, which has `…/hoenders/`, not `…/index.html`.
+- Customers read and write only their own orders, through the signed-in client.
+  **Never create a second bare `createClient()` in `customer.js`** — the
+  portal stores its session under `plaas-hoenders-auth`, so a fresh client has
+  no session and runs as anon. The order insert did exactly that, which is why
+  it only ever worked while orders was open to all.
+- The portal reads the ordering flag through `get_orders_open()`, because
+  `settings` also holds `gmail_config` and the email queue.
+
+Test a policy change by running it inside `begin … rollback` with
+`set local role anon|authenticated` and a `request.jwt.claims` setting, and
+count rows per role — see the PR that introduced the migration.
+
 If you ever do want workflow-based deploys, Pages has to be switched to
 `workflow` build type first, and the branch-based builder stops being the thing
 that ships.
