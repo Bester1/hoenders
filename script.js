@@ -1219,6 +1219,44 @@ function updateOrdersStatusUI() {
     }
 }
 
+// The order file for Ansie's plaas-bestel sheet ("Voer herverkoper-lêer in").
+//
+// One line per item -- Klient, Produk, Hoeveelheid, Notas -- which is what her
+// import reads, and deliberately NO email, address or phone: she invoices Bes,
+// not his customers, so their contact details stay here (Bes, 2026-09-28).
+// Product names go out exactly as they are here; her import lists any name
+// that is not on her Pryse tab instead of guessing, so a mismatch is loud.
+function exportForNieuwoudt() {
+    const portalOrders = window.customerPortalOrders || [];
+    const now = new Date();
+    const monthOrders = portalOrders.filter(order => {
+        const d = new Date(order.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    if (monthOrders.length === 0) {
+        alert('Geen bestellings vir hierdie maand om uit te voer nie.');
+        return;
+    }
+    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = ['Klient,Produk,Hoeveelheid,Notas'];
+    monthOrders.forEach(order => {
+        const items = Array.isArray(order.products) && order.products.length
+            ? order.products
+            : (order.product ? [{ product: order.product, quantity: order.quantity }] : []);
+        items.forEach(item => {
+            if (!(Number(item.quantity) > 0)) return;
+            lines.push([q(order.name), q(item.product), Number(item.quantity), q(order.notes || '')].join(','));
+        });
+    });
+    const blob = new Blob(['﻿' + lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const month = now.toLocaleDateString('af-ZA', { month: 'long', year: 'numeric' });
+    link.download = `Nieuwoudt_Bestellings_${month.replace(/\s+/g, '_')}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    addActivity(`Lêer vir Nieuwoudt: ${lines.length - 1} reëls uit ${monthOrders.length} bestellings`);
+}
+
 // Export orders to Excel for butchery
 async function exportToExcelForButchery() {
     const portalOrders = window.customerPortalOrders || [];
