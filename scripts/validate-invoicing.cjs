@@ -55,7 +55,7 @@ function objectLiteralAfter(src, marker, label) {
 // reports errors the browser will never see (duplicate top-level function
 // declarations are legal in a classic <script>). Parse them the way they are
 // actually loaded.
-const browserScripts = ['script.js', 'shared-utils.js', 'customer.js',
+const browserScripts = ['script.js', 'shared-utils.js', 'delivery-schedule.js', 'customer.js',
     'security-utils.js', 'error-handler.js', 'notifications.js'];
 for (const file of browserScripts) {
     try {
@@ -307,7 +307,8 @@ try {
 // die plaas". Ten products were showing that filler, including one half of the
 // gevulde-rolle pair while the other half read correctly.
 try {
-    const src = read('shared-utils.js');
+    // Same order as customer-portal.html loads them.
+    const src = read('delivery-schedule.js') + ';' + read('shared-utils.js');
     const sandbox = {};
     new Function('sandbox', 'window', 'navigator',
         src + ';sandbox.pricing = getCustomerPricing();' +
@@ -508,7 +509,7 @@ try {
 try {
     const sandbox = {};
     new Function('sandbox', 'window', 'navigator',
-        read('shared-utils.js') + ';sandbox.s = DELIVERY_SCHEDULE_2026;'
+        read('delivery-schedule.js') + ';sandbox.s = DELIVERY_SCHEDULE_2026; sandbox.f = deliveryRoundForDate;'
     )(sandbox, {}, { userAgent: '' });
     const sched = sandbox.s;
 
@@ -539,7 +540,20 @@ try {
         `the October 2026 round no longer reads delivery 2026-10-03 / cutoff ` +
         `2026-09-15 — re-check against Ansie's spreadsheet before changing it`);
 
-    if (!bad) ok(`delivery schedule is consistent (${sched.length} rounds)`);
+    // Which delivery an order belongs to. Orders carry only a date, and the
+    // Orders page and the stock check both group by this answer — when it was
+    // the calendar month instead, two orders placed on 1 Oct for November
+    // pushed the whole 3 Oct delivery off the screen the day before it went.
+    const roundOf = d => { const r = sandbox.f(d); return r ? r.delivery : null; };
+    [['2026-09-20', '2026-10-03'],   // after the 15 Sep cutoff, inside the grace week
+     ['2026-09-26', '2026-10-03'],   // last day of grace
+     ['2026-09-27', '2026-11-07'],   // too late for 3 Oct
+     ['2026-10-01', '2026-11-07'],   // Justin and Elze, 2026-10-01
+     ['2026-08-20', '2026-09-05'],
+     ['2025-12-20', null]].forEach(([d, want]) =>
+        check(roundOf(d) === want, `an order on ${d} maps to ${roundOf(d)}, expected ${want}`));
+
+    if (!bad) ok(`delivery schedule is consistent (${sched.length} rounds) and orders map to the right delivery`);
 } catch (e) {
     fail(`could not check the delivery schedule: ${e.message}`);
 }
