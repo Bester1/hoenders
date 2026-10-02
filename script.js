@@ -977,41 +977,47 @@ async function refreshPortalOrders() {
     updateOrderCounts();
 }
 
+// Which delivery an order is for. Orders store only the date they were placed,
+// so the round is derived from the schedule (delivery-schedule.js). Grouping by
+// calendar month instead is what hid the whole 3 Oct delivery on 2 Oct: two
+// orders placed on 1 Oct for November made "October" the newest month.
+// Orders outside the 2026 schedule keep a calendar-month group.
+function orderRoundKey(order) {
+    if (!order || !order.date) return '';
+    const r = typeof deliveryRoundForDate === 'function' ? deliveryRoundForDate(order.date) : null;
+    if (r) return 'r:' + r.delivery;
+    const d = new Date(order.date);
+    if (isNaN(d.valueOf())) return '';
+    return 'm:' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function roundKeyLabel(key) {
+    const months = ['Jan', 'Feb', 'Mrt', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
+    if (key.startsWith('r:')) {
+        const iso = key.slice(2);
+        const [y, m, d] = iso.split('-').map(Number);
+        const r = (typeof DELIVERY_SCHEDULE_2026 !== 'undefined')
+            ? DELIVERY_SCHEDULE_2026.find(x => x.delivery === iso) : null;
+        return `Aflewering ${d} ${months[m - 1]} ${y}` + (r && r.tentative ? ' (datum onseker)' : '');
+    }
+    const [y, m] = key.slice(2).split('-').map(Number);
+    return `${months[m - 1]} ${y} (bestel-maand)`;
+}
+
+// The orders for the delivery picked in the dropdown. Every screen and export
+// that means "this run" reads this, so they can never disagree with the list.
+function selectedPortalOrders() {
+    const portalOrders = window.customerPortalOrders || [];
+    const sel = document.getElementById('portalMonthFilter');
+    const key = sel ? sel.value : '';
+    return key ? portalOrders.filter(o => orderRoundKey(o) === key) : [];
+}
+
 // Update portal orders display
 function updatePortalOrdersDisplay() {
     const portalOrders = window.customerPortalOrders || [];
-    // 1. First, make sure the month filter dropdown is populated
     populateMonthFilter(portalOrders);
-
-    // 2. Get the currently selected month from the dropdown
-    const monthFilter = document.getElementById('portalMonthFilter');
-    let selectedMonthStr = monthFilter ? monthFilter.value : '';
-
-    let monthOrders = [];
-
-    if (!selectedMonthStr && portalOrders.length > 0) {
-        // If nothing is selected yet, use the most recent month available
-        // Note: the dropdown is reverse sorted so option 1 is the most recent (option 0 is the "All" or default option if any)
-        if (monthFilter && monthFilter.options.length > 0) {
-            selectedMonthStr = monthFilter.options[0].value;
-            monthFilter.value = selectedMonthStr;
-        }
-    }
-
-    if (selectedMonthStr) {
-        // Filter orders for the exactly selected month
-        const [targetYear, targetMonth] = selectedMonthStr.split('-').map(Number);
-        monthOrders = portalOrders.filter(order => {
-            const orderDate = new Date(order.date);
-            return orderDate.getMonth() === targetMonth && orderDate.getFullYear() === targetYear;
-        });
-    }
-
-    // Default fallback if completely empty still somehow
-    if (monthOrders.length === 0 && portalOrders.length > 0) {
-        console.log("No orders found for selected month, displaying most recent orders instead.");
-        monthOrders = portalOrders.slice(0, 50); // Show recent orders as a fallback
-    }
+    const monthOrders = selectedPortalOrders();
 
     // Update stats
     document.getElementById('monthOrderCount').textContent = monthOrders.length;
@@ -1019,69 +1025,44 @@ function updatePortalOrdersDisplay() {
     document.getElementById('monthTotalAmount').textContent = 'R' + monthOrders.reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2);
     document.getElementById('orderStatusSummary').textContent = monthOrders.length > 0 ? 'Open for Orders' : 'Awaiting Orders';
 
-    // Update product summary
     updateProductSummary(monthOrders);
-
-    // Update customer orders table
     updatePortalOrdersTable(monthOrders);
-
-    // Set up checkbox event listeners
     setupOrderCheckboxes();
 }
 
-// Populate the month filter dropdown based on available portal orders
+// One dropdown entry per delivery that has orders, newest first. It opens on
+// the NEXT delivery (today included), not on the newest one -- the newest is
+// usually next month's early birds.
 function populateMonthFilter(orders) {
     const monthFilter = document.getElementById('portalMonthFilter');
     if (!monthFilter) return;
-
-    // Keep track of currently selected value to restore after repopulating
     const currentValue = monthFilter.value;
 
-    // Extract all unique YYYY-MM from orders
-    const monthsSet = new Set();
-    orders.forEach(order => {
-        if (!order.date) return;
-        const d = new Date(order.date);
-        if (!isNaN(d.valueOf())) {
-            // Format as YYYY-MM (month is 0-indexed in JS, so we keep it as number string for easy comparison)
-            const val = `${d.getFullYear()}-${d.getMonth()}`;
-            monthsSet.add(val);
-        }
-    });
+    const keys = Array.from(new Set(orders.map(orderRoundKey).filter(Boolean)));
+    const keyDate = k => k.startsWith('r:') ? k.slice(2) : k.slice(2) + '-01';
+    keys.sort((a, b) => keyDate(b).localeCompare(keyDate(a)));
 
-    // Sort descending (newest first)
-    const sortedMonths = Array.from(monthsSet).sort((a, b) => {
-        const [yearA, monthA] = a.split('-').map(Number);
-        const [yearB, monthB] = b.split('-').map(Number);
-        if (yearA !== yearB) return yearB - yearA;
-        return monthB - monthA;
-    });
-
-    // Build the dropdown options
     monthFilter.innerHTML = '';
-
-    // Formatting helper
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-    if (sortedMonths.length === 0) {
+    if (keys.length === 0) {
         const option = document.createElement('option');
         option.value = '';
         option.textContent = 'No orders available';
         monthFilter.appendChild(option);
         return;
     }
-
-    sortedMonths.forEach(monthStr => {
-        const [y, m] = monthStr.split('-').map(Number);
+    keys.forEach(k => {
         const option = document.createElement('option');
-        option.value = monthStr;
-        option.textContent = `${monthNames[m]} ${y}`;
+        option.value = k;
+        option.textContent = roundKeyLabel(k);
         monthFilter.appendChild(option);
     });
 
-    // Try to restore previous selection, or let it default to the top (newest)
-    if (currentValue && sortedMonths.includes(currentValue)) {
+    if (currentValue && keys.includes(currentValue)) {
         monthFilter.value = currentValue;
+    } else {
+        const today = new Date().toISOString().slice(0, 10);
+        const upcoming = keys.filter(k => k.startsWith('r:') && k.slice(2) >= today);
+        monthFilter.value = upcoming.length ? upcoming[upcoming.length - 1] : keys[0];
     }
 }
 
@@ -1233,14 +1214,9 @@ function updateOrdersStatusUI() {
 // Product names go out exactly as they are here; her import lists any name
 // that is not on her Pryse tab instead of guessing, so a mismatch is loud.
 function exportForNieuwoudt() {
-    const portalOrders = window.customerPortalOrders || [];
-    const now = new Date();
-    const monthOrders = portalOrders.filter(order => {
-        const d = new Date(order.date);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
+    const monthOrders = selectedPortalOrders();
     if (monthOrders.length === 0) {
-        alert('Geen bestellings vir hierdie maand om uit te voer nie.');
+        alert('Geen bestellings vir die gekose aflewering om uit te voer nie.');
         return;
     }
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -1256,8 +1232,9 @@ function exportForNieuwoudt() {
     });
     const blob = new Blob(['﻿' + lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const month = now.toLocaleDateString('af-ZA', { month: 'long', year: 'numeric' });
-    link.download = `Nieuwoudt_Bestellings_${month.replace(/\s+/g, '_')}.csv`;
+    const sel = document.getElementById('portalMonthFilter');
+    const label = sel && sel.value ? roundKeyLabel(sel.value) : 'bestellings';
+    link.download = `Nieuwoudt_Bestellings_${label.replace(/[^A-Za-z0-9]+/g, '_')}.csv`;
     link.href = URL.createObjectURL(blob);
     link.click();
     addActivity(`Lêer vir Nieuwoudt: ${lines.length - 1} reëls uit ${monthOrders.length} bestellings`);
@@ -1265,18 +1242,13 @@ function exportForNieuwoudt() {
 
 // Export orders to Excel for butchery
 async function exportToExcelForButchery() {
-    const portalOrders = window.customerPortalOrders || [];
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-
-    // Filter orders for current month
-    const monthOrders = portalOrders.filter(order => {
-        const orderDate = new Date(order.date);
-        return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
-    });
+    // The delivery picked on the Orders page, not the calendar month: exported
+    // mid-September, "this month" left out every late-August order for the
+    // same van.
+    const monthOrders = selectedPortalOrders();
 
     if (monthOrders.length === 0) {
-        alert('No orders to export for this month');
+        alert('No orders to export for the selected delivery');
         return;
     }
 
@@ -1376,7 +1348,8 @@ async function exportToExcelForButchery() {
     // Download the CSV file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const monthName = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const roundSel = document.getElementById('portalMonthFilter');
+    const monthName = (roundSel && roundSel.value ? roundKeyLabel(roundSel.value) : 'orders').replace(/[^A-Za-z0-9]+/g, '_');
     link.download = `Butchery_Orders_${monthName}.csv`;
     link.href = URL.createObjectURL(blob);
     link.click();
@@ -5440,6 +5413,27 @@ async function importPDFAsOrders(filename) {
     }
 }
 
+// The delivery the butchery PDF being analysed is for: the first round whose
+// van goes no more than 3 days before the analysis (the PDF arrives a day or
+// two before delivery; a slow import a day after it still counts).
+function runRoundKey() {
+    if (typeof DELIVERY_SCHEDULE_2026 === 'undefined') return '';
+    const at = new Date((lastPDFAnalysis && lastPDFAnalysis.timestamp) || Date.now());
+    at.setDate(at.getDate() - 3);
+    const from = at.toISOString().slice(0, 10);
+    const r = DELIVERY_SCHEDULE_2026.find(x => x.delivery >= from);
+    return r ? 'r:' + r.delivery : '';
+}
+
+// Portal orders by this customer for the delivery being invoiced.
+function ordersForThisRun(referenceName) {
+    const key = runRoundKey();
+    const want = String(referenceName || '').toLowerCase();
+    if (!key || !want) return [];
+    return (window.customerPortalOrders || []).filter(order =>
+        order.name && order.name.toLowerCase().includes(want) && orderRoundKey(order) === key);
+}
+
 // Stock reconciliation - compare ordered vs delivered quantities
 function showStockReconciliation(filename) {
     if (!lastPDFAnalysis || !lastPDFAnalysis.extractedData) {
@@ -5460,20 +5454,12 @@ function showStockReconciliation(filename) {
             // Find all orders for this customer (from imports and portal)
             const customerOrders = [];
 
-            // 1. Get from past imports
-            for (const importData of Object.values(imports)) {
-                const matchingOrders = importData.orders.filter(order =>
-                    order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
-                );
-                customerOrders.push(...matchingOrders);
-            }
-
-            // 2. Get from customer portal
-            const portalOrders = window.customerPortalOrders || [];
-            const matchingPortalOrders = portalOrders.filter(order =>
-                order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
-            );
-            customerOrders.push(...matchingPortalOrders);
+            // What this customer ordered FOR THIS DELIVERY, and nothing else.
+            // This used to add every order they had ever placed plus every
+            // past import's PDF-derived lines, so a regular customer's
+            // "ordered" was their whole history and next month's early order
+            // showed up as stock the butchery had not delivered.
+            customerOrders.push(...ordersForThisRun(referenceName));
 
             // Compare ordered vs delivered for each product
             const productComparison = {};
@@ -5667,20 +5653,12 @@ function flagStockIssues(filename) {
             // Find all orders for this customer
             const customerOrders = [];
 
-            // 1. Get from past imports
-            for (const importData of Object.values(imports)) {
-                const matchingOrders = importData.orders.filter(order =>
-                    order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
-                );
-                customerOrders.push(...matchingOrders);
-            }
-
-            // 2. Get from customer portal
-            const portalOrders = window.customerPortalOrders || [];
-            const matchingPortalOrders = portalOrders.filter(order =>
-                order.name && order.name.toLowerCase().includes(referenceName.toLowerCase())
-            );
-            customerOrders.push(...matchingPortalOrders);
+            // What this customer ordered FOR THIS DELIVERY, and nothing else.
+            // This used to add every order they had ever placed plus every
+            // past import's PDF-derived lines, so a regular customer's
+            // "ordered" was their whole history and next month's early order
+            // showed up as stock the butchery had not delivered.
+            customerOrders.push(...ordersForThisRun(referenceName));
 
             // Check for stock differences
             for (const item of customer.items) {
