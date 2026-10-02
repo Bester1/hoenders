@@ -2659,6 +2659,9 @@ function updateInvoicesDisplay(importId = null) {
                             <i class="fas fa-edit"></i> Edit Weights
                         </button>` : ''}
                     <button onclick="downloadInvoice('${invoice.invoiceId}')" class="btn-small btn-secondary">Download PDF</button>
+                    <button onclick="changeInvoiceCustomer('${invoice.invoiceId}')" class="btn-small btn-secondary" title="Verkeerde naam gelees? Kies die regte klient">
+                        <i class="fas fa-user-edit"></i> Klient
+                    </button>
                     <button onclick="addInvoiceToEmailQueue('${invoice.invoiceId}')" class="btn-small btn-success">
                         <i class="fas fa-envelope"></i> Queue
                     </button>
@@ -2673,6 +2676,48 @@ function updateInvoicesDisplay(importId = null) {
     // The whole run at a glance. Clicking into 21 invoices one at a time is how
     // a missing line goes unnoticed until a customer asks where his wings are.
     container.innerHTML = renderReconciliation(displayInvoices) + invoicesHTML;
+}
+
+// Re-point an invoice at the right customer.
+//
+// The PDF reference is OCR'd, and when it comes back as debris ("E" for
+// "Jean D", Oct 2026) findExistingCustomer() rightly refuses to guess, which
+// leaves an invoice with a fragment for a name and no email address. The
+// amounts are untouched: only who it is addressed to changes, and the
+// confirmation shows the email it will go to before anything is saved.
+function changeInvoiceCustomer(invoiceId) {
+    const invoice = invoices.find(inv => inv.invoiceId === invoiceId);
+    if (!invoice) { alert('Invoice not found'); return; }
+
+    const typed = prompt(
+        `Faktuur ${invoiceId} (R${invoice.total.toFixed(2)}) is nou aan "${invoice.customerName}".\n\n` +
+        `Tik die klient se volle naam soos in die bestellings:`, '');
+    if (!typed || !typed.trim()) return;
+
+    const match = findExistingCustomer(typed.trim());
+    if (!match || !match.email) {
+        alert(`Geen klient met 'n e-posadres gevind vir "${typed.trim()}". ` +
+            `Kyk die spelling in Customer Management en probeer weer.`);
+        return;
+    }
+    if (!confirm(`Verander na:\n\n${match.name}\n${match.email}\n${match.phone || ''}\n\nReg?`)) return;
+
+    const apply = inv => {
+        inv.customerName = match.name;
+        inv.customerEmail = match.email;
+        inv.customerPhone = match.phone || inv.customerPhone;
+        inv.customerAddress = match.address || inv.customerAddress;
+        inv.lastModified = new Date().toISOString();
+    };
+    apply(invoice);
+    // The import keeps its own copy of each invoice; update every one of them
+    // or the next reload shows the old name again.
+    Object.values(imports).forEach(imp => (imp.invoices || [])
+        .filter(inv => inv.invoiceId === invoiceId).forEach(apply));
+
+    saveToStorage();
+    updateInvoicesDisplay(currentImportId || null);
+    addActivity(`Invoice ${invoiceId} re-addressed to ${match.name}`);
 }
 
 // Delete an invoice manually
