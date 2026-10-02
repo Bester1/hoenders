@@ -848,6 +848,12 @@ async function loadFromDatabase() {
 
         if (settingsData) {
             currentImportId = settingsData.current_import_id;
+            // The global invoice list is never stored, only each import's copy,
+            // so after a reload the Invoices page looked empty while every
+            // invoice was still saved — which is how "Generate All" got pressed.
+            if (!invoices.length && currentImportId && imports[currentImportId]) {
+                invoices = (imports[currentImportId].invoices || []).slice();
+            }
             ordersOpen = settingsData.orders_open !== false;
             // DON'T load pricing from database - always use current default values
             // pricing = settingsData.pricing || pricing;
@@ -2556,8 +2562,12 @@ async function generateInvoice(orderId) {
 
     addActivity(`Invoice ${invoice.invoiceId} generated for ${order.name} (${invoiceItems.length} items)`);
 
-    // Add to email queue
-    addToEmailQueue(order);
+    // A provisional invoice is priced from the customer's ESTIMATED weights.
+    // It must never reach the email queue on its own: on 2026-10-02 "Generate
+    // All Invoices" on the Orders page queued 57 of them, several customers
+    // twice, the night before delivery. Real invoices come from the butchery
+    // PDF; a provisional one can still be queued by hand with its Queue button.
+    if (invoice.status !== 'provisional') addToEmailQueue(order);
 }
 
 function generateAllInvoices() {
@@ -2676,6 +2686,38 @@ function updateInvoicesDisplay(importId = null) {
     // The whole run at a glance. Clicking into 21 invoices one at a time is how
     // a missing line goes unnoticed until a customer asks where his wings are.
     container.innerHTML = renderReconciliation(displayInvoices) + invoicesHTML;
+}
+
+// Remove every provisional invoice, and every unsent email that came from a
+// customer-portal order. Provisional invoices are estimates (no butchery
+// weights, no butchery cost); the real ones are the INV-PDF-* invoices from
+// the butchery import and are left alone. Nothing here has been sent.
+function removeProvisionalInvoices() {
+    const isProv = inv => inv.status === 'provisional';
+    const ids = new Set(invoices.filter(isProv).map(inv => inv.invoiceId));
+    Object.values(imports).forEach(imp => (imp.invoices || [])
+        .filter(isProv).forEach(inv => ids.add(inv.invoiceId)));
+    const portalMail = e => e.status === 'pending' && e.orderData &&
+        (e.orderData.source === 'Customer Portal' || e.orderData.source === 'customer_portal');
+    const mails = emailQueue.filter(portalMail).length;
+    const keep = invoices.filter(inv => !isProv(inv)).length;
+
+    if (!ids.size && !mails) { alert('Daar is geen voorlopige fakture nie.'); return; }
+    if (!confirm(`Verwyder ${ids.size} voorlopige faktuur/fakture en ${mails} ongestuurde ` +
+        `e-pos(se) uit die tou?\n\nDie regte fakture uit die slaghuis-PDF (INV-PDF-...) bly.`)) return;
+
+    invoices = invoices.filter(inv => !isProv(inv));
+    Object.values(imports).forEach(imp => {
+        if (imp.invoices) imp.invoices = imp.invoices.filter(inv => !isProv(inv));
+    });
+    emailQueue = emailQueue.filter(e => !portalMail(e));
+
+    saveToStorage();
+    updateEmailQueueDisplay();
+    const sel = document.getElementById('invoiceImportSelector');
+    updateInvoicesDisplay(sel && sel.value ? sel.value : (currentImportId || null));
+    addActivity(`Removed ${ids.size} provisional invoices and ${mails} queued portal emails`);
+    alert(`Klaar: ${ids.size} voorlopige fakture en ${mails} e-posse verwyder.`);
 }
 
 // Re-point an invoice at the right customer.
