@@ -1,0 +1,26 @@
+# Keeps the free-tier Supabase project from auto-pausing after a week of
+# inactivity. A paused project makes the project hostname vanish from DNS
+# (customers see "This site can't be reached"), and ISP/router DNS caches keep
+# that answer for a while after an unpause. One cheap read every 2 days is
+# enough. Uses the public anon key already shipped in the site (RLS applies).
+name: Supabase keepalive
+on:
+  schedule:
+    - cron: '17 5 */2 * *'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Query Supabase (retry on blips)
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+              'https://ukdmlzuxgnjucwidsygj.supabase.co/rest/v1/products?select=id&limit=1' \
+              -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG1senV4Z25qdWN3aWRzeWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzOTAyNDcsImV4cCI6MjA2ODk2NjI0N30.sMTJlWST6YvV--ZJaAc8x9WYz_m9c-CPpBlNvuiBw3w')
+            echo "attempt $i: HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 20
+          done
+          exit 1
