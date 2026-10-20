@@ -1409,6 +1409,58 @@ function inRouteOrder(orders) {
     return orders.slice().sort((a, b) => at(a) - at(b));
 }
 
+// Google Maps, so Bes can see where a new customer sits without copying the
+// address across by hand (Bes, 2026-10-20: he used to paste every address into
+// Maps and order them visually). One link per stop, and the whole route as
+// driving directions in pieces of 10 stops: a Maps directions link takes at
+// most 8 waypoints between its start and end. Each piece starts at the stop
+// the last one ended on, so the pieces join up into one drive.
+const ROUTE_MAPS_STOPS = 10;
+
+/**
+ * The address as Maps should search it: one line, with the country added so
+ * "Durbanville" is never looked up somewhere else in the world.
+ * @function routeMapsAddress
+ * @param {string} address - Address as the customer typed it
+ * @returns {string} Search text, '' when there is no address
+ */
+function routeMapsAddress(address) {
+    const line = String(address || '').split(/\s*\n\s*/).map(p => p.trim()).filter(Boolean).join(', ');
+    if (!line) return '';
+    return /south africa|suid-afrika/i.test(line) ? line : line + ', South Africa';
+}
+
+function routeMapsSearchUrl(address) {
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(routeMapsAddress(address));
+}
+
+/**
+ * The route as Google Maps driving directions, in overlapping pieces.
+ * Stops without an address are left out of the directions (they keep their
+ * place on the slip, and are listed as GEEN ADRES).
+ * @function routeMapsLegs
+ * @param {Array<{address: string}>} stops - Stops in route order
+ * @param {number} [size=ROUTE_MAPS_STOPS] - Stops per piece, including both ends
+ * @returns {Array<{from: number, to: number, url: string}>} 1-based stop numbers and the Maps link
+ */
+function routeMapsLegs(stops, size = ROUTE_MAPS_STOPS) {
+    const points = stops.map((s, i) => ({ n: i + 1, q: routeMapsAddress(s.address) })).filter(p => p.q);
+    const legs = [];
+    for (let start = 0; start < points.length - 1; start += size - 1) {
+        const piece = points.slice(start, start + size);
+        const enc = p => encodeURIComponent(p.q);
+        const mid = piece.slice(1, -1);
+        legs.push({
+            from: piece[0].n,
+            to: piece[piece.length - 1].n,
+            url: 'https://www.google.com/maps/dir/?api=1&travelmode=driving'
+                + '&origin=' + enc(piece[0]) + '&destination=' + enc(piece[piece.length - 1])
+                + (mid.length ? '&waypoints=' + mid.map(enc).join('%7C') : '')
+        });
+    }
+    return legs;
+}
+
 let routeStops = [];
 let routeDropped = [];
 let routeRoundKey = '';
@@ -1443,15 +1495,25 @@ function renderRouteList() {
         + (routeDropped.length
             ? `<br><strong style="color:#b91c1c">${routeDropped.length} reël(s) NIE op die pakslip nie:</strong> `
               + routeDropped.map(routeEsc).join('; ')
-            : '');
+            : '')
+        + (() => {
+            const legs = routeMapsLegs(routeStops);
+            return legs.length
+                ? '<br><strong>Roete op Maps:</strong> ' + legs.map(l =>
+                    `<a href="${routeEsc(l.url)}" target="_blank" rel="noopener">stops ${l.from}–${l.to}</a>`).join(' · ')
+                : '';
+        })();
     list.innerHTML = routeStops.map((s, i) => `
         <li class="route-stop" draggable="true" data-index="${i}">
             <span class="route-num">${i + 1}</span>
             <span class="route-who">
-                <strong>${routeEsc(s.name)}</strong>${s.isNew ? ' <span class="route-new">NUUT</span>' : ''}${s.sameName ? ' <span class="route-new">2 ADRESSE</span>' : ''}
+                <span><strong>${routeEsc(s.name)}</strong>${s.isNew ? ' <span class="route-new">NUUT</span>' : ''}${s.sameName ? ' <span class="route-new">2 ADRESSE</span>' : ''}</span>
                 <small>${routeEsc(s.address.replace(/\s*\n\s*/g, ', ') || 'GEEN ADRES')}</small>
             </span>
             <span class="route-count">${s.items.reduce((n, it) => n + it.quantity, 0)} pk</span>
+            ${routeMapsAddress(s.address)
+                ? `<a class="btn-secondary btn-small route-map" href="${routeEsc(routeMapsSearchUrl(s.address))}" target="_blank" rel="noopener" title="Wys op Google Maps">Maps</a>`
+                : ''}
             <button class="btn-secondary btn-small" onclick="moveRouteStop(${i}, -1)" ${i === 0 ? 'disabled' : ''} title="Op">&uarr;</button>
             <button class="btn-secondary btn-small" onclick="moveRouteStop(${i}, 1)" ${i === routeStops.length - 1 ? 'disabled' : ''} title="Af">&darr;</button>
         </li>`).join('');
