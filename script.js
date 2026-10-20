@@ -1211,14 +1211,82 @@ function updateOrdersStatusUI() {
 // One line per item -- Klient, Produk, Hoeveelheid, Notas -- which is what her
 // import reads, and deliberately NO email, address or phone: she invoices Bes,
 // not his customers, so their contact details stay here (Bes, 2026-09-28).
-// Product names go out exactly as they are here; her import lists any name
-// that is not on her Pryse tab instead of guessing, so a mismatch is loud.
-function exportForNieuwoudt() {
+//
+// Product names go out in HER spelling. Her import matches names exactly
+// (case aside) and skips any line whose product is not on her Pryse tab; on
+// the 7 Nov 2026 file 13 of Bes's 21 names did not match, which would have
+// left 30% of the packs out of her import without anyone noticing until the
+// van was packed short. NIEUWOUDT_NAMES maps the ones that are spelt
+// differently; the rest already match. Before downloading, the export reads
+// her LIVE product list (her order form's catalogue) and names every product
+// that is still not on it, with the pack count, so Bes can ask her to add it
+// BEFORE she imports.
+const NIEUWOUDT_NAMES = {
+    'BRAAIPAKKE': 'Opgesnyde hoender',                     // 1 heel hoender opgesny, ± 2kg, R65/kg both sides
+    'HEEL HALWE HOENDERS': 'Halwe hoender',
+    "PLAT HOENDER (FLATTY'S)": 'Plat hoender (flatty)',
+    'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)': 'Borsstukke met been en vel (2)',
+    'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)': 'Borsstukke met been en vel (4)',
+    'VLERKIES': 'Vlerkies (8 in pak)',
+    'GUNS BOUD EN DY AANMEKAAR': 'Guns, boud en dy aanmekaar',
+    'GEVULDE HOENDER ROLLE OPSIE 1': 'Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)',
+    'GEVULDE HOENDER ROLLE VAKUUM VERPAK': 'Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)',
+    'GEVULDE HOENDER ROLLE OPSIE 2': 'Gevulde hoender rol (peppadew, mozzarella, cheddar, pynappel)',
+    'HOENDER PATTIES': 'Hoender patties (4 in pak)',
+    'INGELEGDE GROEN VYE': 'Ingelegde groenvye (375ml)',
+    'SUIWER HEUNING': 'Suiwer heuning (500g)',
+};
+// Her order form's web app (plaas-bestel config.js). It answers cross-site
+// reads, and fn=catalog is the same public product list her customers see.
+const NIEUWOUDT_CATALOG_URL = 'https://script.google.com/macros/s/AKfycbxpil0gvnnAHBirbbIQEmxsXVygisGPNM_SmIVaLRWDEkoGhpO60Efdr1gZGsfck23pbg/exec?fn=catalog&area=kaap';
+
+function nieuwoudtKey(name) {
+    return String(name || '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+/**
+ * Bes's product name in Ansie's spelling: the mapped name if there is one,
+ * else her exact spelling when only the case differs, else unchanged.
+ * @function nieuwoudtProductName
+ * @param {string} product - Product name as Bes's system has it
+ * @param {Object<string,string>|null} hers - Her live names keyed by nieuwoudtKey, or null if unknown
+ * @returns {string} Name for her import
+ */
+function nieuwoudtProductName(product, hers) {
+    const mapped = NIEUWOUDT_NAMES[nieuwoudtKey(product)] || String(product || '').trim();
+    return (hers && hers[nieuwoudtKey(mapped)]) || mapped;
+}
+
+/**
+ * Her live product names, keyed by nieuwoudtKey. null when the list cannot be
+ * read (offline, Google slow): the export then still runs, and says it could
+ * not check.
+ * @async
+ * @function loadNieuwoudtProducts
+ * @returns {Promise<Object<string,string>|null>}
+ */
+async function loadNieuwoudtProducts() {
+    try {
+        const res = await fetch(NIEUWOUDT_CATALOG_URL, { signal: AbortSignal.timeout(20000) });
+        const data = await res.json();
+        if (!data || !data.ok || !Array.isArray(data.products) || !data.products.length) return null;
+        const hers = {};
+        data.products.forEach(p => { if (p && p.name) hers[nieuwoudtKey(p.name)] = String(p.name).trim(); });
+        return hers;
+    } catch (e) {
+        console.warn('Could not read Ansie\'s product list:', e);
+        return null;
+    }
+}
+
+async function exportForNieuwoudt() {
     const monthOrders = inRouteOrder(selectedPortalOrders());
     if (monthOrders.length === 0) {
         alert('Geen bestellings vir die gekose aflewering om uit te voer nie.');
         return;
     }
+    const hers = await loadNieuwoudtProducts();
+    const missing = {};   // her-spelling name -> packs, for products not on her list
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = ['Klient,Produk,Hoeveelheid,Notas'];
     monthOrders.forEach(order => {
@@ -1227,7 +1295,9 @@ function exportForNieuwoudt() {
             : (order.product ? [{ product: order.product, quantity: order.quantity }] : []);
         items.forEach(item => {
             if (!(Number(item.quantity) > 0)) return;
-            lines.push([q(order.name), q(item.product), Number(item.quantity), q(order.notes || '')].join(','));
+            const name = nieuwoudtProductName(item.product, hers);
+            if (hers && !hers[nieuwoudtKey(name)]) missing[name] = (missing[name] || 0) + Number(item.quantity);
+            lines.push([q(order.name), q(name), Number(item.quantity), q(order.notes || '')].join(','));
         });
     });
     const blob = new Blob(['﻿' + lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8;' });
@@ -1238,6 +1308,16 @@ function exportForNieuwoudt() {
     link.href = URL.createObjectURL(blob);
     link.click();
     addActivity(`Lêer vir Nieuwoudt: ${lines.length - 1} reëls uit ${monthOrders.length} bestellings`);
+
+    const names = Object.keys(missing);
+    if (!hers) {
+        alert('Die lêer is afgelaai, maar Ansie se pryslys kon nie nou gelees word nie, so die produkname is NIE nagegaan nie. '
+            + 'Probeer later weer as jy seker wil wees.');
+    } else if (names.length) {
+        alert('Die lêer is afgelaai.\n\nHierdie produkte is NIE op Ansie se pryslys nie, en haar invoer sal daardie reëls oorslaan:\n\n'
+            + names.map(n => `  ${n}  (${missing[n]} pakke)`).join('\n')
+            + '\n\nVra haar om dit op haar Pryse-blad by te sit VOORDAT sy die lêer invoer.');
+    }
 }
 
 // Delivery route + pakslip (Bes, 2026-10-20).
