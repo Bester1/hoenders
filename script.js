@@ -1214,7 +1214,7 @@ function updateOrdersStatusUI() {
 // Product names go out exactly as they are here; her import lists any name
 // that is not on her Pryse tab instead of guessing, so a mismatch is loud.
 function exportForNieuwoudt() {
-    const monthOrders = selectedPortalOrders();
+    const monthOrders = inRouteOrder(selectedPortalOrders());
     if (monthOrders.length === 0) {
         alert('Geen bestellings vir die gekose aflewering om uit te voer nie.');
         return;
@@ -1240,12 +1240,345 @@ function exportForNieuwoudt() {
     addActivity(`Lêer vir Nieuwoudt: ${lines.length - 1} reëls uit ${monthOrders.length} bestellings`);
 }
 
+// Delivery route + pakslip (Bes, 2026-10-20).
+//
+// Bes delivers his own customers' bags. Ansie prints the sheet he drives by,
+// so it has to be in the order he delivers, with addresses -- and her own
+// Pakslip cannot be: her import drops the address and her slip sorts by name.
+// So the route is arranged here and printed from here. Before this he
+// downloaded the CSV and re-sorted the rows by hand every month.
+//
+// One stop per customer AND address, not per order: Justin ordered twice for
+// the same van and gets one bag. Name alone was wrong both ways (review, PR
+// #12): two people called the same thing became one bag, and one person
+// ordering to two houses lost the second address. Prices are left off on
+// purpose -- Ansie invoices Bes at her reseller price, and what his customers
+// pay is his business.
+//
+// Nothing drops off quietly. A line with no usable quantity is listed on the
+// screen and on page 1 of the slip, and an order with no name becomes a
+// GEEN NAAM stop, because a bag missing from the paper is never packed.
+
+const ROUTE_STORAGE_PREFIX = 'hoenders.route.';
+
+// Customer-typed names and addresses go into HTML here. sanitizeHtml lives in
+// shared-utils.js, which the admin page does not load.
+function routeEsc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/**
+ * The stop an order belongs to: its name plus its address, so the same
+ * customer at the same house merges and anything else does not. An order with
+ * no name keys on its order id, so two nameless orders never share a bag.
+ * @function routeStopKey
+ * @param {Object} order - Portal order
+ * @returns {string} Stop key, also what the saved route stores
+ */
+function routeStopKey(order) {
+    const name = String(order.name || '').trim().toLowerCase();
+    const address = String(order.address || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    return (name || 'geen naam ' + (order.orderId || order.order_id || '')) + '|' + address;
+}
+
+/**
+ * Merges the selected delivery's orders into one stop per customer and address.
+ * @function routeStopsFor
+ * @param {Array<Object>} orders - Portal orders for one delivery
+ * @returns {{stops: Array<{key: string, name: string, phone: string, address: string, notes: string, sameName: boolean, items: Array<{product: string, quantity: number}>}>, dropped: Array<string>}} Stops in no particular order, and every line left off the slip
+ */
+function routeStopsFor(orders) {
+    const stops = {};
+    const dropped = [];
+    orders.forEach(order => {
+        const key = routeStopKey(order);
+        const name = String(order.name || '').trim() || 'GEEN NAAM';
+        const stop = stops[key] || (stops[key] = {
+            key, name, phone: '', address: '', notes: '', items: {}
+        });
+        if (!stop.phone && order.phone) stop.phone = String(order.phone).trim();
+        if (!stop.address && order.address) stop.address = String(order.address).trim();
+        if (order.notes) stop.notes = [stop.notes, String(order.notes).trim()].filter(Boolean).join(' · ');
+        const items = Array.isArray(order.products) && order.products.length
+            ? order.products
+            : (order.product ? [{ product: order.product, quantity: order.quantity }] : []);
+        if (!items.length) dropped.push(`${name}: bestelling sonder items`);
+        items.forEach(item => {
+            const qty = Number(item.quantity);
+            if (!(qty > 0)) {
+                dropped.push(`${name}: ${item.product || '(geen produk)'} (hoeveelheid "${item.quantity ?? ''}")`);
+                return;
+            }
+            stop.items[item.product] = (stop.items[item.product] || 0) + qty;
+        });
+    });
+    const list = Object.values(stops).map(s => ({
+        ...s,
+        items: Object.entries(s.items).map(([product, quantity]) => ({ product, quantity }))
+            .sort((a, b) => a.product.localeCompare(b.product))
+    })).filter(s => s.items.length);
+    // Same name at two addresses: two bags, flagged, so Bes checks which is right.
+    const named = {};
+    list.forEach(s => { named[s.name.toLowerCase()] = (named[s.name.toLowerCase()] || 0) + 1; });
+    list.forEach(s => { s.sameName = named[s.name.toLowerCase()] > 1; });
+    return { stops: list, dropped };
+}
+
+// Suburbs Bes delivers to, so "14 Rust En Vrede street Ridgeworth Bellville"
+// sorts under Bellville rather than under whatever came last. Order matters:
+// the first one found wins, so the more specific names go first.
+const ROUTE_SUBURBS = ['flamingo vlei', 'table view', 'blouberg', 'duynefontein', 'melkbos',
+    'bothasig', 'welgelegen', 'parow', 'bellville', 'kraaifontein', 'brackenfell', 'kleinbron',
+    'eversdal', 'sonstraal', 'vergesig', 'durbanville', 'observatory'];
+
+/**
+ * Best guess at the suburb in a free-text address: a known suburb if one is
+ * named, else the last part that is not a postcode or filler. Only used for the
+ * first, unarranged order of a route.
+ * @function addressSuburb
+ * @param {string} address - Address as the customer typed it
+ * @returns {string} Lower-case suburb guess, '' when none
+ */
+function addressSuburb(address) {
+    const text = String(address || '').toLowerCase();
+    const known = ROUTE_SUBURBS.find(s => text.includes(s));
+    if (known) return known;
+    const parts = text.split(/[\n,]+/)
+        .map(p => p.trim().replace(/[.\s]*\d{4}$/, '').trim())
+        .filter(p => p && !/^\d+$/.test(p) && !/^(house|huis|kaapstad|cape town|south africa)$/.test(p));
+    return parts.length ? parts[parts.length - 1] : '';
+}
+
+/**
+ * Stops in Bes's saved route order. Customers not in the saved route (ordered
+ * after he arranged it) go at the end, so a late order is never left off.
+ * @function orderedRouteStops
+ * @param {Array<Object>} stops - From routeStopsFor()
+ * @param {Array<string>|null} saved - Saved stop keys, or null for none
+ * @returns {Array<Object>} Stops in route order, each with `isNew` set
+ */
+function orderedRouteStops(stops, saved) {
+    // No address sorts LAST: those are the stops Bes has to chase.
+    const bySuburb = (a, b) => (!a.address.trim() - !b.address.trim())
+        || addressSuburb(a.address).localeCompare(addressSuburb(b.address))
+        || a.address.toLowerCase().localeCompare(b.address.toLowerCase())
+        || a.name.localeCompare(b.name);
+    if (!saved || !saved.length) return stops.slice().sort(bySuburb).map(s => ({ ...s, isNew: false }));
+    const pos = {};
+    saved.forEach((k, i) => { pos[k] = i; });
+    const known = stops.filter(s => s.key in pos).sort((a, b) => pos[a.key] - pos[b.key]);
+    const late = stops.filter(s => !(s.key in pos)).sort(bySuburb);
+    return known.map(s => ({ ...s, isNew: false })).concat(late.map(s => ({ ...s, isNew: true })));
+}
+
+function loadSavedRoute(roundKey) {
+    try {
+        const raw = localStorage.getItem(ROUTE_STORAGE_PREFIX + roundKey);
+        const keys = raw ? JSON.parse(raw) : null;
+        return Array.isArray(keys) ? keys : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function saveRoute(roundKey, keys) {
+    try {
+        localStorage.setItem(ROUTE_STORAGE_PREFIX + roundKey, JSON.stringify(keys));
+    } catch (e) {
+        console.warn('Route not saved (storage unavailable):', e);
+    }
+}
+
+/**
+ * The selected delivery's orders sorted by the saved route, so both CSV
+ * exports come out in delivery order too. Unchanged when no route is saved.
+ * @function inRouteOrder
+ * @param {Array<Object>} orders - Portal orders for one delivery
+ * @returns {Array<Object>} The same orders, in route order
+ */
+function inRouteOrder(orders) {
+    const sel = document.getElementById('portalMonthFilter');
+    const saved = sel && sel.value ? loadSavedRoute(sel.value) : null;
+    if (!saved) return orders;
+    const pos = {};
+    saved.forEach((k, i) => { pos[k] = i; });
+    const at = o => {
+        const k = routeStopKey(o);
+        return k in pos ? pos[k] : saved.length;
+    };
+    return orders.slice().sort((a, b) => at(a) - at(b));
+}
+
+let routeStops = [];
+let routeDropped = [];
+let routeRoundKey = '';
+
+function openRouteModal() {
+    const sel = document.getElementById('portalMonthFilter');
+    routeRoundKey = sel ? sel.value : '';
+    const orders = selectedPortalOrders();
+    if (!routeRoundKey || orders.length === 0) {
+        alert('Geen bestellings vir die gekose aflewering nie.');
+        return;
+    }
+    const built = routeStopsFor(orders);
+    routeStops = orderedRouteStops(built.stops, loadSavedRoute(routeRoundKey));
+    routeDropped = built.dropped;
+    document.getElementById('routeModalTitle').textContent = roundKeyLabel(routeRoundKey);
+    renderRouteList();
+    document.getElementById('routeModal').style.display = 'flex';
+}
+
+function closeRouteModal() {
+    document.getElementById('routeModal').style.display = 'none';
+}
+
+function renderRouteList() {
+    const list = document.getElementById('routeList');
+    const late = routeStops.filter(s => s.isNew).length;
+    document.getElementById('routeSummary').innerHTML = routeEsc(
+        `${routeStops.length} stops. Sleep 'n ry, of gebruik die pyltjies. Die volgorde word in HIERDIE blaaier gestoor `
+        + `sodra jy skuif of druk (op 'n ander toestel begin dit weer volgens voorstad).`
+        + (late ? ` ${late} nuwe kliënt(e) onderaan, gemerk NUUT -- skuif hulle in plek.` : ''))
+        + (routeDropped.length
+            ? `<br><strong style="color:#b91c1c">${routeDropped.length} reël(s) NIE op die pakslip nie:</strong> `
+              + routeDropped.map(routeEsc).join('; ')
+            : '');
+    list.innerHTML = routeStops.map((s, i) => `
+        <li class="route-stop" draggable="true" data-index="${i}">
+            <span class="route-num">${i + 1}</span>
+            <span class="route-who">
+                <strong>${routeEsc(s.name)}</strong>${s.isNew ? ' <span class="route-new">NUUT</span>' : ''}${s.sameName ? ' <span class="route-new">2 ADRESSE</span>' : ''}
+                <small>${routeEsc(s.address.replace(/\s*\n\s*/g, ', ') || 'GEEN ADRES')}</small>
+            </span>
+            <span class="route-count">${s.items.reduce((n, it) => n + it.quantity, 0)} pk</span>
+            <button class="btn-secondary btn-small" onclick="moveRouteStop(${i}, -1)" ${i === 0 ? 'disabled' : ''} title="Op">&uarr;</button>
+            <button class="btn-secondary btn-small" onclick="moveRouteStop(${i}, 1)" ${i === routeStops.length - 1 ? 'disabled' : ''} title="Af">&darr;</button>
+        </li>`).join('');
+
+    let dragFrom = null;
+    list.querySelectorAll('.route-stop').forEach(li => {
+        li.addEventListener('dragstart', () => { dragFrom = Number(li.dataset.index); li.classList.add('dragging'); });
+        li.addEventListener('dragend', () => li.classList.remove('dragging'));
+        li.addEventListener('dragover', e => e.preventDefault());
+        li.addEventListener('drop', e => {
+            e.preventDefault();
+            const to = Number(li.dataset.index);
+            if (dragFrom === null || dragFrom === to) return;
+            const [stop] = routeStops.splice(dragFrom, 1);
+            routeStops.splice(to, 0, stop);
+            routeChanged();
+        });
+    });
+}
+
+function moveRouteStop(index, delta) {
+    const to = index + delta;
+    if (to < 0 || to >= routeStops.length) return;
+    [routeStops[index], routeStops[to]] = [routeStops[to], routeStops[index]];
+    routeChanged();
+}
+
+function routeChanged() {
+    routeStops.forEach(s => { s.isNew = false; });
+    saveRoute(routeRoundKey, routeStops.map(s => s.key));
+    renderRouteList();
+}
+
+function resetRouteBySuburb() {
+    routeStops = orderedRouteStops(routeStops, null);
+    routeChanged();
+}
+
+/**
+ * Opens the pakslip in a new window and prints it (Save as PDF to send).
+ * Part 1 is what to make up for the whole order; part 2 is one numbered block
+ * per stop in route order, with address and phone. No prices.
+ * @function printPakslip
+ */
+function printPakslip() {
+    if (!routeStops.length) return;
+    // The paper is the route: save exactly what is printed, NUUT stops
+    // included, so both CSV exports come out in this same order (review, PR #12).
+    routeStops.forEach(s => { s.isNew = false; });
+    saveRoute(routeRoundKey, routeStops.map(s => s.key));
+    renderRouteList();
+    const esc = routeEsc;
+    const totals = {};
+    routeStops.forEach(s => s.items.forEach(it => { totals[it.product] = (totals[it.product] || 0) + it.quantity; }));
+    const packs = Object.values(totals).reduce((a, b) => a + b, 0);
+    const built = new Date().toLocaleString('af-ZA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const totalRows = Object.keys(totals).sort().map(p =>
+        `<tr><td>${esc(p)}</td><td class="n">${totals[p]}</td></tr>`).join('');
+    const stopBlocks = routeStops.map((s, i) => `
+        <section class="stop">
+            <div class="stop-head">
+                <span class="num">${i + 1}</span>
+                <div>
+                    <div class="name">${esc(s.name)}${s.sameName ? ' <span class="warn">(dieselfde naam by 2 adresse)</span>' : ''}</div>
+                    <div class="addr">${esc(s.address || 'GEEN ADRES').replace(/\n/g, '<br>')}</div>
+                    ${s.phone ? `<div class="phone">${esc(s.phone)}</div>` : ''}
+                </div>
+            </div>
+            <table class="items">${s.items.map(it =>
+                `<tr><td class="box">&#9744;</td><td class="n">${it.quantity}</td><td>${esc(it.product)}</td></tr>`).join('')}
+            </table>
+            ${s.notes ? `<div class="notes">Nota: ${esc(s.notes)}</div>` : ''}
+        </section>`).join('');
+
+    const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>Pakslip ${esc(roundKeyLabel(routeRoundKey))}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12pt; color: #000; margin: 16mm; }
+  h1 { font-size: 18pt; margin: 0 0 2mm; }
+  h2 { font-size: 13pt; margin: 8mm 0 3mm; border-bottom: 2px solid #000; padding-bottom: 1mm; }
+  .meta { color: #333; margin-bottom: 4mm; }
+  table { border-collapse: collapse; }
+  .totals td { padding: 1.5mm 4mm 1.5mm 0; border-bottom: 1px solid #ccc; }
+  td.n { text-align: right; font-weight: bold; padding-right: 4mm; }
+  .stop { border: 1px solid #000; padding: 3mm; margin-bottom: 4mm; break-inside: avoid; page-break-inside: avoid; }
+  .stop-head { display: flex; gap: 4mm; margin-bottom: 2mm; }
+  .num { font-size: 20pt; font-weight: bold; min-width: 12mm; }
+  .name { font-weight: bold; font-size: 13pt; }
+  .addr, .phone { font-size: 11pt; }
+  .items td { padding: 0.8mm 2mm 0.8mm 0; }
+  .box { font-size: 14pt; }
+  .notes { margin-top: 2mm; font-style: italic; }
+  .warn { color: #b91c1c; font-weight: bold; font-size: 10pt; }
+  .dropped { border: 2px solid #b91c1c; padding: 2mm 3mm; margin: 4mm 0; }
+  /* Page 1 stays with Ansie (what to make up); the route pages go in the bakkie. */
+  .route-start { break-before: page; page-break-before: always; margin-top: 0; }
+  @media print { body { margin: 0; } }
+</style></head><body>
+<h1>Pakslip: Adriaan Bester se kliënte</h1>
+<div class="meta">${esc(roundKeyLabel(routeRoundKey))} · ${routeStops.length} sakke · ${packs} pakke · gebou ${esc(built)}</div>
+${routeDropped.length ? `<div class="dropped"><strong>NIE op hierdie pakslip nie (${routeDropped.length}):</strong><br>${routeDropped.map(esc).join('<br>')}</div>` : ''}
+<h2>1 · Wat om klaar te maak</h2>
+<table class="totals"><tr><td><strong>Produk</strong></td><td class="n">Aantal</td></tr>${totalRows}</table>
+<h2 class="route-start">2 · Elke sak, in afleweringsvolgorde</h2>
+${stopBlocks}
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) {
+        alert('Die pop-up is geblokkeer. Laat pop-ups toe vir hierdie bladsy en probeer weer.');
+        return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+    addActivity(`Pakslip gebou: ${routeStops.length} stops, ${packs} pakke`);
+}
+
 // Export orders to Excel for butchery
 async function exportToExcelForButchery() {
     // The delivery picked on the Orders page, not the calendar month: exported
     // mid-September, "this month" left out every late-August order for the
-    // same van.
-    const monthOrders = selectedPortalOrders();
+    // same van. In route order once Bes has arranged one (Roete & pakslip).
+    const monthOrders = inRouteOrder(selectedPortalOrders());
 
     if (monthOrders.length === 0) {
         alert('No orders to export for the selected delivery');

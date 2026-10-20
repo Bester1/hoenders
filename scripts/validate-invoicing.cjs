@@ -558,6 +558,69 @@ try {
     fail(`could not check the delivery schedule: ${e.message}`);
 }
 
+// ---------------------------------------------------------------------------
+// Route + pakslip (PR #12 review). The slip is what the bags are packed from,
+// so a bag that merges with a stranger's, loses its address or drops a line
+// is a bag packed wrong -- and it looks completely normal on paper.
+// ---------------------------------------------------------------------------
+try {
+    const vm = require('vm');
+    const src = read('script.js');
+    const from = src.indexOf('// Delivery route + pakslip');
+    const to = src.indexOf('// Export orders to Excel for butchery');
+    if (from === -1 || to === -1) throw new Error('route block markers not found in script.js');
+    const store = {};
+    const sb = {
+        console,
+        localStorage: { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } },
+        document: { getElementById: id => (id === 'portalMonthFilter' ? { value: 'r:2026-11-07' } : null) },
+    };
+    vm.createContext(sb);
+    vm.runInContext(src.slice(from, to), sb);
+    let bad = 0;
+    const check = (cond, msg) => { if (!cond) { bad++; fail(msg); } };
+    const O = (id, name, address, products) => ({ orderId: id, name, address, products });
+
+    const { stops, dropped } = sb.routeStopsFor([
+        O('1', 'Justin', '19 Hawk Road, kraaifontein', [{ product: 'VLERKIES', quantity: 4 }]),
+        O('2', 'justin ', '19 Hawk Road,  Kraaifontein', [{ product: 'VLERKIES', quantity: 2 }]),
+        O('3', 'Chris', '1 A Street, Bellville', [{ product: 'FILETTE', quantity: 1 }]),
+        O('4', 'Chris', '9 B Road, Parow', [{ product: 'STRIPS', quantity: 2 }]),
+        O('5', '', '5 C Close, Durbanville', [{ product: 'LEWER', quantity: 1 }]),
+        O('6', 'Zero', '7 D Avenue, Bothasig', [{ product: 'HEEL HOENDER', quantity: 0 }, { product: 'STRIPS', quantity: 'x' }]),
+    ]);
+    const justin = stops.filter(s => s.name.toLowerCase().startsWith('justin'));
+    check(justin.length === 1 && justin[0].items[0].quantity === 6,
+        'one customer, same house, two orders is not ONE bag with both orders in it');
+    const chris = stops.filter(s => s.name === 'Chris');
+    check(chris.length === 2 && chris.every(s => s.sameName),
+        'two Chrises at two addresses are merged, or not flagged -- one bag would go to the wrong house');
+    check(stops.some(s => s.name === 'GEEN NAAM'), 'an order with no name is dropped from the slip silently');
+    check(dropped.length === 2 && dropped.every(d => d.startsWith('Zero')),
+        'a line with a zero or bad quantity vanishes without being listed (' + dropped.length + ' listed)');
+
+    // A late stop goes last and NUUT; no address sorts last when unarranged.
+    const ordered = sb.orderedRouteStops(stops, null);
+    const noAddr = sb.orderedRouteStops([...stops, { key: 'x|', name: 'Nowhere', address: '', items: [{ product: 'P', quantity: 1 }] }], null);
+    check(noAddr[noAddr.length - 1].name === 'Nowhere', 'a stop with no address does not sort last');
+    const keys = ordered.map(s => s.key);
+    const late = sb.orderedRouteStops(stops, keys.slice(1));
+    check(late[late.length - 1].key === keys[0] && late[late.length - 1].isNew,
+        'a customer missing from the saved route is not put at the end marked NUUT');
+
+    // The CSV exports must use the SAME key as the slip, or the paper and the
+    // files disagree about who is where.
+    store['hoenders.route.r:2026-11-07'] = JSON.stringify([sb.routeStopKey(O('3', 'Chris', '1 A Street, Bellville')), sb.routeStopKey(O('1', 'Justin', '19 Hawk Road, kraaifontein'))]);
+    const csvOrder = sb.inRouteOrder([O('1', 'Justin', '19 Hawk Road, kraaifontein', []), O('4', 'Chris', '9 B Road, Parow', []), O('3', 'Chris', '1 A Street, Bellville', [])]);
+    check(csvOrder.map(o => o.orderId).join() === '3,1,4', 'the CSV order does not follow the saved route: ' + csvOrder.map(o => o.orderId).join());
+    check(/saveRoute\(routeRoundKey/.test(src.slice(src.indexOf('function printPakslip'), src.indexOf('function printPakslip') + 600)),
+        'printing does not save the route -- the paper and both CSV exports can disagree');
+
+    if (!bad) ok('route + pakslip: one bag per customer and address, nothing dropped silently, files follow the printed route');
+} catch (e) {
+    fail(`could not check the route + pakslip: ${e.message}`);
+}
+
 console.log('');
 if (failures) {
     console.error(`${failures} check(s) failed.`);

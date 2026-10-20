@@ -6038,3 +6038,13 @@ body.modal-open {
 .notice-round-dates { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
 .notice-round-dates label { margin-top: 0; }
 .notice-round-dates .form-input { width: auto; }
+
+/* Route + pakslip modal */
+.route-list { list-style: none; margin: 0; padding: 0; }
+.route-stop { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 6px; background: #fff; cursor: grab; }
+.route-stop.dragging { opacity: 0.4; }
+.route-num { font-weight: 700; min-width: 24px; text-align: right; }
+.route-who { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.route-who small { color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.route-count { color: #6b7280; white-space: nowrap; }
+.route-new { background: #f59e0b; color: #fff; border-radius: 4px; padding: 0 5px; font-size: 0.75em; }
