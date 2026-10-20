@@ -1248,9 +1248,16 @@ function exportForNieuwoudt() {
 // So the route is arranged here and printed from here. Before this he
 // downloaded the CSV and re-sorted the rows by hand every month.
 //
-// One stop per customer (by name), not per order: Justin ordered twice for the
-// same van and gets one bag. Prices are left off on purpose -- Ansie invoices
-// Bes at her reseller price, and what his customers pay is his business.
+// One stop per customer AND address, not per order: Justin ordered twice for
+// the same van and gets one bag. Name alone was wrong both ways (review, PR
+// #12): two people called the same thing became one bag, and one person
+// ordering to two houses lost the second address. Prices are left off on
+// purpose -- Ansie invoices Bes at her reseller price, and what his customers
+// pay is his business.
+//
+// Nothing drops off quietly. A line with no usable quantity is listed on the
+// screen and on page 1 of the slip, and an order with no name becomes a
+// GEEN NAAM stop, because a bag missing from the paper is never packed.
 
 const ROUTE_STORAGE_PREFIX = 'hoenders.route.';
 
@@ -1261,18 +1268,33 @@ function routeEsc(s) {
 }
 
 /**
- * Merges the selected delivery's orders into one stop per customer.
+ * The stop an order belongs to: its name plus its address, so the same
+ * customer at the same house merges and anything else does not. An order with
+ * no name keys on its order id, so two nameless orders never share a bag.
+ * @function routeStopKey
+ * @param {Object} order - Portal order
+ * @returns {string} Stop key, also what the saved route stores
+ */
+function routeStopKey(order) {
+    const name = String(order.name || '').trim().toLowerCase();
+    const address = String(order.address || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    return (name || 'geen naam ' + (order.orderId || order.order_id || '')) + '|' + address;
+}
+
+/**
+ * Merges the selected delivery's orders into one stop per customer and address.
  * @function routeStopsFor
  * @param {Array<Object>} orders - Portal orders for one delivery
- * @returns {Array<{key: string, name: string, phone: string, address: string, notes: string, items: Array<{product: string, quantity: number}>}>} Stops in no particular order
+ * @returns {{stops: Array<{key: string, name: string, phone: string, address: string, notes: string, sameName: boolean, items: Array<{product: string, quantity: number}>}>, dropped: Array<string>}} Stops in no particular order, and every line left off the slip
  */
 function routeStopsFor(orders) {
     const stops = {};
+    const dropped = [];
     orders.forEach(order => {
-        const key = String(order.name || '').trim().toLowerCase();
-        if (!key) return;
+        const key = routeStopKey(order);
+        const name = String(order.name || '').trim() || 'GEEN NAAM';
         const stop = stops[key] || (stops[key] = {
-            key, name: String(order.name).trim(), phone: '', address: '', notes: '', items: {}
+            key, name, phone: '', address: '', notes: '', items: {}
         });
         if (!stop.phone && order.phone) stop.phone = String(order.phone).trim();
         if (!stop.address && order.address) stop.address = String(order.address).trim();
@@ -1280,17 +1302,26 @@ function routeStopsFor(orders) {
         const items = Array.isArray(order.products) && order.products.length
             ? order.products
             : (order.product ? [{ product: order.product, quantity: order.quantity }] : []);
+        if (!items.length) dropped.push(`${name}: bestelling sonder items`);
         items.forEach(item => {
             const qty = Number(item.quantity);
-            if (!(qty > 0)) return;
+            if (!(qty > 0)) {
+                dropped.push(`${name}: ${item.product || '(geen produk)'} (hoeveelheid "${item.quantity ?? ''}")`);
+                return;
+            }
             stop.items[item.product] = (stop.items[item.product] || 0) + qty;
         });
     });
-    return Object.values(stops).map(s => ({
+    const list = Object.values(stops).map(s => ({
         ...s,
         items: Object.entries(s.items).map(([product, quantity]) => ({ product, quantity }))
             .sort((a, b) => a.product.localeCompare(b.product))
     })).filter(s => s.items.length);
+    // Same name at two addresses: two bags, flagged, so Bes checks which is right.
+    const named = {};
+    list.forEach(s => { named[s.name.toLowerCase()] = (named[s.name.toLowerCase()] || 0) + 1; });
+    list.forEach(s => { s.sameName = named[s.name.toLowerCase()] > 1; });
+    return { stops: list, dropped };
 }
 
 // Suburbs Bes delivers to, so "14 Rust En Vrede street Ridgeworth Bellville"
@@ -1327,7 +1358,9 @@ function addressSuburb(address) {
  * @returns {Array<Object>} Stops in route order, each with `isNew` set
  */
 function orderedRouteStops(stops, saved) {
-    const bySuburb = (a, b) => addressSuburb(a.address).localeCompare(addressSuburb(b.address))
+    // No address sorts LAST: those are the stops Bes has to chase.
+    const bySuburb = (a, b) => (!a.address.trim() - !b.address.trim())
+        || addressSuburb(a.address).localeCompare(addressSuburb(b.address))
         || a.address.toLowerCase().localeCompare(b.address.toLowerCase())
         || a.name.localeCompare(b.name);
     if (!saved || !saved.length) return stops.slice().sort(bySuburb).map(s => ({ ...s, isNew: false }));
@@ -1370,13 +1403,14 @@ function inRouteOrder(orders) {
     const pos = {};
     saved.forEach((k, i) => { pos[k] = i; });
     const at = o => {
-        const k = String(o.name || '').trim().toLowerCase();
+        const k = routeStopKey(o);
         return k in pos ? pos[k] : saved.length;
     };
     return orders.slice().sort((a, b) => at(a) - at(b));
 }
 
 let routeStops = [];
+let routeDropped = [];
 let routeRoundKey = '';
 
 function openRouteModal() {
@@ -1387,7 +1421,9 @@ function openRouteModal() {
         alert('Geen bestellings vir die gekose aflewering nie.');
         return;
     }
-    routeStops = orderedRouteStops(routeStopsFor(orders), loadSavedRoute(routeRoundKey));
+    const built = routeStopsFor(orders);
+    routeStops = orderedRouteStops(built.stops, loadSavedRoute(routeRoundKey));
+    routeDropped = built.dropped;
     document.getElementById('routeModalTitle').textContent = roundKeyLabel(routeRoundKey);
     renderRouteList();
     document.getElementById('routeModal').style.display = 'flex';
@@ -1400,14 +1436,19 @@ function closeRouteModal() {
 function renderRouteList() {
     const list = document.getElementById('routeList');
     const late = routeStops.filter(s => s.isNew).length;
-    document.getElementById('routeSummary').textContent =
-        `${routeStops.length} stops. Sleep 'n ry, of gebruik die pyltjies. Die volgorde word gestoor sodra jy dit skuif.`
-        + (late ? ` ${late} nuwe kliënt(e) onderaan, gemerk NUUT -- skuif hulle in plek.` : '');
+    document.getElementById('routeSummary').innerHTML = routeEsc(
+        `${routeStops.length} stops. Sleep 'n ry, of gebruik die pyltjies. Die volgorde word in HIERDIE blaaier gestoor `
+        + `sodra jy skuif of druk (op 'n ander toestel begin dit weer volgens voorstad).`
+        + (late ? ` ${late} nuwe kliënt(e) onderaan, gemerk NUUT -- skuif hulle in plek.` : ''))
+        + (routeDropped.length
+            ? `<br><strong style="color:#b91c1c">${routeDropped.length} reël(s) NIE op die pakslip nie:</strong> `
+              + routeDropped.map(routeEsc).join('; ')
+            : '');
     list.innerHTML = routeStops.map((s, i) => `
         <li class="route-stop" draggable="true" data-index="${i}">
             <span class="route-num">${i + 1}</span>
             <span class="route-who">
-                <strong>${routeEsc(s.name)}</strong>${s.isNew ? ' <span class="route-new">NUUT</span>' : ''}
+                <strong>${routeEsc(s.name)}</strong>${s.isNew ? ' <span class="route-new">NUUT</span>' : ''}${s.sameName ? ' <span class="route-new">2 ADRESSE</span>' : ''}
                 <small>${routeEsc(s.address.replace(/\s*\n\s*/g, ', ') || 'GEEN ADRES')}</small>
             </span>
             <span class="route-count">${s.items.reduce((n, it) => n + it.quantity, 0)} pk</span>
@@ -1457,6 +1498,11 @@ function resetRouteBySuburb() {
  */
 function printPakslip() {
     if (!routeStops.length) return;
+    // The paper is the route: save exactly what is printed, NUUT stops
+    // included, so both CSV exports come out in this same order (review, PR #12).
+    routeStops.forEach(s => { s.isNew = false; });
+    saveRoute(routeRoundKey, routeStops.map(s => s.key));
+    renderRouteList();
     const esc = routeEsc;
     const totals = {};
     routeStops.forEach(s => s.items.forEach(it => { totals[it.product] = (totals[it.product] || 0) + it.quantity; }));
@@ -1470,7 +1516,7 @@ function printPakslip() {
             <div class="stop-head">
                 <span class="num">${i + 1}</span>
                 <div>
-                    <div class="name">${esc(s.name)}</div>
+                    <div class="name">${esc(s.name)}${s.sameName ? ' <span class="warn">(dieselfde naam by 2 adresse)</span>' : ''}</div>
                     <div class="addr">${esc(s.address || 'GEEN ADRES').replace(/\n/g, '<br>')}</div>
                     ${s.phone ? `<div class="phone">${esc(s.phone)}</div>` : ''}
                 </div>
@@ -1499,12 +1545,15 @@ function printPakslip() {
   .items td { padding: 0.8mm 2mm 0.8mm 0; }
   .box { font-size: 14pt; }
   .notes { margin-top: 2mm; font-style: italic; }
+  .warn { color: #b91c1c; font-weight: bold; font-size: 10pt; }
+  .dropped { border: 2px solid #b91c1c; padding: 2mm 3mm; margin: 4mm 0; }
   /* Page 1 stays with Ansie (what to make up); the route pages go in the bakkie. */
   .route-start { break-before: page; page-break-before: always; margin-top: 0; }
   @media print { body { margin: 0; } }
 </style></head><body>
 <h1>Pakslip: Adriaan Bester se kliënte</h1>
 <div class="meta">${esc(roundKeyLabel(routeRoundKey))} · ${routeStops.length} sakke · ${packs} pakke · gebou ${esc(built)}</div>
+${routeDropped.length ? `<div class="dropped"><strong>NIE op hierdie pakslip nie (${routeDropped.length}):</strong><br>${routeDropped.map(esc).join('<br>')}</div>` : ''}
 <h2>1 · Wat om klaar te maak</h2>
 <table class="totals"><tr><td><strong>Produk</strong></td><td class="n">Aantal</td></tr>${totalRows}</table>
 <h2 class="route-start">2 · Elke sak, in afleweringsvolgorde</h2>
