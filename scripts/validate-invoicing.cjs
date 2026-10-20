@@ -616,6 +616,19 @@ try {
     check(/saveRoute\(routeRoundKey/.test(src.slice(src.indexOf('function printPakslip'), src.indexOf('function printPakslip') + 600)),
         'printing does not save the route -- the paper and both CSV exports can disagree');
 
+    // Maps: 23 stops become 1-10, 10-19, 19-23; no piece over Maps' 8-waypoint
+    // limit; awkward characters encoded; a stop with no address is skipped.
+    const many = Array.from({ length: 23 }, (_, i) => ({ address: i === 4 ? '' : `${i + 1} Main Rd & Co #${i}\nDurbanville` }));
+    const legs = sb.routeMapsLegs(many);
+    check(legs.map(l => l.from + '-' + l.to).join(',') === '1-11,11-20,20-23',
+        'route Maps pieces are not continuous 10-stop pieces: ' + legs.map(l => l.from + '-' + l.to).join(','));
+    check(legs.every(l => ((l.url.split('&waypoints=')[1] || '').split('%7C').filter(Boolean).length) <= 8),
+        'a Maps piece has more than 8 waypoints -- Maps drops the rest');
+    check(legs.every(l => !/[#&]\d/.test(l.url.replace(/&(origin|destination|waypoints|travelmode)=/g, ''))),
+        'an address with & or # is not encoded -- it would cut the Maps link short');
+    check(sb.routeMapsAddress('7 Oak St\nBellville') === '7 Oak St, Bellville, South Africa', 'the Maps search text is not one line with the country');
+    check(sb.routeMapsLegs([{ address: 'x' }]).length === 0, 'one stop makes a Maps route with no destination');
+
     if (!bad) ok('route + pakslip: one bag per customer and address, nothing dropped silently, files follow the printed route');
 } catch (e) {
     fail(`could not check the route + pakslip: ${e.message}`);

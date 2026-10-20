@@ -6048,3 +6048,4 @@ body.modal-open {
 .route-who small { color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .route-count { color: #6b7280; white-space: nowrap; }
 .route-new { background: #f59e0b; color: #fff; border-radius: 4px; padding: 0 5px; font-size: 0.75em; }
+.route-map { text-decoration: none; }
