@@ -693,7 +693,31 @@ try {
     check(csvText.includes('Vlerkies (8 in pak)') && /NIE nagegaan/.test(alerted),
         'with her list unreachable the export either fails or claims the names were checked');
 
-    if (!bad) ok("Lêer vir Nieuwoudt: her product names, missing products named before she imports");
+    // A second click while her list is still loading must not make a second file,
+    // and the button must come back afterwards, also when the export throws.
+    const waiting = []; let downloads = 0;
+    const btn = { disabled: false, innerHTML: 'Lêer vir Nieuwoudt' };
+    sb.document = { getElementById: id => (id === 'nieuwoudtExportBtn' ? btn : null), createElement: () => ({ click() { downloads++; } }) };
+    sb.fetch = () => new Promise(r => waiting.push(r));
+    const first = sb.exportForNieuwoudt();
+    await new Promise(r => setImmediate(r));
+    check(btn.disabled && /Lees Ansie/.test(btn.innerHTML), 'the button does not show it is busy while her list loads');
+    const second = sb.exportForNieuwoudt();
+    await new Promise(r => setImmediate(r));
+    waiting.forEach(r => r({ json: async () => ({ ok: true, products: HERS.map(name => ({ name })) }) }));
+    await Promise.all([first, second]);
+    check(downloads === 1, `a second click while loading made ${downloads} files`);
+    check(!btn.disabled && btn.innerHTML === 'Lêer vir Nieuwoudt', 'the button stays busy after the export');
+    sb.fetch = async () => ({ json: async () => ({ ok: true, products: HERS.map(name => ({ name })) }) });
+    const realBlob = sb.Blob;
+    sb.Blob = function () { throw new Error('boom'); };
+    await sb.exportForNieuwoudt().catch(() => {});
+    sb.Blob = realBlob;
+    check(!btn.disabled, 'a failed export leaves the button disabled for good');
+    await sb.exportForNieuwoudt();
+    check(downloads === 2, 'after a failed export the button no longer exports');
+
+    if (!bad) ok("Lêer vir Nieuwoudt: her product names, missing products named before she imports, one file per click");
 })().catch(e => fail(`could not check the Nieuwoudt export: ${e.message}`)).finally(() => {
     // The export check is async, so the summary waits for it.
     console.log('');

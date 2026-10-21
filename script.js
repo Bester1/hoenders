@@ -1279,12 +1279,36 @@ async function loadNieuwoudtProducts() {
     }
 }
 
+// Reading her list can take up to 20 s. Without this a second click while it
+// waits downloaded a second file (review, PR #14).
+let nieuwoudtExportBusy = false;
+
 async function exportForNieuwoudt() {
+    if (nieuwoudtExportBusy) return;
     const monthOrders = inRouteOrder(selectedPortalOrders());
     if (monthOrders.length === 0) {
         alert('Geen bestellings vir die gekose aflewering om uit te voer nie.');
         return;
     }
+    nieuwoudtExportBusy = true;
+    const btn = document.getElementById('nieuwoudtExportBtn');
+    const label = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Lees Ansie se lys...';
+    }
+    try {
+        await writeNieuwoudtFile(monthOrders);
+    } finally {
+        nieuwoudtExportBusy = false;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = label;
+        }
+    }
+}
+
+async function writeNieuwoudtFile(monthOrders) {
     const hers = await loadNieuwoudtProducts();
     const missing = {};   // her-spelling name -> packs, for products not on her list
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
