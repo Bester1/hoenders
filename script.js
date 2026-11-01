@@ -1225,10 +1225,15 @@ const NIEUWOUDT_NAMES = {
     'BRAAIPAKKE': 'Opgesnyde hoender',                     // 1 heel hoender opgesny, ± 2kg, R65/kg both sides
     'HEEL HALWE HOENDERS': 'Halwe hoender',
     "PLAT HOENDER (FLATTY'S)": 'Plat hoender (flatty)',
-    'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)': 'Borsstukke met been en vel (2)',
-    'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)': 'Borsstukke met been en vel (4)',
+    // She renamed these on Pryse after 20 Oct; the 7 Nov file lost 29 lines (1 Nov).
+    'BORSSTUKKE MET BEEN EN VEL (2 IN PAK)': 'Borsstukke met been en vel (2 in pak)',
+    'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)': 'Borsstukke met been en vel (4 in pak)',
     'VLERKIES': 'Vlerkies (8 in pak)',
-    'GUNS BOUD EN DY AANMEKAAR': 'Guns, boud en dy aanmekaar',
+    'GUNS BOUD EN DY AANMEKAAR': 'Guns, boud en dy aanmekaar (3 in pak)',
+    'FILETTE (SONDER VEL)': 'Filette (sonder vel) (4 in pak)',  // Bes's are 4 per pak
+    'DYE SOSATIES (BBQ)': 'Dye Sosaties',
+    'ONTBEENDE DYE': 'Ontbeende DYE (6 in pak)',
+    'ONTBEENDE DYE (KERRIE)': 'Kerrie ontbeende dye (6 in pak)',
     'GEVULDE HOENDER ROLLE OPSIE 1': 'Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)',
     'GEVULDE HOENDER ROLLE VAKUUM VERPAK': 'Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)',
     'GEVULDE HOENDER ROLLE OPSIE 2': 'Gevulde hoender rol (peppadew, mozzarella, cheddar, pynappel)',

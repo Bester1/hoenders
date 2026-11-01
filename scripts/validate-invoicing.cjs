@@ -645,12 +645,18 @@ try {
     const from = src.indexOf("// The order file for Ansie's plaas-bestel sheet");
     const to = src.indexOf('// Delivery route + pakslip');
     if (from === -1 || to === -1) throw new Error('export block markers not found in script.js');
-    // Her product list as her order form served it on 20 Oct 2026.
-    const HERS = ['Heel hoender', 'Plat hoender (flatty)', 'Opgesnyde hoender', 'Halwe hoender',
-        'Borsstukke met been en vel (4)', 'Borsstukke met been en vel (2)', 'Vlerkies (8 in pak)', 'Boude en dye',
-        'Guns, boud en dy aanmekaar', 'Filette (sonder vel)', 'Strips', 'Ontbeende hoender',
-        'Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)', 'Gevulde hoender rol (peppadew, mozzarella, cheddar, pynappel)',
-        'Hoender patties (4 in pak)', 'Hoender kaaswors', 'Nekkies', 'Lewer', 'Magies', 'Ingelegde groenvye (375ml)', 'Suiwer heuning (500g)'];
+    // Her product list as her order form served it on 1 Nov 2026 (she renamed
+    // several after 20 Oct, and the 7 Nov file lost 29 lines to it).
+    const HERS = [
+        'Heel hoender', 'Plat hoender (flatty)', 'Opgesnyde hoender', 'Halwe hoender',
+        'Borsstukke met been en vel (4 in pak)', 'Borsstukke met been en vel (2 in pak)', 'Vlerkies (8 in pak)',
+        'Boude en dye', 'Guns, boud en dy aanmekaar (3 in pak)', 'Filette (sonder vel) (4 in pak)',
+        'filette (sonder vel) (2 in pak)', 'Strips', 'Ontbeende hoender',
+        'Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)',
+        'Gevulde hoender rol (peppadew, mozzarella, cheddar, pynappel)', 'Hoender patties (4 in pak)',
+        'Hoender kaaswors', 'Nekkies', 'Lewer', 'Magies', 'Ingelegde groenvye (375ml)', 'Suiwer heuning (500g)',
+        'Boude (6 in pak)', 'Dye Sosaties', 'Ontbeende DYE (6 in pak)', 'Kerrie ontbeende dye (6 in pak)',
+        'Lamingtons Choclate (6 in pak)', 'Lamingtons Raspberry (6 in pak)', 'Hertzoggies (6 in pak)'];
     let csvText = '', alerted = '';
     const sb = {
         console: { ...console, warn() {} }, URL: { createObjectURL: () => 'blob:x' }, AbortSignal: { timeout: () => undefined },
@@ -669,21 +675,21 @@ try {
     // limited-run extras she has never listed.
     const rate = [...src.matchAll(/^\s+'([^']+)': \{ cost:/gm)].map(m => m[1]).concat(["PLAT HOENDER (FLATTY'S)", 'GEVULDE HOENDER ROLLE OPSIE 1']);
     const herKeys = Object.fromEntries(HERS.map(n => [sb.nieuwoudtKey(n), n]));
-    const NOT_HERS = ['DYE SOSATIES (BBQ)', 'ONTBEENDE DYE', 'ONTBEENDE DYE (KERRIE)', 'BOUDE (6 IN PAK)'];
+    const NOT_HERS = [];   // since 1 Nov she lists all of them
     const off = rate.filter(p => !NOT_HERS.includes(p) && !herKeys[sb.nieuwoudtKey(sb.nieuwoudtProductName(p, herKeys))]);
     check(off.length === 0, 'rate-card products that would not import on her side: ' + off.join(', '));
     check(sb.nieuwoudtProductName('BRAAIPAKKE', herKeys) === 'Opgesnyde hoender', 'Braaipakke is not sent as her Opgesnyde hoender');
-    check(sb.nieuwoudtProductName('FILETTE (SONDER VEL)', herKeys) === 'Filette (sonder vel)', 'a case-only difference is not sent in her exact spelling');
+    check(sb.nieuwoudtProductName('BOUDE (6 IN PAK)', herKeys) === 'Boude (6 in pak)', 'a case-only difference is not sent in her exact spelling');
 
     // End to end: the file has her names, and the products she lacks are named with pack counts.
     sb.selectedPortalOrders = () => [
         { name: 'Justin', products: [{ product: 'VLERKIES', quantity: 4 }, { product: 'BRAAIPAKKE', quantity: 2 }] },
-        { name: 'Bes', products: [{ product: 'DYE SOSATIES (BBQ)', quantity: 2 }, { product: 'SUIWER HEUNING', quantity: 0 }] },
+        { name: 'Bes', products: [{ product: 'HOENDER PIE', quantity: 2 }, { product: 'SUIWER HEUNING', quantity: 0 }] },
     ];
     await sb.exportForNieuwoudt();
     check(/"Justin","Vlerkies \(8 in pak\)",4/.test(csvText) && /"Justin","Opgesnyde hoender",2/.test(csvText),
         'the Nieuwoudt file does not carry her product names: ' + csvText.split('\n').slice(1, 3).join(' | '));
-    check(/DYE SOSATIES \(BBQ\)\s+\(2 pakke\)/.test(alerted), 'a product missing from her list is not named, with its packs, after the download');
+    check(/HOENDER PIE\s+\(2 pakke\)/.test(alerted), 'a product missing from her list is not named, with its packs, after the download');
     check(!/SUIWER/.test(csvText), 'a zero-quantity line went into her import file');
 
     // Her list unreachable: the file still downloads, and says it was not checked.
