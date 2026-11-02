@@ -48,32 +48,38 @@ let noticeOptOutError = null;  // why it could not be read
 async function loadNoticeCustomers() {
     if (!supabaseClient) throw new Error('No database connection');
 
-    const { data, error } = await supabaseClient
-        .from('orders')
-        .select('order_id, customer_email, customer_name, customer_phone, order_date, total_amount')
-        .order('order_date', { ascending: true })
-        .order('created_at', { ascending: true });   // two orders on one day: the later one is "last"
-
-    if (error) throw new Error(`Could not read orders: ${error.message}`);
-
     const byEmail = new Map();
     let noEmail = 0;
+    const PAGE = 1000;   // PostgREST's max rows: page so orders > 1000 are not cut short
 
-    for (const row of data || []) {
-        const email = (row.customer_email || '').trim().toLowerCase();
-        if (!email) { noEmail++; continue; }
+    for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabaseClient
+            .from('orders')
+            .select('order_id, customer_email, customer_name, customer_phone, order_date, total_amount')
+            .order('order_date', { ascending: true })
+            .order('created_at', { ascending: true })   // two orders on one day: the later one is "last"
+            .range(from, from + PAGE - 1);
 
-        const entry = byEmail.get(email) || {
-            email, name: '', phone: '', orders: 0, firstOrder: null, lastOrder: null, lastOrderId: null, spend: 0
-        };
-        entry.orders++;
-        entry.spend += Number(row.total_amount) || 0;
-        entry.name = row.customer_name || entry.name;   // rows are date-ascending
-        entry.phone = row.customer_phone || entry.phone;
-        entry.firstOrder = entry.firstOrder || row.order_date;
-        entry.lastOrder = row.order_date;
-        entry.lastOrderId = row.order_id;
-        byEmail.set(email, entry);
+        if (error) throw new Error(`Could not read orders: ${error.message}`);
+
+        for (const row of data || []) {
+            const email = (row.customer_email || '').trim().toLowerCase();
+            if (!email) { noEmail++; continue; }
+
+            const entry = byEmail.get(email) || {
+                email, name: '', phone: '', orders: 0, firstOrder: null, lastOrder: null, lastOrderId: null, spend: 0
+            };
+            entry.orders++;
+            entry.spend += Number(row.total_amount) || 0;
+            entry.name = row.customer_name || entry.name;   // rows are date-ascending
+            entry.phone = row.customer_phone || entry.phone;
+            entry.firstOrder = entry.firstOrder || row.order_date;
+            entry.lastOrder = row.order_date;
+            entry.lastOrderId = row.order_id;
+            byEmail.set(email, entry);
+        }
+
+        if (!data || data.length < PAGE) break;
     }
 
     const today = new Date();
@@ -317,8 +323,16 @@ if (typeof globalThis !== 'undefined') {
     globalThis.scheduledRound = scheduledRound;
     globalThis.sendNoticeBatch = sendNoticeBatch;
     globalThis.loadLastOrderItems = loadLastOrderItems;
+    globalThis.loadNoticeCustomers = loadNoticeCustomers;
     globalThis.noticeWhatsAppLink = noticeWhatsAppLink;
     globalThis.canSendNotices = canSendNotices;
+    globalThis.extractNoticeDeliveryDate = extractNoticeDeliveryDate;
+    globalThis.pruneNoticeSelection = pruneNoticeSelection;
+    globalThis.noticeEsc = noticeEsc;
+    globalThis.openNoticeWhatsApp = openNoticeWhatsApp;
+    globalThis.startNoticeSend = startNoticeSend;
+    globalThis.noticeVisible = noticeVisible;
+    globalThis.setNoticeFilter = setNoticeFilter;
 }
 
 /* ------------------------------------------------------------------------ *
@@ -327,6 +341,9 @@ if (typeof globalThis !== 'undefined') {
 
 let noticeFilter = 'all';
 const noticeSelected = new Set();
+if (typeof globalThis !== 'undefined') {
+    globalThis.noticeSelected = noticeSelected;
+}
 
 async function initNotices() {
     const status = document.getElementById('noticeStatus');
@@ -350,20 +367,38 @@ async function initNotices() {
 }
 
 /**
- * The scheduled round a typed delivery date stands for: the one closest to it,
- * within ROUND_MATCH_DAYS (vans run a few days early or late). null when the
- * date is nowhere near the schedule.
+ * The scheduled round a typed delivery date stands for: the one matching it,
+ * within ROUND_MATCH_DAYS (vans run a few days early or late).
+ * A window of 6 days cannot overlap both 7 Nov and 21 Nov rounds. If two
+ * rounds fall in the window, or none do, returns null (do not guess).
  */
-const ROUND_MATCH_DAYS = 10;
+const ROUND_MATCH_DAYS = 6;
 function scheduledRound(deliveryISO) {
     if (!deliveryISO || typeof DELIVERY_SCHEDULE_2026 === 'undefined') return null;
     const want = new Date(deliveryISO + 'T00:00:00');
-    let best = null, bestGap = Infinity;
-    for (const r of DELIVERY_SCHEDULE_2026) {
+    if (isNaN(want.getTime())) return null;
+    const matches = DELIVERY_SCHEDULE_2026.filter(r => {
         const gap = Math.abs(new Date(r.delivery + 'T00:00:00') - want) / 86400000;
-        if (gap < bestGap) { best = r; bestGap = gap; }
-    }
-    return bestGap <= ROUND_MATCH_DAYS ? best : null;
+        return gap <= ROUND_MATCH_DAYS;
+    });
+    return matches.length === 1 ? matches[0] : null;
+}
+
+/** Extract the delivery date (YYYY-MM-DD) from the text of a notice body, or null. */
+function extractNoticeDeliveryDate(body) {
+    if (!body) return null;
+    const m = String(body).match(/[Aa]flewering is (\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+    if (!m) return null;
+    const day = parseInt(m[1], 10);
+    const monthName = m[2];
+    const year = m[3];
+    const months = ['Januarie', 'Februarie', 'Maart', 'April', 'Mei', 'Junie',
+        'Julie', 'Augustus', 'September', 'Oktober', 'November', 'Desember'];
+    const monthIdx = months.findIndex(name => name.toLowerCase() === monthName.toLowerCase());
+    if (monthIdx === -1) return null;
+    const monthStr = String(monthIdx + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    return `${year}-${monthStr}-${dayStr}`;
 }
 
 /**
@@ -416,12 +451,25 @@ function pruneNoticeSelection() {
 
 /** The delivery date changed: who has "not ordered yet" changed with it. */
 function noticeDeliveryChanged() {
+    const cutoff = document.getElementById('noticeCutoff')?.value;
+    const delivery = document.getElementById('noticeDelivery')?.value;
+    const bodyEl = document.getElementById('noticeBody');
+    if (bodyEl && cutoff && delivery && delivery >= cutoff) {
+        const currentBody = bodyEl.value;
+        if (usesLastOrder(currentBody) && currentBody.includes('Die bestellys vir die volgende rondte is oop.')) {
+            fillReorderNotice();
+        } else if (currentBody.includes('Die bestellys vir die volgende rondte is nou oop.')) {
+            fillRoundNotice();
+        }
+    }
     renderNoticeList();
 }
 
 // Names and addresses are typed by customers: never put them in the page as HTML.
-const noticeEsc = (v) => String(v ?? '').replace(/[&<>"']/g, ch =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+function noticeEsc(v) {
+    return String(v ?? '').replace(/[&<>"']/g, ch =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+}
 
 function renderNoticeList() {
     const tbody = document.getElementById('noticeTableBody');
@@ -481,19 +529,44 @@ function noticeWhatsAppLink(body, customer) {
     // which isOptedOut() checks, so leaving by WhatsApp sticks too.
     const text = `${personaliseNotice(body, customer)}
 
-Wil jy nie meer van ons hoor nie? Tik hier: ${NOTICE_UNSUBSCRIBE_URL}?e=${encodeURIComponent(customer.email)}`;
+Wil jy heeltemal van die bestellys afkom? Dan sal jy ook nie weer hoor wanneer 'n nuwe rondte oop is nie:
+${NOTICE_UNSUBSCRIBE_URL}?e=${encodeURIComponent(customer.email)}`;
     return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }
 
-function openNoticeWhatsApp(email) {
+async function openNoticeWhatsApp(email) {
     const customer = noticeCustomers.find(c => c.email === email);
-    const body = document.getElementById('noticeBody').value;
+    const body = document.getElementById('noticeBody')?.value || '';
     if (!customer) return;
     if (!body.trim()) { alert('Skryf eers die boodskap (of klik "Weer dieselfde?").'); return; }
     // Same gate as the email: an unreadable opt-out list is not an empty one.
     const gate = canSendNotices();
     if (!gate.ok) { alert(`Stuur is geblokkeer: ${gate.reason}`); return; }
     if (isOptedOut(customer.email)) { alert('Hierdie kliënt het afgemeld.'); return; }
+
+    // Same checks as startNoticeSend: block if they already ordered this round or round is unknown
+    if (usesLastOrder(body)) {
+        const delivery = extractNoticeDeliveryDate(body) || noticeDeliveryDate();
+        const round = scheduledRound(delivery);
+        if (!round) {
+            alert('Die afleweringsdatum pas by geen rondte in die skedule nie, so ons kan nie vasstel wie al bestel het nie.');
+            return;
+        }
+        if (orderedThisRound(customer, delivery) === true) {
+            alert(`${customer.name || customer.email} het al vir hierdie rondte bestel.`);
+            return;
+        }
+    }
+
+    // Portal check: ask before sending if closed or status unknown
+    const portal = await portalAcceptingOrders();
+    if (!portal.open) {
+        const warn = portal.known
+            ? 'WAARSKUWING: die portaal is TOE. Kliënte wat op die skakel klik sal nie kan bestel nie. Wil jy nog steeds voortgaan?'
+            : `LET WEL: kon nie vasstel of die portaal oop is nie (${portal.reason}). Wil jy nog steeds voortgaan?`;
+        if (!confirm(warn)) return;
+    }
+
     try {
         window.open(noticeWhatsAppLink(body, customer), '_blank', 'noopener');
         addActivity(`WhatsApp oopgemaak vir ${customer.name || customer.email}`);
@@ -577,7 +650,13 @@ async function startNoticeSend() {
     // "Wil jy weer dieselfde bestel?" to someone who already ordered this round
     // reads as if their order went missing.
     if (usesLastOrder(body)) {
-        const already = recipients.filter(c => orderedThisRound(c, noticeDeliveryDate()) === true);
+        const delivery = extractNoticeDeliveryDate(body) || noticeDeliveryDate();
+        const round = scheduledRound(delivery);
+        if (!round) {
+            alert('Die afleweringsdatum pas by geen rondte in die skedule nie, so ons kan nie vasstel wie al bestel het nie.');
+            return;
+        }
+        const already = recipients.filter(c => orderedThisRound(c, delivery) === true);
         if (already.length) {
             alert(`${already.length} gekose kliënt(e) het al vir hierdie rondte bestel: ` +
                 `${already.map(c => c.name || c.email).join(', ')}. Haal hulle uit die keuse.`);
