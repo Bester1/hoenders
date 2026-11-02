@@ -724,7 +724,9 @@ try {
     check(downloads === 2, 'after a failed export the button no longer exports');
 
     if (!bad) ok("Lêer vir Nieuwoudt: her product names, missing products named before she imports, one file per click");
-})().catch(e => fail(`could not check the Nieuwoudt export: ${e.message}`)).finally(() => {
+})().catch(e => fail(`could not check the Nieuwoudt export: ${e.message}`))
+  .then(() => noticeChecks()).catch(e => fail(`could not check the round notices: ${e.message}`))
+  .finally(() => {
     // The export check is async, so the summary waits for it.
     console.log('');
     if (failures) {
@@ -733,3 +735,58 @@ try {
     }
     console.log('All invoicing checks passed.');
 });
+
+// --- Round notices: "Weer dieselfde?" ------------------------------------------
+//
+// A reorder message tells a customer what they ordered last time. The same
+// silent-wrong shape as an invoice: an empty or wrong list still reads like a
+// normal email, and it reaches forty-odd people at once. So: no lines is an
+// error, a send is all or nothing, someone who already ordered this round is
+// not "not ordered yet", and a phone number becomes a WhatsApp number or none.
+async function noticeChecks() {
+    const vm = require('vm');
+    let bad = false;
+    const check = (cond, msg) => { if (!cond) { bad = true; fail(`notices: ${msg}`); } };
+    const sb = { console: { log() {}, warn() {}, error() {} }, document: { getElementById: () => null },
+        URLSearchParams, Date, Map, Set, setTimeout, encodeURIComponent, alert() {} };
+    sb.globalThis = sb;
+    vm.createContext(sb);
+    vm.runInContext(read('delivery-schedule.js'), sb);
+    vm.runInContext(read('notifications.js'), sb);
+
+    const sonja = { name: 'Sonja Symington', email: 's@example.com', phone: '082 123 4567', lastOrder: '2026-10-21',
+        lastOrderId: 'ORD-1', lastItems: [{ product_name: 'VLERKIES', quantity: 3 }] };
+    const body = 'Hallo {{naam}}\n{{vorige}}\n{{herbestel}}';
+    const out = sb.personaliseNotice(body, sonja);
+    check(/Hallo Sonja\n  • 3 × VLERKIES\n/.test(out), 'the last order is not listed in the message');
+    check(out.endsWith('herbestel=1&bestelling=ORD-1'), 'the refill link does not name the order the message lists');
+    let threw = false;
+    try { sb.personaliseNotice(body, { ...sonja, lastItems: [] }); } catch (e) { threw = true; }
+    check(threw, '{{vorige}} for a last order with no lines is filled with nothing instead of refusing');
+
+    check(sb.orderedThisRound(sonja, '2026-11-07') === true, 'an order for this round counts as not ordered');
+    check(sb.orderedThisRound(sonja, '2026-11-09') === true, 'a van two days late lists everyone who ordered as not ordered');
+    check(sb.orderedThisRound(sonja, '2026-11-21') === false, 'an order for the previous round counts as ordered for this one');
+    check(sb.orderedThisRound(sonja, '2027-03-01') === null, 'a date matching no round still sorts customers');
+
+    const wa = sb.noticeWhatsAppLink;
+    for (const phone of ['082 123 4567', '+27 82 123 4567', '0027821234567'])
+        check((wa('x', { ...sonja, phone }) || '').startsWith('https://wa.me/27821234567?'), `${phone} does not become 27821234567`);
+    check(wa('x', { ...sonja, phone: '12345' }) === null && wa('x', { ...sonja, phone: '' }) === null, 'a bad phone number still gets a WhatsApp link');
+    check(decodeURIComponent(wa('x', sonja)).includes('afmeld.html?e=s%40example.com'), 'the WhatsApp message has no recorded way to leave the list');
+
+    // All or nothing: one customer without lines stops the batch before anything is sent.
+    let sent = 0;
+    sb.sendEmailViaGoogleScript = async () => { sent++; return true; };
+    vm.runInContext('noticeOptOuts = new Set();', sb);
+    let refused = false;
+    try { await sb.sendNoticeBatch([sonja, { ...sonja, email: 'empty@example.com', lastItems: [] }], 'subject', body); }
+    catch (e) { refused = true; }
+    check(refused && sent === 0, `a batch with one empty last order sent ${sent} email(s) before stopping`);
+
+    // Opt-out list unreadable: no WhatsApp button, and the button's handler refuses.
+    vm.runInContext('noticeOptOuts = null;', sb);
+    check(!sb.canSendNotices().ok, 'an unreadable opt-out list does not block sending');
+
+    if (!bad) ok('round notices: last order listed or refused, all or nothing, round membership, WhatsApp numbers and opt-out');
+}

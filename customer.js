@@ -2197,13 +2197,14 @@ function loadCartFromStorage() {
  * @function restoreLastOrder
  */
 async function restoreLastOrder() {
+    // Not logged in yet: keep the wish for when the portal opens again.
+    if (!supabaseClient || !currentCustomer?.id) return;
     let wish = null;
     try {
         wish = JSON.parse(localStorage.getItem(HERBESTEL_KEY) || 'null');
         localStorage.removeItem(HERBESTEL_KEY);
     } catch (e) { return; }
     if (!wish?.at || Date.now() - wish.at > HERBESTEL_MAX_AGE_MS) return;
-    if (!supabaseClient || !currentCustomer?.id) return;
 
     // The order the email listed (row-level security only lets a customer read
     // their own). Without one, the latest order of any customer record on this

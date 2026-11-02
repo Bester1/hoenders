@@ -97,9 +97,9 @@ async function loadNoticeCustomers() {
 
 /**
  * What each customer ordered last time, for {{vorige}} and the "Weer dieselfde?"
- * notice: order_id -> [{ product_name, quantity }]. The lines are the ones the
- * customer picked in the portal (source customer_selection), which is what the
- * portal's ?herbestel link puts back in their cart.
+ * notice: order_id -> [{ product_name, quantity }]. Every line of the order, the
+ * same lines the portal's ?herbestel link reads back into the cart (today all
+ * order_items rows are source customer_selection: the customer's own picks).
  */
 async function loadLastOrderItems(orderIds) {
     const ids = orderIds.filter(Boolean);
@@ -201,7 +201,11 @@ const herbestelLink = (customer) => customer.lastOrderId
 
 const usesLastOrder = (body) => /\{\{\s*vorige\s*\}\}/i.test(String(body || ''));
 
-/** "  • 4 × VLERKIES", one line per product, as the customer will see it in the portal. */
+/**
+ * "  • 4 × VLERKIES", one line per product. The admin page doesn't load
+ * shared-utils.js, so these are the price-table names (as on the invoices), not
+ * the portal's display names; getProductDisplayInfo is used if it is ever loaded.
+ */
 function lastOrderLines(customer) {
     return (customer.lastItems || []).map(it => {
         const name = typeof getProductDisplayInfo === 'function'
@@ -311,6 +315,7 @@ if (typeof globalThis !== 'undefined') {
     globalThis.personaliseNotice = personaliseNotice;
     globalThis.orderedThisRound = orderedThisRound;
     globalThis.scheduledRound = scheduledRound;
+    globalThis.sendNoticeBatch = sendNoticeBatch;
     globalThis.loadLastOrderItems = loadLastOrderItems;
     globalThis.noticeWhatsAppLink = noticeWhatsAppLink;
     globalThis.canSendNotices = canSendNotices;
@@ -400,10 +405,11 @@ function setNoticeFilter(f) {
 }
 
 /**
- * Drop ticked customers the current filter hides. Ticking "everyone" and then
- * switching to "not ordered yet" must not keep the people who did order.
+ * Under "not ordered yet", drop ticked customers it hides: ticking "everyone"
+ * and then switching to it must not keep the people who did order.
  */
 function pruneNoticeSelection() {
+    if (noticeFilter !== 'todo') return;   // the other filters keep ticks across them, as before
     const visible = new Set(noticeVisible().map(c => c.email));
     for (const email of [...noticeSelected]) if (!visible.has(email)) noticeSelected.delete(email);
 }
@@ -429,7 +435,7 @@ function renderNoticeList() {
         const out = isOptedOut(c.email);
         const checked = noticeSelected.has(c.email) && !out ? 'checked' : '';
         const email = noticeEsc(c.email);
-        const wa = !out && waNumber(c.phone)
+        const wa = !out && canSendNotices().ok && waNumber(c.phone)
             ? `<button class="btn-secondary btn-small" title="Stuur die boodskap op WhatsApp"
                        data-email="${email}" onclick="openNoticeWhatsApp(this.dataset.email)"><i class="fab fa-whatsapp"></i></button>` : '';
         return `
@@ -484,6 +490,9 @@ function openNoticeWhatsApp(email) {
     const body = document.getElementById('noticeBody').value;
     if (!customer) return;
     if (!body.trim()) { alert('Skryf eers die boodskap (of klik "Weer dieselfde?").'); return; }
+    // Same gate as the email: an unreadable opt-out list is not an empty one.
+    const gate = canSendNotices();
+    if (!gate.ok) { alert(`Stuur is geblokkeer: ${gate.reason}`); return; }
     if (isOptedOut(customer.email)) { alert('Hierdie kliënt het afgemeld.'); return; }
     try {
         window.open(noticeWhatsAppLink(body, customer), '_blank', 'noopener');
