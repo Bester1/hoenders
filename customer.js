@@ -16,6 +16,16 @@
     }
 })();
 
+// "Weer dieselfde?" link in the round notice (?herbestel=1): fill the cart with
+// the customer's last order once the portal opens. A Google login comes back
+// without the query string, and the page strips it from the address bar, so the
+// wish is kept here until restoreLastOrder() uses it (or it goes stale).
+const HERBESTEL_KEY = 'plaasHoendersHerbestel';
+const HERBESTEL_MAX_AGE_MS = 60 * 60 * 1000;
+try {
+    if (new URLSearchParams(location.search).has('herbestel')) localStorage.setItem(HERBESTEL_KEY, String(Date.now()));
+} catch (e) {}
+
 // Initialize Supabase client with secure configuration and fallback
 let supabaseClient = null;
 
@@ -1638,6 +1648,7 @@ function showCustomerPortal() {
 
     // Load cart from storage when portal opens
     loadCartFromStorage();
+    restoreLastOrder();
 
     // Show beautiful glassmorphism modal instead of navigation
     const modal = document.getElementById('modal');
@@ -2165,6 +2176,83 @@ function loadCartFromStorage() {
     } catch (error) {
         console.error('❌ Failed to load cart from localStorage:', error);
         cart = {};
+    }
+}
+
+/**
+ * Put the customer's last order back in the cart (the ?herbestel link).
+ *
+ * Every line is either in the cart afterwards or named on screen as not
+ * available any more: a product that quietly drops out of a repeat order is
+ * one the customer believes they ordered. Prices are today's, from the price
+ * table, never last time's.
+ * @function restoreLastOrder
+ */
+async function restoreLastOrder() {
+    let asked = 0;
+    try {
+        asked = Number(localStorage.getItem(HERBESTEL_KEY)) || 0;
+        localStorage.removeItem(HERBESTEL_KEY);
+    } catch (e) { return; }
+    if (!asked || Date.now() - asked > HERBESTEL_MAX_AGE_MS) return;
+    if (!supabaseClient || !currentCustomer?.id) return;
+
+    const { data: orders, error } = await supabaseClient
+        .from('orders')
+        .select('order_id, order_date')
+        .eq('customer_id', currentCustomer.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+    if (error || !orders?.length) {
+        showHerbestelNote(error ? 'Ons kon nie jou vorige bestelling laai nie. Kies asseblief self.'
+            : 'Ons kry nie \'n vorige bestelling op jou naam nie. Kies asseblief self.', 'warn');
+        return;
+    }
+    const { data: items, error: itemsError } = await supabaseClient
+        .from('order_items')
+        .select('product_name, quantity')
+        .eq('order_id', orders[0].order_id);
+    if (itemsError || !items?.length) {
+        showHerbestelNote('Ons kon nie die produkte van jou vorige bestelling laai nie. Kies asseblief self.', 'warn');
+        return;
+    }
+
+    const pricing = getCustomerPricing();
+    const missing = [];
+    cart = {};
+    for (const item of items) {
+        if (!(item.quantity > 0)) continue;
+        if (!pricing[item.product_name]) { missing.push(item.product_name); continue; }
+        setQuantity(item.product_name.replace(/[^A-Z0-9]/g, '_'), item.quantity);
+    }
+    populateCartQuantities();
+
+    const count = Object.keys(cart).length;
+    const when = new Date(orders[0].order_date + 'T00:00:00').toLocaleDateString('af-ZA', { day: 'numeric', month: 'long' });
+    showHerbestelNote(
+        `Jou bestelling van ${when} is in jou mandjie (${count} produk${count === 1 ? '' : 'te'}), teen vandag se pryse. ` +
+        'Kyk of alles reg is, verander wat jy wil, en bestel.' +
+        (missing.length ? ` Nie meer beskikbaar nie, so nie bygesit nie: ${missing.join(', ')}.` : ''),
+        missing.length ? 'warn' : 'ok');
+}
+
+/** A note at the top of the details and products steps. */
+function showHerbestelNote(text, kind) {
+    for (const stepId of ['step-1', 'step-2']) {
+        const step = document.getElementById(stepId);
+        if (!step) continue;
+        let note = step.querySelector('.herbestel-note');
+        if (!note) {
+            note = document.createElement('div');
+            note.className = 'herbestel-note mb-4 p-4 rounded-xl border text-base font-medium';
+            step.prepend(note);
+        }
+        note.classList.toggle('bg-orange-500/20', kind === 'ok');
+        note.classList.toggle('border-orange-500/40', kind === 'ok');
+        note.classList.toggle('bg-red-500/20', kind !== 'ok');
+        note.classList.toggle('border-red-500/40', kind !== 'ok');
+        note.classList.add('text-white');
+        note.textContent = text;
     }
 }
 

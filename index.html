@@ -872,6 +872,9 @@ Savings/Spaar rek</textarea>
                                     onclick="setNoticeFilter('dormant')">Weg</button>
                             <button class="filter-btn" data-filter="once"
                                     onclick="setNoticeFilter('once')">Net een bestelling</button>
+                            <button class="filter-btn" data-filter="todo"
+                                    title="Het in die laaste ses maande bestel, maar nog nie vir die rondte hieronder nie"
+                                    onclick="setNoticeFilter('todo')">Nog nie bestel vir hierdie rondte</button>
                         </div>
                         <div class="notice-actions">
                             <button class="btn-secondary" onclick="selectAllNotice(true)">Kies almal wat wys</button>
@@ -892,10 +895,11 @@ Savings/Spaar rek</textarea>
                                         <th>Laaste bestelling</th>
                                         <th style="text-align:right">Totaal</th>
                                         <th>Groep</th>
+                                        <th>WhatsApp</th>
                                     </tr>
                                 </thead>
                                 <tbody id="noticeTableBody">
-                                    <tr><td colspan="7">Klik "Herlaai lys".</td></tr>
+                                    <tr><td colspan="8">Klik "Herlaai lys".</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -912,10 +916,13 @@ Savings/Spaar rek</textarea>
                                 </div>
                                 <div>
                                     <label for="noticeDelivery">Aflewering</label>
-                                    <input type="date" id="noticeDelivery" class="form-input">
+                                    <input type="date" id="noticeDelivery" class="form-input" onchange="renderNoticeList()">
                                 </div>
                                 <button class="btn-secondary" onclick="fillRoundNotice()">
                                     <i class="fas fa-file-alt"></i> Vul boodskap in</button>
+                                <button class="btn-secondary" onclick="fillReorderNotice()"
+                                        title="Die boodskap met elke kliënt se vorige bestelling en 'n skakel wat dit in hul mandjie sit">
+                                    <i class="fas fa-redo"></i> Weer dieselfde?</button>
                             </div>
                             <p class="notice-hint" id="noticeDateSource"></p>
                         </div>
@@ -927,7 +934,10 @@ Savings/Spaar rek</textarea>
                         <textarea id="noticeBody" class="form-input" rows="14"
                                   placeholder="Gebruik {{naam}} vir die kliënt se naam."></textarea>
                         <p class="notice-hint">
-                            <code>{{naam}}</code> word vervang met die kliënt se naam.
+                            <code>{{naam}}</code> word vervang met die kliënt se naam,
+                            <code>{{vorige}}</code> met hul vorige bestelling en
+                            <code>{{herbestel}}</code> met 'n skakel wat daardie bestelling in hul mandjie sit.
+                            Die WhatsApp-knoppie by elke kliënt maak dieselfde boodskap op WhatsApp oop; jy druk self stuur.
                             Jou kontakbesonderhede en die afmeld-skakel word outomaties
                             onderaan elke e-pos gesit.
                         </p>

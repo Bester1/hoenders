@@ -50,7 +50,7 @@ async function loadNoticeCustomers() {
 
     const { data, error } = await supabaseClient
         .from('orders')
-        .select('customer_email, customer_name, order_date, total_amount')
+        .select('order_id, customer_email, customer_name, customer_phone, order_date, total_amount')
         .order('order_date', { ascending: true });
 
     if (error) throw new Error(`Could not read orders: ${error.message}`);
@@ -63,20 +63,23 @@ async function loadNoticeCustomers() {
         if (!email) { noEmail++; continue; }
 
         const entry = byEmail.get(email) || {
-            email, name: '', orders: 0, firstOrder: null, lastOrder: null, spend: 0
+            email, name: '', phone: '', orders: 0, firstOrder: null, lastOrder: null, lastOrderId: null, spend: 0
         };
         entry.orders++;
         entry.spend += Number(row.total_amount) || 0;
         entry.name = row.customer_name || entry.name;   // rows are date-ascending
+        entry.phone = row.customer_phone || entry.phone;
         entry.firstOrder = entry.firstOrder || row.order_date;
         entry.lastOrder = row.order_date;
+        entry.lastOrderId = row.order_id;
         byEmail.set(email, entry);
     }
 
     const today = new Date();
+    const lastItems = await loadLastOrderItems([...byEmail.values()].map(c => c.lastOrderId));
     noticeCustomers = [...byEmail.values()].map(c => {
         const days = Math.floor((today - new Date(c.lastOrder)) / 86400000);
-        return { ...c, daysSinceOrder: days, segment: noticeSegment(days) };
+        return { ...c, daysSinceOrder: days, segment: noticeSegment(days), lastItems: lastItems.get(c.lastOrderId) || [] };
     }).sort((a, b) =>
         // Most frequent first, which is the order to work down when deciding who
         // to tell. Ties break on who ordered most recently, then on spend, so the
@@ -89,6 +92,31 @@ async function loadNoticeCustomers() {
         console.warn(`${noEmail} order row(s) carry no email address and are not on the list`);
     }
     return { customers: noticeCustomers, skippedNoEmail: noEmail };
+}
+
+/**
+ * What each customer ordered last time, for {{vorige}} and the "Weer dieselfde?"
+ * notice: order_id -> [{ product_name, quantity }]. The lines are the ones the
+ * customer picked in the portal (source customer_selection), which is what the
+ * portal's ?herbestel link puts back in their cart.
+ */
+async function loadLastOrderItems(orderIds) {
+    const ids = orderIds.filter(Boolean);
+    const byOrder = new Map();
+    for (let i = 0; i < ids.length; i += 100) {      // keep the URL of each request short
+        const { data, error } = await supabaseClient
+            .from('order_items')
+            .select('order_id, product_name, quantity')
+            .in('order_id', ids.slice(i, i + 100));
+        if (error) throw new Error(`Could not read order lines: ${error.message}`);
+        for (const row of data || []) {
+            if (!(row.quantity > 0)) continue;
+            const lines = byOrder.get(row.order_id) || [];
+            lines.push({ product_name: row.product_name, quantity: row.quantity });
+            byOrder.set(row.order_id, lines);
+        }
+    }
+    return byOrder;
 }
 
 function noticeSegment(days) {
@@ -152,6 +180,39 @@ function isOptedOut(email) {
     return noticeOptOuts !== null && noticeOptOuts.has((email || '').trim().toLowerCase());
 }
 
+// The portal fills the cart with the customer's last order when it is opened
+// from this link (customer.js, restoreLastOrder).
+const HERBESTEL_URL = 'https://bester1.github.io/hoenders/customer-portal.html?herbestel=1';
+
+const usesLastOrder = (body) => /\{\{\s*vorige\s*\}\}/i.test(String(body || ''));
+
+/** "  • 4 × VLERKIES", one line per product, as the customer will see it in the portal. */
+function lastOrderLines(customer) {
+    return (customer.lastItems || []).map(it => {
+        const name = typeof getProductDisplayInfo === 'function'
+            ? getProductDisplayInfo(it.product_name).displayName : it.product_name;
+        return `  • ${it.quantity} × ${name}`;
+    }).join('\n');
+}
+
+/**
+ * {{naam}} -> first name, {{epos}} -> address, {{vorige}} -> their last order,
+ * {{herbestel}} -> the link that puts that order back in their cart.
+ * A {{vorige}} for someone whose last order has no lines is an error, never a
+ * blank: "Laas het jy bestel:" followed by nothing reads as a broken email.
+ */
+function personaliseNotice(body, customer) {
+    const firstName = (customer.name || '').trim().split(/\s+/)[0] || 'daar';
+    if (usesLastOrder(body) && !(customer.lastItems || []).length) {
+        throw new Error(`${customer.email}: hul laaste bestelling het geen produkte nie, so {{vorige}} kan nie ingevul word nie.`);
+    }
+    return String(body)
+        .replace(/\{\{\s*naam\s*\}\}/gi, firstName)
+        .replace(/\{\{\s*epos\s*\}\}/gi, customer.email)
+        .replace(/\{\{\s*vorige\s*\}\}/gi, () => lastOrderLines(customer))
+        .replace(/\{\{\s*herbestel\s*\}\}/gi, HERBESTEL_URL);
+}
+
 /**
  * Personalise a body and append the footer every message must carry.
  *
@@ -160,10 +221,7 @@ function isOptedOut(email) {
  * cannot be forgotten or edited away.
  */
 function renderNoticeEmail(body, customer) {
-    const firstName = (customer.name || '').trim().split(/\s+/)[0] || 'daar';
-    const personalised = String(body)
-        .replace(/\{\{\s*naam\s*\}\}/gi, firstName)
-        .replace(/\{\{\s*epos\s*\}\}/gi, customer.email);
+    const personalised = personaliseNotice(body, customer);
 
     const unsubscribe = `${NOTICE_UNSUBSCRIBE_URL}?e=${encodeURIComponent(customer.email)}`;
 
@@ -191,6 +249,16 @@ async function sendNoticeBatch(recipients, subject, body, onProgress) {
     if (!subject || !subject.trim()) throw new Error('The email has no subject.');
     if (!body || !body.trim()) throw new Error('The email has no body.');
     if (!recipients.length) throw new Error('No recipients selected.');
+
+    // All or nothing: a send that stops halfway because one customer has no
+    // previous order has already mailed the first half.
+    if (usesLastOrder(body)) {
+        const empty = recipients.filter(c => !(c.lastItems || []).length);
+        if (empty.length) {
+            throw new Error(`${empty.length} gekose kliënt(e) se laaste bestelling het geen produkte nie: ` +
+                `${empty.map(c => c.email).join(', ')}. Haal hulle uit die keuse.`);
+        }
+    }
 
     // Re-check every recipient at send time. The list on screen may have been
     // built before someone unsubscribed.
@@ -225,6 +293,9 @@ async function sendNoticeBatch(recipients, subject, body, onProgress) {
 if (typeof globalThis !== 'undefined') {
     globalThis.noticeSegment = noticeSegment;
     globalThis.renderNoticeEmail = renderNoticeEmail;
+    globalThis.personaliseNotice = personaliseNotice;
+    globalThis.orderedThisRound = orderedThisRound;
+    globalThis.noticeWhatsAppLink = noticeWhatsAppLink;
     globalThis.canSendNotices = canSendNotices;
 }
 
@@ -256,10 +327,38 @@ async function initNotices() {
     }
 }
 
+/**
+ * Has this customer already ordered for the round delivering on `deliveryISO`?
+ * Yes when their last order came after the previous round closed: that round's
+ * delivery less the week of grace Bes gives (DELIVERY_GRACE_DAYS), the same rule
+ * deliveryRoundForDate() uses. Measured from the previous scheduled delivery, not
+ * from `deliveryISO` itself, so a delivery date typed over by a few days still
+ * finds the right customers. No previous round in the schedule: nobody counts as
+ * ordered, so the reminder can only be sent too widely, never skipped.
+ */
+function orderedThisRound(customer, deliveryISO) {
+    if (!deliveryISO || typeof DELIVERY_SCHEDULE_2026 === 'undefined' || !customer.lastOrder) return false;
+    const previous = DELIVERY_SCHEDULE_2026.filter(r => r.delivery < deliveryISO).pop();
+    if (!previous) return false;
+    const closed = new Date(previous.delivery + 'T00:00:00');
+    closed.setDate(closed.getDate() - (typeof DELIVERY_GRACE_DAYS === 'number' ? DELIVERY_GRACE_DAYS : 7));
+    const closedDay = `${closed.getFullYear()}-${String(closed.getMonth() + 1).padStart(2, '0')}-${String(closed.getDate()).padStart(2, '0')}`;
+    return String(customer.lastOrder).slice(0, 10) > closedDay;
+}
+
+function noticeDeliveryDate() {
+    const typed = document.getElementById('noticeDelivery')?.value;
+    return typed || suggestRoundDates()?.delivery || null;
+}
+
 function noticeVisible() {
+    const delivery = noticeFilter === 'todo' ? noticeDeliveryDate() : null;
     return noticeCustomers.filter(c => {
         if (noticeFilter === 'all') return true;
         if (noticeFilter === 'once') return c.orders === 1;
+        // Not ordered yet this round, but ordered in the last six months: the
+        // people a reminder is for. Older than that is a different message.
+        if (noticeFilter === 'todo') return c.segment !== 'dormant' && !orderedThisRound(c, delivery);
         return c.segment === noticeFilter;
     });
 }
@@ -278,6 +377,9 @@ function renderNoticeList() {
     tbody.innerHTML = rows.map(c => {
         const out = isOptedOut(c.email);
         const checked = noticeSelected.has(c.email) && !out ? 'checked' : '';
+        const wa = !out && waNumber(c.phone)
+            ? `<button class="btn-secondary btn-small" title="Stuur die boodskap op WhatsApp"
+                       onclick="openNoticeWhatsApp('${c.email}')"><i class="fab fa-whatsapp"></i></button>` : '';
         return `
         <tr class="${out ? 'opted-out' : ''}">
             <td><input type="checkbox" ${checked} ${out ? 'disabled' : ''}
@@ -289,11 +391,52 @@ function renderNoticeList() {
             <td style="text-align:right">R${c.spend.toFixed(2)}</td>
             <td>${out ? '<span class="warn">Afgemeld</span>'
                       : NOTICE_SEGMENT_LABELS[c.segment]}</td>
+            <td>${wa}</td>
         </tr>`;
-    }).join('') || '<tr><td colspan="7">Geen kliënte in hierdie groep nie.</td></tr>';
+    }).join('') || '<tr><td colspan="8">Geen kliënte in hierdie groep nie.</td></tr>';
 
     document.getElementById('noticeVisibleCount').textContent = rows.length;
     updateNoticeSendButton();
+}
+
+/* ------------------------------------------------------------------------ *
+ * WhatsApp, one customer at a time
+ *
+ * Bes's customers live on WhatsApp more than in their inbox. Each row's button
+ * opens WhatsApp on his phone or computer with the same personalised message,
+ * and he presses send himself: nothing goes out from here. It carries its own
+ * way to stop, because the email's unsubscribe footer doesn't come along.
+ * ------------------------------------------------------------------------ */
+
+/** 082 123 4567 / +27 82 123 4567 -> 27821234567, or null. */
+function waNumber(phone) {
+    let d = String(phone || '').replace(/[^\d]/g, '');
+    if (d.startsWith('0027')) d = d.slice(2);
+    if (/^0\d{9}$/.test(d)) d = '27' + d.slice(1);
+    return /^27\d{9}$/.test(d) ? d : null;
+}
+
+function noticeWhatsAppLink(body, customer) {
+    const number = waNumber(customer.phone);
+    if (!number) return null;
+    const text = `${personaliseNotice(body, customer)}
+
+Antwoord STOP as jy nie meer hierdie boodskappe wil kry nie.`;
+    return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+}
+
+function openNoticeWhatsApp(email) {
+    const customer = noticeCustomers.find(c => c.email === email);
+    const body = document.getElementById('noticeBody').value;
+    if (!customer) return;
+    if (!body.trim()) { alert('Skryf eers die boodskap (of klik "Weer dieselfde?").'); return; }
+    if (isOptedOut(customer.email)) { alert('Hierdie kliënt het afgemeld.'); return; }
+    try {
+        window.open(noticeWhatsAppLink(body, customer), '_blank', 'noopener');
+        addActivity(`WhatsApp oopgemaak vir ${customer.name || customer.email}`);
+    } catch (e) {
+        alert(e.message);
+    }
 }
 
 function toggleNoticeRecipient(email, on) {
@@ -329,9 +472,13 @@ function previewNoticeEmail() {
     const sample = noticeRecipients()[0] || noticeCustomers[0];
     if (!sample) { alert('Geen kliënte gelaai nie.'); return; }
     document.getElementById('noticePreview').style.display = 'block';
-    document.getElementById('noticePreviewBody').textContent =
-        `Aan: ${sample.name} <${sample.email}>\nOnderwerp: ${subject}\n\n` +
-        renderNoticeEmail(body, sample);
+    try {
+        document.getElementById('noticePreviewBody').textContent =
+            `Aan: ${sample.name} <${sample.email}>\nOnderwerp: ${subject}\n\n` +
+            renderNoticeEmail(body, sample);
+    } catch (e) {
+        document.getElementById('noticePreviewBody').textContent = e.message;
+    }
 }
 
 /** Send one copy to the account that will be doing the sending. */
@@ -342,11 +489,16 @@ async function sendNoticeTest() {
     const body = document.getElementById('noticeBody').value;
     if (!subject.trim() || !body.trim()) { alert('Vul die onderwerp en die boodskap in.'); return; }
 
-    const me = { name: 'Adriaan', email: NOTICE_REPLY_TO };
+    // With {{vorige}} the test is written as the first selected customer (their
+    // name and last order) but goes to Bes, so he sees exactly what they'll get.
+    const sample = usesLastOrder(body) ? (noticeRecipients()[0] || null) : null;
+    if (usesLastOrder(body) && !sample) { alert('Kies eers ten minste een kliënt: die toets wys hul vorige bestelling.'); return; }
+    const me = sample ? { ...sample, email: NOTICE_REPLY_TO } : { name: 'Adriaan', email: NOTICE_REPLY_TO };
     const log = document.getElementById('noticeLog');
-    log.textContent = `Stuur toets na ${me.email}...`;
-    const ok = await sendEmailViaGoogleScript(me.email, `[TOETS] ${subject}`,
-        renderNoticeEmail(body, me));
+    log.textContent = `Stuur toets na ${me.email}${sample ? ` (soos ${sample.name} dit sal kry)` : ''}...`;
+    let text;
+    try { text = renderNoticeEmail(body, me); } catch (e) { log.textContent = e.message; return; }
+    const ok = await sendEmailViaGoogleScript(me.email, `[TOETS] ${subject}`, text);
     log.textContent = ok !== false
         ? `Toets gestuur na ${me.email}. Gaan kyk hoe dit lyk voor jy die lys stuur.`
         : `Toets het gefaal. Moenie die lys stuur voor dit werk nie.`;
@@ -466,6 +618,43 @@ Onthou die pryse is per kg, so die finale bedrag word bereken sodra alles
 geweeg is. Jy kry 'n faktuur met die presiese gewigte voor aflewering.
 
 Laat weet gerus as jy iets spesifieks soek.`;
+}
+
+/**
+ * "Weer dieselfde?": the round notice with the customer's last order in it and
+ * a link that puts that order back in their cart. Meant for the "Nog nie
+ * bestel nie" group, a few days before the cutoff.
+ */
+function buildReorderNoticeBody(cutoffISO, deliveryISO) {
+    return `Hallo {{naam}},
+
+Die bestellys vir die volgende rondte is oop. Bestel voor ${formatAfrikaansDate(cutoffISO)};
+aflewering is ${formatAfrikaansDate(deliveryISO)}.
+
+Laas het jy bestel:
+{{vorige}}
+
+Wil jy weer dieselfde hê? Hierdie skakel sit jou vorige bestelling reg in jou
+mandjie, en jy kan nog enigiets verander voor jy bestel:
+{{herbestel}}
+
+Onthou die pryse is per kg, so die finale bedrag word bereken sodra alles
+geweeg is.`;
+}
+
+function fillReorderNotice() {
+    const cutoff = document.getElementById('noticeCutoff').value;
+    const delivery = document.getElementById('noticeDelivery').value;
+    if (!cutoff || !delivery) {
+        alert('Vul eers die sluitingsdatum en die afleweringsdatum in.');
+        return;
+    }
+    if (delivery < cutoff) {
+        alert('Die afleweringsdatum is voor die sluitingsdatum. Kyk weer.');
+        return;
+    }
+    document.getElementById('noticeSubject').value = '🐔 Plaas Hoenders — wil jy weer dieselfde bestel?';
+    document.getElementById('noticeBody').value = buildReorderNoticeBody(cutoff, delivery);
 }
 
 function fillRoundNotice() {
