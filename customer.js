@@ -1640,7 +1640,7 @@ function showAuthForm(formType) {
  * Show customer portal with navigation
  * @function showCustomerPortal
  */
-async function showCustomerPortal() {
+function showCustomerPortal() {
     // Hide session loading overlay if it's still visible
     const sessionLoading = document.getElementById('sessionLoading');
     if (sessionLoading) {
@@ -1656,12 +1656,6 @@ async function showCustomerPortal() {
 
     // Load cart from storage when portal opens
     loadCartFromStorage();
-    try {
-        await restoreLastOrder();
-    } catch (e) {
-        console.error('Fout met restoreLastOrder:', e);
-        showHerbestelNote('Ons kon nie jou vorige bestelling herstel nie. Kies asseblief self.', 'warn');
-    }
 
     // Show beautiful glassmorphism modal instead of navigation
     const modal = document.getElementById('modal');
@@ -1689,6 +1683,11 @@ async function showCustomerPortal() {
         const status = getOrderingStatus();
         console.log('📅 Ordering Status (date-based info only):', status);
     }
+
+    restoreLastOrder().catch(e => {
+        console.error('Fout met restoreLastOrder:', e);
+        showHerbestelNote('Ons kon nie jou vorige bestelling herstel nie. Kies asseblief self.', 'warn');
+    });
 }
 
 /**
@@ -2284,6 +2283,7 @@ async function restoreLastOrder() {
         console.error('restoreLastOrder failed:', e);
         cart = previousCart;
         try { saveCartToStorage(); } catch (_) {}
+        try { populateCartQuantities(); } catch (_) {}
         showHerbestelNote('Ons kon nie jou vorige bestelling herstel nie. Kies asseblief self.', 'warn');
     }
 }

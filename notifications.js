@@ -58,6 +58,7 @@ async function loadNoticeCustomers() {
             .select('order_id, customer_email, customer_name, customer_phone, order_date, total_amount')
             .order('order_date', { ascending: true })
             .order('created_at', { ascending: true })   // two orders on one day: the later one is "last"
+            .order('order_id', { ascending: true })     // stable tie-break at page edges
             .range(from, from + PAGE - 1);
 
         if (error) throw new Error(`Could not read orders: ${error.message}`);
@@ -333,11 +334,19 @@ if (typeof globalThis !== 'undefined') {
     globalThis.startNoticeSend = startNoticeSend;
     globalThis.noticeVisible = noticeVisible;
     globalThis.setNoticeFilter = setNoticeFilter;
+    globalThis.fillReorderNotice = fillReorderNotice;
+    globalThis.fillRoundNotice = fillRoundNotice;
+    globalThis.noticeDeliveryChanged = noticeDeliveryChanged;
+    globalThis.buildReorderNoticeBody = buildReorderNoticeBody;
+    globalThis.buildRoundNoticeBody = buildRoundNoticeBody;
 }
 
 /* ------------------------------------------------------------------------ *
  * UI
  * ------------------------------------------------------------------------ */
+
+let lastGeneratedNoticeBody = null;
+let lastGeneratedNoticeKind = null;
 
 let noticeFilter = 'all';
 const noticeSelected = new Set();
@@ -454,12 +463,16 @@ function noticeDeliveryChanged() {
     const cutoff = document.getElementById('noticeCutoff')?.value;
     const delivery = document.getElementById('noticeDelivery')?.value;
     const bodyEl = document.getElementById('noticeBody');
-    if (bodyEl && cutoff && delivery && delivery >= cutoff) {
+    if (bodyEl && cutoff && delivery && delivery >= cutoff && lastGeneratedNoticeKind) {
         const currentBody = bodyEl.value;
-        if (usesLastOrder(currentBody) && currentBody.includes('Die bestellys vir die volgende rondte is oop.')) {
-            fillReorderNotice();
-        } else if (currentBody.includes('Die bestellys vir die volgende rondte is nou oop.')) {
-            fillRoundNotice();
+        const rewrite = () => {
+            if (lastGeneratedNoticeKind === 'reorder') fillReorderNotice();
+            else if (lastGeneratedNoticeKind === 'round') fillRoundNotice();
+        };
+        if (currentBody === lastGeneratedNoticeBody) {
+            rewrite();
+        } else if (confirm('Die datums het verander. Wil jy die boodskap opdateer met die nuwe datums? Jou eie wysigings sal vervang word.')) {
+            rewrite();
         }
     }
     renderNoticeList();
@@ -473,6 +486,7 @@ function noticeEsc(v) {
 
 function renderNoticeList() {
     const tbody = document.getElementById('noticeTableBody');
+    if (!tbody) return;
     pruneNoticeSelection();
     const rows = noticeVisible();
     const unmatched = noticeFilter === 'todo' && !scheduledRound(noticeDeliveryDate());
@@ -501,7 +515,8 @@ function renderNoticeList() {
         </tr>`;
     }).join('') || '<tr><td colspan="8">Geen kliënte in hierdie groep nie.</td></tr>';
 
-    document.getElementById('noticeVisibleCount').textContent = unmatched ? 0 : rows.length;
+    const countEl = document.getElementById('noticeVisibleCount');
+    if (countEl) countEl.textContent = unmatched ? 0 : rows.length;
     updateNoticeSendButton();
 }
 
@@ -600,7 +615,8 @@ function updateNoticeSendButton() {
     if (!btn) return;
     btn.disabled = n === 0 || !gate.ok;
     btn.innerHTML = `<i class="fas fa-paper-plane"></i> Stuur aan ${n} kliënt${n === 1 ? '' : 'e'}`;
-    document.getElementById('noticeSelectedCount').textContent = n;
+    const countEl = document.getElementById('noticeSelectedCount');
+    if (countEl) countEl.textContent = n;
 }
 
 function previewNoticeEmail() {
@@ -808,7 +824,10 @@ function fillReorderNotice() {
         return;
     }
     document.getElementById('noticeSubject').value = '🐔 Plaas Hoenders — wil jy weer dieselfde bestel?';
-    document.getElementById('noticeBody').value = buildReorderNoticeBody(cutoff, delivery);
+    const text = buildReorderNoticeBody(cutoff, delivery);
+    document.getElementById('noticeBody').value = text;
+    lastGeneratedNoticeBody = text;
+    lastGeneratedNoticeKind = 'reorder';
 }
 
 function fillRoundNotice() {
@@ -824,7 +843,10 @@ function fillRoundNotice() {
     }
     document.getElementById('noticeSubject').value =
         `🐔 Plaas Hoenders — bestellings oop tot ${formatAfrikaansDate(cutoff)}`;
-    document.getElementById('noticeBody').value = buildRoundNoticeBody(cutoff, delivery);
+    const text = buildRoundNoticeBody(cutoff, delivery);
+    document.getElementById('noticeBody').value = text;
+    lastGeneratedNoticeBody = text;
+    lastGeneratedNoticeKind = 'round';
 }
 
 /**

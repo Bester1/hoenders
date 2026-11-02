@@ -871,6 +871,89 @@ async function noticeChecks() {
     vm.runInContext('noticeOptOuts = null;', sb);
     check(!sb.canSendNotices().ok, 'an unreadable opt-out list does not block sending');
 
+    // Real fillReorderNotice output into extractNoticeDeliveryDate and noticeDeliveryChanged behavior
+    const noticeEls = {
+        noticeCutoff: { value: '2026-11-04' },
+        noticeDelivery: { value: '2026-11-07' },
+        noticeSubject: { value: '' },
+        noticeBody: { value: '' }
+    };
+    sb.document.getElementById = (id) => noticeEls[id] || null;
+    sb.fillReorderNotice();
+    check(sb.extractNoticeDeliveryDate(noticeEls.noticeBody.value) === '2026-11-07',
+        'real fillReorderNotice output did not yield delivery date in extractNoticeDeliveryDate');
+
+    // Date change with unmodified template rewrites body with new delivery date
+    noticeEls.noticeDelivery.value = '2026-11-21';
+    sb.noticeDeliveryChanged();
+    check(sb.extractNoticeDeliveryDate(noticeEls.noticeBody.value) === '2026-11-21',
+        'noticeDeliveryChanged did not automatically rewrite unmodified template on date change');
+
+    // Date change when body has hand-typed changes asks confirmation
+    noticeEls.noticeBody.value += '\nHand-typed line from Bes.';
+    noticeEls.noticeDelivery.value = '2026-11-28';
+    let askedConfirm = false;
+    sb.confirm = () => { askedConfirm = true; return false; };
+    sb.noticeDeliveryChanged();
+    check(askedConfirm, 'noticeDeliveryChanged did not prompt confirmation when body was edited by hand');
+    check(noticeEls.noticeBody.value.includes('Hand-typed line from Bes.'),
+        'noticeDeliveryChanged threw away hand-typed line when confirmation was declined');
+
+    // Confirm accepted rewrites body
+    sb.confirm = () => true;
+    sb.noticeDeliveryChanged();
+    check(sb.extractNoticeDeliveryDate(noticeEls.noticeBody.value) === '2026-11-28',
+        'noticeDeliveryChanged did not rewrite template when confirmation was accepted');
+    check(!noticeEls.noticeBody.value.includes('Hand-typed line from Bes.'),
+        'noticeDeliveryChanged did not replace custom text with new template on confirmed rewrite');
+
+    // loadNoticeCustomers: paging across 1000 items, order_id tie-break, and skippedNoEmail
+    const orderSortCalls = [];
+    const rangesCalled = [];
+    const totalOrders = 1005;
+    const allMockOrders = [];
+    for (let i = 1; i <= totalOrders; i++) {
+        allMockOrders.push({
+            order_id: `ORD-${i}`,
+            customer_email: i === 1 ? '' : `cust${i % 20}@example.com`,
+            customer_name: `Customer ${i % 20}`,
+            customer_phone: '0821234567',
+            order_date: '2026-10-21',
+            total_amount: 100
+        });
+    }
+
+    sb.supabaseClient = {
+        from(table) {
+            if (table === 'orders') {
+                return {
+                    select() { return this; },
+                    order(col, opts) { orderSortCalls.push({ col, opts }); return this; },
+                    range(from, to) {
+                        rangesCalled.push([from, to]);
+                        return Promise.resolve({ data: allMockOrders.slice(from, to + 1), error: null });
+                    }
+                };
+            }
+            if (table === 'order_items') {
+                return {
+                    select() { return this; },
+                    in() { return this; },
+                    order() { return this; },
+                    range() { return Promise.resolve({ data: [], error: null }); }
+                };
+            }
+            return { select() { return this; } };
+        }
+    };
+
+    const loadRes = await sb.loadNoticeCustomers();
+    const hasOrderIdTieBreak = orderSortCalls.some(c => c.col === 'order_id' && c.opts?.ascending === true);
+    check(hasOrderIdTieBreak, 'loadNoticeCustomers did not use order_id ascending as final tie-break');
+    check(rangesCalled.length === 2, `loadNoticeCustomers did not page orders table (expected 2 pages, got ${rangesCalled.length})`);
+    check(loadRes.skippedNoEmail === 1, `loadNoticeCustomers did not track skipped orders without email (got ${loadRes.skippedNoEmail})`);
+    check(loadRes.customers.length === 20, `loadNoticeCustomers did not aggregate customers correctly across pages (got ${loadRes.customers.length})`);
+
     if (!bad) ok('round notices: last order listed or refused, all or nothing, round membership, WhatsApp numbers and opt-out');
 }
 
@@ -949,14 +1032,19 @@ async function herbestelPortalChecks() {
         querySelector: () => null,
         prepend: (noteEl) => { stepNotes.push(noteEl); }
     };
-    sb.document.getElementById = (id) => (id === 'step-1' || id === 'step-2' ? stepEl : null);
+    const qtyInputs = {
+        'qty-VEILIG': { id: 'qty-VEILIG', value: 1 }
+    };
+    sb.document.getElementById = (id) => (id === 'step-1' || id === 'step-2' ? stepEl : (qtyInputs[id] || null));
+    sb.document.querySelectorAll = (sel) => (sel === '[id^="qty-"]' ? Object.values(qtyInputs) : []);
 
     vm.runInContext(`
         supabaseClient = mockSupabase;
         currentCustomer = { id: 'cust-1', auth_user_id: 'auth-1' };
         getCustomerPricing = () => ({ VLERKIES: 50 });
         cart = { OU_PRODUK_BESTAAND: { quantity: 1 } };
-        populateCartQuantities = () => {};
+        updateCartDisplay = () => {};
+        updateCartSummary = () => {};
         saveCartToStorage = () => {};
     `, sb);
 
@@ -985,18 +1073,20 @@ async function herbestelPortalChecks() {
     check(note2.includes('Niks van jou bestelling van') && note2.includes('is nou beskikbaar nie'), 'nothing available did not show correct warning note');
 
     // 3. Fallback to alert() when step elements do not exist
-    sb.document.getElementById = () => null;
+    sb.document.getElementById = (id) => (qtyInputs[id] || null);
     alertMsg = null;
     sb.showHerbestelNote('Waarskuwing toets', 'warn');
     check(alertMsg === 'Waarskuwing toets', 'showHerbestelNote did not fall back to alert() when steps missing');
 
-    // 4. Try/catch protection: if setQuantity throws, cart is restored to previousCart
+    // 4. Try/catch protection: if setQuantity throws, cart is restored to previousCart and inputs redrawn
+    qtyInputs['qty-VEILIG'].value = 1;
     vm.runInContext("cart = { VEILIG: { quantity: 1 } }; setQuantity = () => { throw new Error('onverwagte fout'); };", sb);
     mockOrderItems = [{ product_name: 'VLERKIES', quantity: 1 }];
     sb.localStorage.setItem(sb.HERBESTEL_KEY, JSON.stringify({ order: 'ORD-99', at: Date.now() }));
     alertMsg = null;
     await sb.restoreLastOrder();
     check(getCart().VEILIG && getCart().VEILIG.quantity === 1, 'when refill threw, previous cart was not restored');
+    check(qtyInputs['qty-VEILIG'].value === 1, 'when refill threw, quantity inputs were not redrawn to match previous cart');
     check(alertMsg && alertMsg.includes('Ons kon nie jou vorige bestelling herstel nie'), 'when refill threw, warning note/alert was not shown');
 
     if (!bad) ok('portal refill: missing products named, nothing available leaves cart, cart replacement, customer isolation and error resilience');
