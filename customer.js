@@ -16,6 +16,24 @@
     }
 })();
 
+// "Weer dieselfde?" link in the round notice (?herbestel=1&bestelling=<order_id>):
+// fill the cart with that order once the portal opens. A Google login comes back
+// without the query string, so the wish is kept here until restoreLastOrder()
+// uses it (or it goes stale). It is taken off the address bar at once: left
+// there, every reload would refill the cart over the customer's changes.
+const HERBESTEL_KEY = 'plaasHoendersHerbestel';
+const HERBESTEL_MAX_AGE_MS = 60 * 60 * 1000;
+try {
+    const params = new URLSearchParams(location.search);
+    if (params.has('herbestel')) {
+        localStorage.setItem(HERBESTEL_KEY, JSON.stringify({ at: Date.now(), order: params.get('bestelling') || null }));
+        params.delete('herbestel');
+        params.delete('bestelling');
+        const rest = params.toString();
+        history.replaceState(history.state, document.title, location.pathname + (rest ? `?${rest}` : '') + location.hash);
+    }
+} catch (e) {}
+
 // Initialize Supabase client with secure configuration and fallback
 let supabaseClient = null;
 
@@ -1665,6 +1683,11 @@ function showCustomerPortal() {
         const status = getOrderingStatus();
         console.log('📅 Ordering Status (date-based info only):', status);
     }
+
+    restoreLastOrder().catch(e => {
+        console.error('Fout met restoreLastOrder:', e);
+        showHerbestelNote('Ons kon nie jou vorige bestelling herstel nie. Kies asseblief self.', 'warn');
+    });
 }
 
 /**
@@ -2165,6 +2188,128 @@ function loadCartFromStorage() {
     } catch (error) {
         console.error('❌ Failed to load cart from localStorage:', error);
         cart = {};
+    }
+}
+
+/**
+ * Put the customer's last order back in the cart (the ?herbestel link).
+ *
+ * Every line is either in the cart afterwards or named on screen as not
+ * available any more: a product that quietly drops out of a repeat order is
+ * one the customer believes they ordered. Prices are today's, from the price
+ * table, never last time's.
+ * @function restoreLastOrder
+ */
+async function restoreLastOrder() {
+    // Not logged in yet: keep the wish for when the portal opens again.
+    if (!supabaseClient || !currentCustomer?.id) return;
+    let wish = null;
+    try {
+        wish = JSON.parse(localStorage.getItem(HERBESTEL_KEY) || 'null');
+    } catch (e) { return; }
+    if (!wish?.at || Date.now() - wish.at > HERBESTEL_MAX_AGE_MS) return;
+
+    const previousCart = { ...cart };
+    try {
+        localStorage.removeItem(HERBESTEL_KEY);
+
+        // The order the email listed (row-level security only lets a customer read
+        // their own). Without one, the latest order of any customer record on this
+        // login, since some people have several; named explicitly rather than left
+        // to row-level security, because Bes's own login can read everyone's.
+        // Both branches limit to this login's customer IDs so an admin login
+        // cannot load another customer's order lines.
+        // Date then time, which is how the notice picks "last".
+        const { data: mine } = currentCustomer.auth_user_id
+            ? await supabaseClient.from('customers').select('id').eq('auth_user_id', currentCustomer.auth_user_id)
+            : { data: null };
+        const ids = [...new Set((mine || []).map(r => r.id).concat(currentCustomer.id))];
+
+        let query = supabaseClient.from('orders').select('order_id, order_date')
+            .in('customer_id', ids);
+        if (wish.order) {
+            query = query.eq('order_id', wish.order);
+        } else {
+            query = query.order('order_date', { ascending: false })
+                .order('created_at', { ascending: false }).limit(1);
+        }
+        const { data: orders, error } = await query;
+        if (error || !orders?.length) {
+            showHerbestelNote(error ? 'Ons kon nie jou vorige bestelling laai nie. Kies asseblief self.'
+                : 'Ons kry nie daardie bestelling op jou naam nie. Kies asseblief self.', 'warn');
+            return;
+        }
+        const { data: items, error: itemsError } = await supabaseClient
+            .from('order_items')
+            .select('product_name, quantity')
+            .eq('order_id', orders[0].order_id);
+        if (itemsError || !items?.length) {
+            showHerbestelNote('Ons kon nie die produkte van jou vorige bestelling laai nie. Kies asseblief self.', 'warn');
+            return;
+        }
+
+        // Two lines for one product add up: the email listed them as one.
+        const wanted = new Map();
+        for (const item of items) {
+            if (item.quantity > 0) wanted.set(item.product_name, (wanted.get(item.product_name) || 0) + item.quantity);
+        }
+
+        const pricing = getCustomerPricing();
+        const missing = [...wanted.keys()].filter(name => !pricing[name]);
+        const hadItems = Object.keys(cart).length > 0;
+        const when = new Date(orders[0].order_date + 'T00:00:00').toLocaleDateString('af-ZA', { day: 'numeric', month: 'long' });
+        if (missing.length === wanted.size) {
+            // Nothing to put back: leave whatever they already have alone.
+            showHerbestelNote(`Niks van jou bestelling van ${when} is nou beskikbaar nie (${missing.join(', ')}). Kies asseblief self.`, 'warn');
+            return;
+        }
+
+        cart = {};
+        document.querySelectorAll('[id^="qty-"]').forEach(input => { input.value = 0; });
+        for (const [name, qty] of wanted) {
+            if (pricing[name]) setQuantity(name.replace(/[^A-Z0-9]/g, '_'), qty);
+        }
+        populateCartQuantities();
+        saveCartToStorage();
+
+        const count = Object.keys(cart).length;
+        showHerbestelNote(
+            `Jou bestelling van ${when} is in jou mandjie (${count} produk${count === 1 ? '' : 'te'}), teen vandag se pryse. ` +
+            (hadItems ? 'Dit het vervang wat reeds in jou mandjie was. ' : '') +
+            'Kyk of alles reg is, verander wat jy wil, en bestel.' +
+            (missing.length ? ` Nie meer beskikbaar nie, so nie bygesit nie: ${missing.join(', ')}.` : ''),
+            missing.length ? 'warn' : 'ok');
+    } catch (e) {
+        console.error('restoreLastOrder failed:', e);
+        cart = previousCart;
+        try { saveCartToStorage(); } catch (_) {}
+        try { populateCartQuantities(); } catch (_) {}
+        showHerbestelNote('Ons kon nie jou vorige bestelling herstel nie. Kies asseblief self.', 'warn');
+    }
+}
+
+/** A note at the top of the details and products steps. */
+function showHerbestelNote(text, kind) {
+    let placed = false;
+    for (const stepId of ['step-1', 'step-2']) {
+        const step = document.getElementById(stepId);
+        if (!step) continue;
+        let note = step.querySelector('.herbestel-note');
+        if (!note) {
+            note = document.createElement('div');
+            note.className = 'herbestel-note mb-4 p-4 rounded-xl border text-base font-medium';
+            step.prepend(note);
+        }
+        note.classList.toggle('bg-orange-500/20', kind === 'ok');
+        note.classList.toggle('border-orange-500/40', kind === 'ok');
+        note.classList.toggle('bg-red-500/20', kind !== 'ok');
+        note.classList.toggle('border-red-500/40', kind !== 'ok');
+        note.classList.add('text-white');
+        note.textContent = text;
+        placed = true;
+    }
+    if (!placed) {
+        alert(text);
     }
 }
 
@@ -6957,4 +7102,12 @@ function updateOrderingUI(isOpen) {
             placeOrderBtn.textContent = 'Bestelling Gesluit';
         }
     }
+}
+
+// Exported for the validator and for tests.
+if (typeof globalThis !== 'undefined') {
+    globalThis.restoreLastOrder = restoreLastOrder;
+    globalThis.showHerbestelNote = showHerbestelNote;
+    globalThis.HERBESTEL_KEY = HERBESTEL_KEY;
+    globalThis.HERBESTEL_MAX_AGE_MS = HERBESTEL_MAX_AGE_MS;
 }

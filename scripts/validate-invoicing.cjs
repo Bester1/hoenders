@@ -724,7 +724,10 @@ try {
     check(downloads === 2, 'after a failed export the button no longer exports');
 
     if (!bad) ok("Lêer vir Nieuwoudt: her product names, missing products named before she imports, one file per click");
-})().catch(e => fail(`could not check the Nieuwoudt export: ${e.message}`)).finally(() => {
+})().catch(e => fail(`could not check the Nieuwoudt export: ${e.message}`))
+  .then(() => noticeChecks()).catch(e => fail(`could not check the round notices: ${e.message}`))
+  .then(() => herbestelPortalChecks()).catch(e => fail(`could not check the portal refill: ${e.message}`))
+  .finally(() => {
     // The export check is async, so the summary waits for it.
     console.log('');
     if (failures) {
@@ -733,3 +736,358 @@ try {
     }
     console.log('All invoicing checks passed.');
 });
+
+// --- Round notices: "Weer dieselfde?" ------------------------------------------
+//
+// A reorder message tells a customer what they ordered last time. The same
+// silent-wrong shape as an invoice: an empty or wrong list still reads like a
+// normal email, and it reaches forty-odd people at once. So: no lines is an
+// error, a send is all or nothing, someone who already ordered this round is
+// not "not ordered yet", and a phone number becomes a WhatsApp number or none.
+async function noticeChecks() {
+    const vm = require('vm');
+    let bad = false;
+    const check = (cond, msg) => { if (!cond) { bad = true; fail(`notices: ${msg}`); } };
+    const sb = { console: { log() {}, warn() {}, error() {} }, document: { getElementById: () => null },
+        URLSearchParams, Date, Map, Set, setTimeout, encodeURIComponent, alert() {}, confirm: () => true };
+    sb.globalThis = sb;
+    vm.createContext(sb);
+    vm.runInContext(read('delivery-schedule.js'), sb);
+    vm.runInContext(read('notifications.js'), sb);
+
+    const sonja = { name: 'Sonja Symington', email: 's@example.com', phone: '082 123 4567', lastOrder: '2026-10-21',
+        lastOrderId: 'ORD-1', lastItems: [{ product_name: 'VLERKIES', quantity: 3 }] };
+    sb.sonja = sonja;
+    const body = 'Hallo {{naam}}\n{{vorige}}\n{{herbestel}}';
+    const out = sb.personaliseNotice(body, sonja);
+    check(/Hallo Sonja\n  • 3 × VLERKIES\n/.test(out), 'the last order is not listed in the message');
+    check(out.endsWith('herbestel=1&bestelling=ORD-1'), 'the refill link does not name the order the message lists');
+    let threw = false;
+    try { sb.personaliseNotice(body, { ...sonja, lastItems: [] }); } catch (e) { threw = true; }
+    check(threw, '{{vorige}} for a last order with no lines is filled with nothing instead of refusing');
+
+    // Round matching: window of 6 days avoids ambiguous overlap between 7 Nov and 21 Nov
+    check(sb.scheduledRound('2026-11-07')?.delivery === '2026-11-07', 'exact date does not match round');
+    check(sb.scheduledRound('2026-11-09')?.delivery === '2026-11-07', 'a van two days late does not match round');
+    check(sb.scheduledRound('2026-11-14') === null, '14 Nov (ambiguous/outside 6-day window) was guessed instead of null');
+    check(sb.scheduledRound('2026-11-15')?.delivery === '2026-11-21', '15 Nov does not match 21 Nov round');
+    check(sb.scheduledRound('2027-03-01') === null, '2027 date matches a 2026 round');
+
+    check(sb.orderedThisRound(sonja, '2026-11-07') === true, 'an order for this round counts as not ordered');
+    check(sb.orderedThisRound(sonja, '2026-11-09') === true, 'a van two days late lists everyone who ordered as not ordered');
+    check(sb.orderedThisRound(sonja, '2026-11-21') === false, 'an order for the previous round counts as ordered for this one');
+    check(sb.orderedThisRound(sonja, '2027-03-01') === null, 'a date matching no round still sorts customers');
+
+    // Date extraction from notice body
+    check(sb.extractNoticeDeliveryDate('Aflewering is 7 November 2026.') === '2026-11-07', 'did not extract delivery date from notice');
+    check(sb.extractNoticeDeliveryDate('aflewering is 21 November 2026') === '2026-11-21', 'did not extract lowercase delivery date');
+    check(sb.extractNoticeDeliveryDate('Geen datum nie') === null, 'extractNoticeDeliveryDate did not return null');
+
+    // Escaping
+    check(sb.noticeEsc('<script>alert("x & y\'")</script>') === '&lt;script&gt;alert(&quot;x &amp; y&#39;&quot;)&lt;/script&gt;',
+        'noticeEsc does not escape HTML control characters');
+
+    // WhatsApp link formatting and footer compliance
+    const wa = sb.noticeWhatsAppLink;
+    for (const phone of ['082 123 4567', '+27 82 123 4567', '0027821234567'])
+        check((wa('x', { ...sonja, phone }) || '').startsWith('https://wa.me/27821234567?'), `${phone} does not become 27821234567`);
+    check(wa('x', { ...sonja, phone: '12345' }) === null && wa('x', { ...sonja, phone: '' }) === null, 'a bad phone number still gets a WhatsApp link');
+    const waText = decodeURIComponent(wa('x', sonja));
+    check(waText.includes('afmeld.html?e=s%40example.com'), 'the WhatsApp message has no recorded way to leave the list');
+    check(waText.includes("Wil jy heeltemal van die bestellys afkom? Dan sal jy ook nie weer hoor wanneer 'n nuwe rondte oop is nie:"),
+        'the WhatsApp message does not match the email footer opt-out wording');
+
+    // Selection pruning under todo filter
+    vm.runInContext(`
+        noticeCustomers = [
+            { email: 'ordered@example.com', lastOrder: '2026-10-21', orders: 2, segment: 'active' },
+            { email: 'notyet@example.com', lastOrder: '2026-09-01', orders: 1, segment: 'active' }
+        ];
+        noticeSelected.clear();
+        noticeSelected.add('ordered@example.com');
+        noticeSelected.add('notyet@example.com');
+        noticeFilter = 'all';
+        pruneNoticeSelection();
+    `, sb);
+    check(sb.noticeSelected.has('ordered@example.com') && sb.noticeSelected.has('notyet@example.com'), 'all filter pruned selections');
+    vm.runInContext(`
+        noticeFilter = 'todo';
+        document.getElementById = (id) => (id === 'noticeDelivery' ? { value: '2026-11-07' } : null);
+        pruneNoticeSelection();
+    `, sb);
+    check(!sb.noticeSelected.has('ordered@example.com'), 'todo filter kept customer who already ordered');
+    check(sb.noticeSelected.has('notyet@example.com'), 'todo filter pruned customer who has not ordered');
+
+    // Guards: startNoticeSend blocks when delivery matches no round
+    vm.runInContext('noticeOptOuts = new Set();', sb);
+    let alertMsg = null;
+    sb.alert = (msg) => { alertMsg = msg; };
+    vm.runInContext(`
+        document.getElementById = (id) => ({
+            noticeDelivery: { value: '2027-01-01' },
+            noticeSubject: { value: 'Onderwerp' },
+            noticeBody: { value: 'Hallo {{naam}}\\n{{vorige}}' },
+            noticeLog: { textContent: '' }
+        })[id] || null;
+    `, sb);
+    await sb.startNoticeSend();
+    check(alertMsg && alertMsg.includes('pas by geen rondte'), 'startNoticeSend did not block when delivery date matches no round');
+
+    // Guards: openNoticeWhatsApp blocks when customer already ordered
+    alertMsg = null;
+    vm.runInContext(`
+        noticeCustomers = [sonja];
+        document.getElementById = (id) => ({
+            noticeDelivery: { value: '2026-11-07' },
+            noticeBody: { value: 'Hallo {{naam}}\\n{{vorige}}' }
+        })[id] || null;
+    `, sb);
+    await sb.openNoticeWhatsApp(sonja.email);
+    check(alertMsg && alertMsg.includes('het al vir hierdie rondte bestel'), 'openNoticeWhatsApp did not block when customer already ordered');
+
+    // Guards: openNoticeWhatsApp checks portalAcceptingOrders
+    let confirmed = false;
+    sb.confirm = () => { confirmed = true; return false; };
+    sb.portalAcceptingOrders = async () => ({ open: false, known: true });
+    vm.runInContext(`
+        document.getElementById = (id) => ({
+            noticeDelivery: { value: '2026-11-07' },
+            noticeBody: { value: 'Gewone kennisgewing sonder vorige' }
+        })[id] || null;
+    `, sb);
+    await sb.openNoticeWhatsApp(sonja.email);
+    check(confirmed, 'openNoticeWhatsApp did not check portalAcceptingOrders when portal is closed');
+
+    // All or nothing: one customer without lines stops the batch before anything is sent.
+    let sent = 0;
+    sb.sendEmailViaGoogleScript = async () => { sent++; return true; };
+    vm.runInContext('noticeOptOuts = new Set();', sb);
+    let refused = false;
+    try { await sb.sendNoticeBatch([sonja, { ...sonja, email: 'empty@example.com', lastItems: [] }], 'subject', body); }
+    catch (e) { refused = true; }
+    check(refused && sent === 0, `a batch with one empty last order sent ${sent} email(s) before stopping`);
+
+    // Opt-out list unreadable: no WhatsApp button, and the button's handler refuses.
+    vm.runInContext('noticeOptOuts = null;', sb);
+    check(!sb.canSendNotices().ok, 'an unreadable opt-out list does not block sending');
+
+    // Real fillReorderNotice output into extractNoticeDeliveryDate and noticeDeliveryChanged behavior
+    const noticeEls = {
+        noticeCutoff: { value: '2026-11-04' },
+        noticeDelivery: { value: '2026-11-07' },
+        noticeSubject: { value: '' },
+        noticeBody: { value: '' }
+    };
+    sb.document.getElementById = (id) => noticeEls[id] || null;
+    sb.fillReorderNotice();
+    check(sb.extractNoticeDeliveryDate(noticeEls.noticeBody.value) === '2026-11-07',
+        'real fillReorderNotice output did not yield delivery date in extractNoticeDeliveryDate');
+
+    // Date change with unmodified template rewrites body with new delivery date
+    noticeEls.noticeDelivery.value = '2026-11-21';
+    sb.noticeDeliveryChanged();
+    check(sb.extractNoticeDeliveryDate(noticeEls.noticeBody.value) === '2026-11-21',
+        'noticeDeliveryChanged did not automatically rewrite unmodified template on date change');
+
+    // Date change when body has hand-typed changes asks confirmation
+    noticeEls.noticeBody.value += '\nHand-typed line from Bes.';
+    noticeEls.noticeDelivery.value = '2026-11-28';
+    let askedConfirm = false;
+    sb.confirm = () => { askedConfirm = true; return false; };
+    sb.noticeDeliveryChanged();
+    check(askedConfirm, 'noticeDeliveryChanged did not prompt confirmation when body was edited by hand');
+    check(noticeEls.noticeBody.value.includes('Hand-typed line from Bes.'),
+        'noticeDeliveryChanged threw away hand-typed line when confirmation was declined');
+
+    // Confirm accepted rewrites body
+    sb.confirm = () => true;
+    sb.noticeDeliveryChanged();
+    check(sb.extractNoticeDeliveryDate(noticeEls.noticeBody.value) === '2026-11-28',
+        'noticeDeliveryChanged did not rewrite template when confirmation was accepted');
+    check(!noticeEls.noticeBody.value.includes('Hand-typed line from Bes.'),
+        'noticeDeliveryChanged did not replace custom text with new template on confirmed rewrite');
+
+    // loadNoticeCustomers: paging across 1000 items, order_id tie-break, and skippedNoEmail
+    const orderSortCalls = [];
+    const rangesCalled = [];
+    const totalOrders = 1005;
+    const allMockOrders = [];
+    for (let i = 1; i <= totalOrders; i++) {
+        allMockOrders.push({
+            order_id: `ORD-${i}`,
+            customer_email: i === 1 ? '' : `cust${i % 20}@example.com`,
+            customer_name: `Customer ${i % 20}`,
+            customer_phone: '0821234567',
+            order_date: '2026-10-21',
+            total_amount: 100
+        });
+    }
+
+    sb.supabaseClient = {
+        from(table) {
+            if (table === 'orders') {
+                return {
+                    select() { return this; },
+                    order(col, opts) { orderSortCalls.push({ col, opts }); return this; },
+                    range(from, to) {
+                        rangesCalled.push([from, to]);
+                        return Promise.resolve({ data: allMockOrders.slice(from, to + 1), error: null });
+                    }
+                };
+            }
+            if (table === 'order_items') {
+                return {
+                    select() { return this; },
+                    in() { return this; },
+                    order() { return this; },
+                    range() { return Promise.resolve({ data: [], error: null }); }
+                };
+            }
+            return { select() { return this; } };
+        }
+    };
+
+    const loadRes = await sb.loadNoticeCustomers();
+    const hasOrderIdTieBreak = orderSortCalls.some(c => c.col === 'order_id' && c.opts?.ascending === true);
+    check(hasOrderIdTieBreak, 'loadNoticeCustomers did not use order_id ascending as final tie-break');
+    check(rangesCalled.length === 2, `loadNoticeCustomers did not page orders table (expected 2 pages, got ${rangesCalled.length})`);
+    check(loadRes.skippedNoEmail === 1, `loadNoticeCustomers did not track skipped orders without email (got ${loadRes.skippedNoEmail})`);
+    check(loadRes.customers.length === 20, `loadNoticeCustomers did not aggregate customers correctly across pages (got ${loadRes.customers.length})`);
+
+    if (!bad) ok('round notices: last order listed or refused, all or nothing, round membership, WhatsApp numbers and opt-out');
+}
+
+async function herbestelPortalChecks() {
+    const vm = require('vm');
+    let bad = false;
+    const check = (cond, msg) => { if (!cond) { bad = true; fail(`portal herbestel: ${msg}`); } };
+
+    const location = { hostname: 'localhost', search: '', pathname: '/' };
+    let alertMsg = null;
+    const sb = {
+        console: { log() {}, warn() {}, error() {} },
+        location,
+        window: { location, history: { replaceState() {} }, addEventListener: () => {} },
+        document: {
+            getElementById: () => null,
+            querySelectorAll: () => [],
+            createElement: () => ({ classList: { toggle() {}, add() {} } }),
+            addEventListener: () => {}
+        },
+        localStorage: {
+            store: {},
+            getItem(k) { return this.store[k] || null; },
+            setItem(k, v) { this.store[k] = String(v); },
+            removeItem(k) { delete this.store[k]; }
+        },
+        URLSearchParams, Date, Map, Set, setTimeout, encodeURIComponent,
+        alert(msg) { alertMsg = msg; }
+    };
+    sb.globalThis = sb;
+    vm.createContext(sb);
+    vm.runInContext(read('delivery-schedule.js'), sb);
+    vm.runInContext(read('shared-utils.js'), sb);
+    vm.runInContext(read('customer.js'), sb);
+
+    // Setup mock supabaseClient
+    let queriedCustomerIdFilter = null;
+    let queriedOrderId = null;
+    let mockOrders = [{ order_id: 'ORD-99', order_date: '2026-10-21' }];
+    let mockOrderItems = [
+        { product_name: 'VLERKIES', quantity: 2 },
+        { product_name: 'OU_PRODUK', quantity: 1 }
+    ];
+
+    sb.mockSupabase = {
+        from(table) {
+            if (table === 'orders') {
+                return {
+                    select() { return this; },
+                    in(col, vals) { if (col === 'customer_id') queriedCustomerIdFilter = vals; return this; },
+                    eq(col, val) { if (col === 'order_id') queriedOrderId = val; return this; },
+                    order() { return this; },
+                    limit() { return this; },
+                    then(res) { return Promise.resolve({ data: mockOrders, error: null }).then(res); }
+                };
+            }
+            if (table === 'order_items') {
+                return {
+                    select() { return this; },
+                    eq() { return this; },
+                    then(res) { return Promise.resolve({ data: mockOrderItems, error: null }).then(res); }
+                };
+            }
+            if (table === 'customers') {
+                return {
+                    select() { return this; },
+                    eq() { return Promise.resolve({ data: [{ id: 'cust-mine' }], error: null }); }
+                };
+            }
+            return { select() { return this; } };
+        }
+    };
+
+    let stepNotes = [];
+    const stepEl = {
+        querySelector: () => null,
+        prepend: (noteEl) => { stepNotes.push(noteEl); }
+    };
+    const qtyInputs = {
+        'qty-VEILIG': { id: 'qty-VEILIG', value: 1 }
+    };
+    sb.document.getElementById = (id) => (id === 'step-1' || id === 'step-2' ? stepEl : (qtyInputs[id] || null));
+    sb.document.querySelectorAll = (sel) => (sel === '[id^="qty-"]' ? Object.values(qtyInputs) : []);
+
+    vm.runInContext(`
+        supabaseClient = mockSupabase;
+        currentCustomer = { id: 'cust-1', auth_user_id: 'auth-1' };
+        getCustomerPricing = () => ({ VLERKIES: 50 });
+        cart = { OU_PRODUK_BESTAAND: { quantity: 1 } };
+        updateCartDisplay = () => {};
+        updateCartSummary = () => {};
+        saveCartToStorage = () => {};
+    `, sb);
+
+    // 1. Partial availability: VLERKIES added, OU_PRODUK named as not available, old cart replaced
+    sb.localStorage.setItem(sb.HERBESTEL_KEY, JSON.stringify({ order: 'ORD-99', at: Date.now() }));
+    await sb.restoreLastOrder();
+
+    const getCart = () => vm.runInContext('cart', sb);
+    check(queriedCustomerIdFilter && queriedCustomerIdFilter.includes('cust-1'), 'bestelling query did not filter by customer_id');
+    check(queriedOrderId === 'ORD-99', 'bestelling query did not filter by wish order id');
+    check(getCart().VLERKIES && getCart().VLERKIES.quantity === 2, 'cart did not receive available product');
+    check(!getCart().OU_PRODUK_BESTAAND, 'previous cart was not replaced');
+    const note1 = stepNotes[stepNotes.length - 1]?.textContent || '';
+    check(note1.includes('Nie meer beskikbaar nie, so nie bygesit nie: OU_PRODUK'), 'missing product not named in note');
+    check(note1.includes('Dit het vervang wat reeds in jou mandjie was'), 'note did not mention replacement of cart');
+
+    // 2. Nothing available: old cart left untouched, note warns
+    vm.runInContext("cart = { BESTAAND: { quantity: 4 } };", sb);
+    mockOrderItems = [{ product_name: 'OU_PRODUK', quantity: 2 }];
+    sb.localStorage.setItem(sb.HERBESTEL_KEY, JSON.stringify({ order: 'ORD-99', at: Date.now() }));
+    stepNotes = [];
+    await sb.restoreLastOrder();
+
+    check(getCart().BESTAAND && getCart().BESTAAND.quantity === 4, 'when nothing is available, previous cart was wiped');
+    const note2 = stepNotes[stepNotes.length - 1]?.textContent || '';
+    check(note2.includes('Niks van jou bestelling van') && note2.includes('is nou beskikbaar nie'), 'nothing available did not show correct warning note');
+
+    // 3. Fallback to alert() when step elements do not exist
+    sb.document.getElementById = (id) => (qtyInputs[id] || null);
+    alertMsg = null;
+    sb.showHerbestelNote('Waarskuwing toets', 'warn');
+    check(alertMsg === 'Waarskuwing toets', 'showHerbestelNote did not fall back to alert() when steps missing');
+
+    // 4. Try/catch protection: if setQuantity throws, cart is restored to previousCart and inputs redrawn
+    qtyInputs['qty-VEILIG'].value = 1;
+    vm.runInContext("cart = { VEILIG: { quantity: 1 } }; setQuantity = () => { throw new Error('onverwagte fout'); };", sb);
+    mockOrderItems = [{ product_name: 'VLERKIES', quantity: 1 }];
+    sb.localStorage.setItem(sb.HERBESTEL_KEY, JSON.stringify({ order: 'ORD-99', at: Date.now() }));
+    alertMsg = null;
+    await sb.restoreLastOrder();
+    check(getCart().VEILIG && getCart().VEILIG.quantity === 1, 'when refill threw, previous cart was not restored');
+    check(qtyInputs['qty-VEILIG'].value === 1, 'when refill threw, quantity inputs were not redrawn to match previous cart');
+    check(alertMsg && alertMsg.includes('Ons kon nie jou vorige bestelling herstel nie'), 'when refill threw, warning note/alert was not shown');
+
+    if (!bad) ok('portal refill: missing products named, nothing available leaves cart, cart replacement, customer isolation and error resilience');
+}
