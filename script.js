@@ -3099,7 +3099,28 @@ function updateInvoicesDisplay(importId = null) {
         return;
     }
 
-    const invoicesHTML = displayInvoices.map(invoice => {
+    // Reconcile one run, not every invoice ever stored. With no import picked,
+    // this used to reconcile everything, so on 4 Nov 2026 the 23 invoices just
+    // imported sat under 19 from the 2 Oct run, and 9 of the 13 flags were old
+    // ones. Scope to the current import (the one just imported), list its
+    // invoices first, and say how many older ones were left out.
+    let runInvoices = displayInvoices;
+    let olderInvoices = [];
+    let runNote = '';
+    const run = !importId && currentImportId && imports[currentImportId];
+    if (run && Array.isArray(run.invoices) && run.invoices.length) {
+        const ids = new Set(run.invoices.map(inv => inv.invoiceId));
+        const inRun = displayInvoices.filter(inv => ids.has(inv.invoiceId));
+        if (inRun.length && inRun.length < displayInvoices.length) {
+            runInvoices = inRun;
+            olderInvoices = displayInvoices.filter(inv => !ids.has(inv.invoiceId));
+            runNote = `Showing this run only: ${escapeRunText(run.sourceFile || run.name || currentImportId)}` +
+                ` (${inRun.length} invoices). ${olderInvoices.length} invoice(s) from earlier runs` +
+                ` are listed below the line and not reconciled here.`;
+        }
+    }
+
+    const invoiceCard = invoice => {
         const itemsCount = invoice.items ? invoice.items.length : 1;
         const itemsSummary = invoice.items && invoice.items.length > 1
             ? `${itemsCount} items`
@@ -3165,11 +3186,21 @@ function updateInvoicesDisplay(importId = null) {
                 </div>
             </div>
         `;
-    }).join('');
+    };
+
+    const invoicesHTML = runInvoices.map(invoiceCard).join('') +
+        (olderInvoices.length
+            ? `<h3 style="grid-column:1/-1;margin:24px 0 8px;padding-top:12px;border-top:2px solid #ccc;">
+                 Earlier runs (${olderInvoices.length})</h3>` + olderInvoices.map(invoiceCard).join('')
+            : '');
 
     // The whole run at a glance. Clicking into 21 invoices one at a time is how
     // a missing line goes unnoticed until a customer asks where his wings are.
-    container.innerHTML = renderReconciliation(displayInvoices) + invoicesHTML;
+    container.innerHTML = renderReconciliation(runInvoices, runNote) + invoicesHTML;
+}
+
+function escapeRunText(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // Remove every provisional invoice, and every unsent email that came from a
@@ -6598,7 +6629,7 @@ function reconcileRun(invoiceList) {
     };
 }
 
-function renderReconciliation(invoiceList) {
+function renderReconciliation(invoiceList, runNote = '') {
     const rec = reconcileRun(invoiceList);
     const overall = rec.totalCost > 0
         ? ((rec.totalBilled - rec.totalCost) / rec.totalCost) * 100 : 0;
@@ -6627,6 +6658,7 @@ function renderReconciliation(invoiceList) {
 
     return `<div class="reconciliation" style="margin-bottom:20px;">
         <h3>Butchery reconciliation</h3>
+        ${runNote ? `<p style="margin:0 0 10px;color:#555;">${runNote}</p>` : ''}
         ${banner}
         <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">

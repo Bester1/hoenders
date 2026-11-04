@@ -366,6 +366,42 @@ try {
     fail(`could not check the Nov 2026 invoice layout: ${e.message}`);
 }
 
+// --- 5c. Reconciliation covers the current run, not every stored invoice ----
+//
+// On 4 Nov 2026 the 23 invoices just imported were reconciled together with 19
+// from the 2 Oct run, and 9 of the 13 flags were old ones.
+try {
+    const vm = require('vm');
+    const stub = new Proxy(function () {}, {
+        get: (t, k) => (k === Symbol.toPrimitive ? () => '' : stub),
+        apply: () => stub, construct: () => stub,
+    });
+    const grid = { innerHTML: '' };
+    const sb = { console: { log() {}, warn() {}, error() {}, info() {} }, setTimeout, clearTimeout,
+        setInterval: () => 0, navigator: stub, location: stub, supabase: stub, alert() {},
+        fetch: () => new Promise(() => {}), localStorage: { getItem: () => null, setItem() {} },
+        document: new Proxy({}, { get: (t, k) => (k === 'getElementById'
+            ? (id => (id === 'invoicesGrid' ? grid : stub)) : stub) }) };
+    sb.window = sb;
+    vm.createContext(sb);
+    vm.runInContext(read('script.js'), sb);
+    const mk = (id, name) => ({ invoiceId: id, customerName: name, date: '2026-11-04',
+        status: 'generated', subtotal: 100, total: 100, tax: 0, statedButcheryTotal: 80,
+        items: [{ product: 'HEEL HOENDER', weight: 1, costPrice: 80 }] });
+    vm.runInContext(`invoices = ${JSON.stringify([mk('old1', 'Old Klant'), mk('new1', 'Nuwe Klant')])};
+        imports = { 'PDF-1': { id: 'PDF-1', sourceFile: 'run.pdf', invoices: [{ invoiceId: 'new1' }] } };
+        currentImportId = 'PDF-1'; updateInvoicesDisplay();`, sb);
+    const rec = grid.innerHTML.split('</table>')[0];
+    const problems = [];
+    if (rec.includes('Old Klant')) problems.push('an earlier run is reconciled with this one');
+    if (!rec.includes('Nuwe Klant')) problems.push('the current run is missing');
+    if (!grid.innerHTML.includes('Earlier runs (1)')) problems.push('older invoices are not listed separately');
+    if (problems.length) fail(`reconciliation scope: ${problems.join('; ')}`);
+    else ok('reconciliation covers the current run; earlier invoices listed apart');
+} catch (e) {
+    fail(`could not check reconciliation scope: ${e.message}`);
+}
+
 // --- 6. Every priced product must be visible on the order form -------------
 //
 // populateAllProducts() renders the products named in getProductCategories(),
