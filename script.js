@@ -84,7 +84,7 @@ const PACK_WEIGHTS = {
     'NEKKIES': 0.5,                             // observed 0.50
     'HOENDER KAASWORS': 0.5,                    // "± 500g VAKUUM VERPAK"
     'HOENDER PATTIES': 0.58,                    // observed 0.575 - 0.58
-    'INGELEGDE GROEN VYE': 0.375,               // 375g per jar
+    'INGELEGDE GROEN VYE': 1.0,                 // per potjie, like honey: her invoice counts jars ("1"), it does not weigh them
     'SUIWER HEUNING': 1.0,                      // per potjie; observed 1.00
     // Sept 2026 once-off extras from Ansie. No run has been weighed yet, so
     // these come from her own stated pack sizes, not from measurement. Take
@@ -258,6 +258,13 @@ const productMapping = {
     'vyerol': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
     'peprol': 'GEVULDE HOENDER ROLLE OPSIE 2',
     'groen vye': 'INGELEGDE GROEN VYE',
+    // Her own names, as printed on her invoices from 7 Nov 2026 (the reverse
+    // of NIEUWOUDT_NAMES). The rolls come first: their names contain
+    // "groenvye" and must not be billed as a jar of figs.
+    'gevulde hoender rol (groenvye': 'GEVULDE HOENDER ROLLE VAKUUM VERPAK',
+    'gevulde hoender rol (peppadew': 'GEVULDE HOENDER ROLLE OPSIE 2',
+    'ingelegde groenvye': 'INGELEGDE GROEN VYE',
+    'opgesnyde hoender': 'BRAAIPAKKE',
     'nekke': 'NEKKIES'
 };
 
@@ -4637,7 +4644,8 @@ function extractStatedTotal(pageText) {
         return isNaN(v) ? null : v;
     };
     // Preferred: the explicit amount due.
-    const due = pageText.match(/amount\s+due\s*R?\s*([\d\s]+[,.]\d{2})/i);
+    // \s* not \s+: OCR prints it as "Amountdue R2 416,43" often enough.
+    const due = pageText.match(/amount\s*due\s*R?\s*([\d\s]+[,.]\d{2})/i);
     if (due) return num(due[1]);
     // Otherwise the last bare "Total" line that is neither Subtotal nor tax.
     let found = null;
@@ -4741,9 +4749,23 @@ function parseInvoicePage(pageText, pageNumber) {
         // out as "R", and each one was then handed to findExistingCustomer(),
         // which substring-matches. That is how an invoice appeared for a
         // customer who is nowhere on the butchery PDF at all.
-        const headerRef = pageText.match(/INV-\d+\s+([^\n]+)/);
-        if (headerRef && isPlausibleReference(headerRef[1])) {
-            customerReference = headerRef[1].trim();
+        //
+        // From the 7 Nov 2026 run she invoices from a new system. The page is a
+        // "Tax Invoice", the number looks like HV-FB8828EEA1 (hex, so OCR often
+        // reads its 0 as O), and the table is "Description Quantity Price
+        // Amount" with the pack count inside the description: "Boude (6 in pak)
+        // (1 pak)". The importer knew none of that, so all 23 pages of
+        // "Adriaan Bester fakture.pdf" came back empty.
+        //
+        // OCR puts column debris between the number and the name ("_ Theresa
+        // Nel", "~~ Chris Laing", "_—_ Justin"); strip anything before the
+        // first letter.
+        // No \b: OCR glues debris onto the front ("4HV-903CE27FA8").
+        const isHvLayout = /HV-[0-9A-Z]{6,}/.test(pageText);
+        const headerRef = pageText.match(/(?:INV-\d+|HV-[0-9A-Z]{6,})[^\S\n]+([^\n]+)/);
+        const headerName = headerRef ? headerRef[1].replace(/^[^A-Za-z]+/, '').trim() : '';
+        if (headerName && isPlausibleReference(headerName)) {
+            customerReference = headerName;
             console.log(`✅ Found Reference on the header row: "${customerReference}"`);
         }
 
@@ -4836,7 +4858,7 @@ function parseInvoicePage(pageText, pageNumber) {
             // show it. An invoice you can see and fix beats one you never knew
             // existed. isPlausibleReference() rejects this prefix, so it will
             // never be matched to a real customer by accident.
-            const invNo = (pageText.match(/INV-\d+/) || [])[0] || `page ${pageNumber}`;
+            const invNo = (pageText.match(/INV-\d+|HV-[0-9A-Z]{6,}/) || [])[0] || `page ${pageNumber}`;
             customerReference = `UNIDENTIFIED ${invNo}`;
             console.warn(`⚠️ No usable Reference on page ${pageNumber}. Keeping the ` +
                 `invoice as "${customerReference}" — give it a customer by hand ` +
@@ -4862,7 +4884,9 @@ function parseInvoicePage(pageText, pageNumber) {
             if (!line) continue;
 
             // Check if we're at table headers
-            if (line.toLowerCase().includes('item') && line.toLowerCase().includes('description') && line.toLowerCase().includes('quantity')) {
+            const lower = line.toLowerCase();
+            if ((lower.includes('item') && lower.includes('description') && lower.includes('quantity')) ||
+                (isHvLayout && /\bdescription\b/.test(lower) && /\bquantity\b/.test(lower) && /\bamount\b/.test(lower))) {
                 inTableData = true;
                 continue;
             }
@@ -4921,7 +4945,11 @@ function parseInvoicePage(pageText, pageNumber) {
                     const price = parseFloat(cleanNumeric(rawPrice));
                     const weight = parseFloat(cleanNumeric(rawWeight));
 
-                    if (!isNaN(total) && !isNaN(price) && !isNaN(weight) && price > 0 && weight > 0) {
+                    // total > 0 as well: "Plat hoender (flatty) (2 pak) 4.03
+                    // 72,00 290,16" otherwise yields the triplet
+                    // "(flatty)"=1 x "(2"=2 = "pak)"=0, which is within the
+                    // R3 tolerance, and skipping past it lost the real line.
+                    if (!isNaN(total) && !isNaN(price) && !isNaN(weight) && price > 0 && weight > 0 && total > 0) {
                         // Validate with math (allowing for minor rounding)
                         let useWeight = weight, useTotal = total, repaired = null;
                         let matches = Math.abs((weight * price) - total) < 3.0;
@@ -5019,6 +5047,24 @@ function parseInvoicePage(pageText, pageNumber) {
                             if (!isNaN(num) && num > 0 && num < 100) {
                                 quantity = num;
                                 break;
+                            }
+                        }
+
+                        // New layout: the pack count is "(7 pak)" at the end
+                        // of the name, not a column. Take it from there and
+                        // drop it from the name, so it cannot be read as a
+                        // pack size by findMappedProduct(). Without it, the
+                        // digit hunt above lands on OCR debris ("Suiwer" ->
+                        // "5"). Lines with no pak (honey) are counted in
+                        // units, so Quantity is the count.
+                        if (isHvLayout && fullDescription) {
+                            const pak = fullDescription.match(/\s*\((\d{1,2})\s*pak\)\s*$/i);
+                            if (pak) {
+                                quantity = parseInt(pak[1], 10);
+                                fullDescription = fullDescription.slice(0, pak.index).trim();
+                            } else {
+                                quantity = Number.isInteger(triplet.weight) && triplet.weight > 0
+                                    ? triplet.weight : 1;
                             }
                         }
 
