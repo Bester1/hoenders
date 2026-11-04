@@ -276,6 +276,12 @@ try {
         ['sosaties 4',                  'DYE SOSATIES (BBQ)',     'short form'],
         ['vierke 13',                   'VLERKIES',               'OCR l/i regression, unchanged'],
         ['vye rol 1',                   'GEVULDE HOENDER ROLLE VAKUUM VERPAK', "Tanya's dropped line"],
+        // Her own names, as printed on her invoices from 7 Nov 2026.
+        ['Opgesnyde hoender',           'BRAAIPAKKE',             'her name for braaipakke'],
+        ['Ingelegde groenvye (375ml)',  'INGELEGDE GROEN VYE',    'one word on her invoice'],
+        ['Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)', 'GEVULDE HOENDER ROLLE VAKUUM VERPAK', 'a roll, not a jar of figs'],
+        ['Plat hoender (flatty)',       "PLAT HOENDER (FLATTY'S)", 'her name'],
+        ['Guns, boud en dy aanmekaar (3 in pak)', 'GUNS Boud en dy aanmekaar', 'her name'],
     ];
     let bad = 0;
     for (const [desc, expected, why] of cases) {
@@ -292,6 +298,72 @@ try {
     }
 } catch (e) {
     fail(`could not check product resolution: ${e.message}`);
+}
+
+// --- 5b. Her Nov 2026 invoice layout must parse and reconcile ---------------
+//
+// From 7 Nov 2026 Nieuwoudt invoices from a new system (HV-xxxxxxxxxx numbers,
+// "Description Quantity Price Amount", pack count inside the name). The
+// importer read none of the 23 pages of that run, and said only "No customer
+// data could be extracted". This is synthetic OCR text in that layout, with the
+// OCR damage seen on the real run: debris before the name, "4HV-", a flatty
+// line whose words looked like a number triplet, and "Amountdue".
+try {
+    const vm = require('vm');
+    const stub = new Proxy(function () {}, {
+        get: (t, k) => (k === Symbol.toPrimitive ? () => '' : stub),
+        apply: () => stub, construct: () => stub,
+    });
+    const quiet = { log() {}, warn() {}, error() {}, info() {} };
+    const sb = { console: quiet, setTimeout, clearTimeout, setInterval: () => 0,
+        document: stub, navigator: stub, location: stub, supabase: stub, alert() {},
+        fetch: () => new Promise(() => {}),
+        localStorage: { getItem: () => null, setItem() {} } };
+    sb.window = sb;
+    vm.createContext(sb);
+    vm.runInContext(read('script.js'), sb);
+
+    const page = [
+        'Tax Invoice',
+        'Amount due Due date Issue date Invoice number Reference',
+        'R1 152,19 14Nov2026 07Nov 2026 4HV-9O3CE27FA8 _—_ Test Klant',
+        'View online',
+        'Description Quantity Price Amount',
+        'Heel hoender (2 pak) 5.43 59,00 320,37',
+        'Suiwer heuning (500g) 2 65,00 130,00',
+        'Plat hoender (flatty) (1 pak) 2.07 72,00 149,04',
+        'Borsstukke met been en vel (4 in pak) (7 pak) 13.2 64,00 844,80',
+        'Subtotal 1 444,21',
+        'View online Total VAT 0,00',
+        'NEDBANK - WJ NIEUWOUDT Total 1 444,21',
+        'Acc: 25 33 010138 Amountdue R1 444,21',
+    ].join('\n');
+    const r = sb.parseInvoicePage(page, 1);
+    const want = [
+        ['Heel hoender', 2, 5.43, 'HEEL HOENDER'],
+        ['Suiwer heuning (500g)', 2, 2, 'SUIWER HEUNING'],
+        ['Plat hoender (flatty)', 1, 2.07, "PLAT HOENDER (FLATTY'S)"],
+        ['Borsstukke met been en vel (4 in pak)', 7, 13.2, 'BORSSTUKKE MET BEEN EN VEL (4 IN PAK)'],
+    ];
+    const problems = [];
+    if (!r) problems.push('page parsed to nothing');
+    else {
+        if (r.reference !== 'Test Klant') problems.push(`reference "${r.reference}"`);
+        if (r.statedTotal !== 1444.21) problems.push(`stated total ${r.statedTotal}`);
+        if (r.totalMismatch) problems.push(`does not reconcile: ${JSON.stringify(r.totalMismatch)}`);
+        if (r.items.length !== want.length) problems.push(`${r.items.length} lines, expected ${want.length}`);
+        want.forEach(([desc, qty, kg, product], i) => {
+            const it = r.items[i];
+            if (!it || it.description !== desc || it.quantity !== qty || it.weight !== kg ||
+                sb.findMappedProduct(it.description) !== product) {
+                problems.push(`line ${i + 1}: ${JSON.stringify(it)}, expected ${desc} x${qty} ${kg}kg -> ${product}`);
+            }
+        });
+    }
+    if (problems.length) fail(`Nov 2026 invoice layout: ${problems.join('; ')}`);
+    else ok('Nov 2026 invoice layout (HV- numbers, pak in the name) parses and reconciles');
+} catch (e) {
+    fail(`could not check the Nov 2026 invoice layout: ${e.message}`);
 }
 
 // --- 6. Every priced product must be visible on the order form -------------
