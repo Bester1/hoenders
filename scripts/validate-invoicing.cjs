@@ -874,16 +874,17 @@ async function noticeChecks() {
     try { sb.personaliseNotice(body, { ...sonja, lastItems: [] }); } catch (e) { threw = true; }
     check(threw, '{{vorige}} for a last order with no lines is filled with nothing instead of refusing');
 
-    // Round matching: window of 6 days avoids ambiguous overlap between 7 Nov and 21 Nov
+    // Round matching: a 6-day window either side of a delivery, null between rounds
     check(sb.scheduledRound('2026-11-07')?.delivery === '2026-11-07', 'exact date does not match round');
     check(sb.scheduledRound('2026-11-09')?.delivery === '2026-11-07', 'a van two days late does not match round');
-    check(sb.scheduledRound('2026-11-14') === null, '14 Nov (ambiguous/outside 6-day window) was guessed instead of null');
-    check(sb.scheduledRound('2026-11-15')?.delivery === '2026-11-21', '15 Nov does not match 21 Nov round');
+    check(sb.scheduledRound('2026-11-21') === null, '21 Nov (between rounds) was guessed instead of null');
+    check(sb.scheduledRound('2026-12-05')?.delivery === '2026-12-05', '5 Dec does not match the December round');
+    check(sb.scheduledRound('2026-12-07')?.delivery === '2026-12-05', 'a van two days late does not match the December round');
     check(sb.scheduledRound('2027-03-01') === null, '2027 date matches a 2026 round');
 
     check(sb.orderedThisRound(sonja, '2026-11-07') === true, 'an order for this round counts as not ordered');
     check(sb.orderedThisRound(sonja, '2026-11-09') === true, 'a van two days late lists everyone who ordered as not ordered');
-    check(sb.orderedThisRound(sonja, '2026-11-21') === false, 'an order for the previous round counts as ordered for this one');
+    check(sb.orderedThisRound(sonja, '2026-12-05') === false, 'an order for the previous round counts as ordered for this one');
     check(sb.orderedThisRound(sonja, '2027-03-01') === null, 'a date matching no round still sorts customers');
 
     // Date extraction from notice body
