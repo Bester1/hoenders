@@ -16,8 +16,8 @@
 // 26th when the real date was 3 October. It also carried an April round that
 // does not exist: the schedule jumps 28 March to 2 May.
 //
-// Every delivery is a Saturday. Cutoffs are Tuesdays except June (a Thursday)
-// and December (a Tuesday, from Bes himself).
+// Every delivery is a Saturday. Cutoffs are Tuesdays except June (a Thursday).
+// The December round comes from Bes himself, not from the spreadsheet.
 //
 // `tentative` marks a date that has not been fixed yet. Do not resolve one
 // by guessing; ask.
