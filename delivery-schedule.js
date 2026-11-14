@@ -16,11 +16,11 @@
 // 26th when the real date was 3 October. It also carried an April round that
 // does not exist: the schedule jumps 28 March to 2 May.
 //
-// Every delivery is a Saturday. Cutoffs are Tuesdays except June (a Thursday)
-// and the last round (a Sunday), which is how Ansie has them.
+// Every delivery is a Saturday. Cutoffs are Tuesdays except June (a Thursday).
+// The December round comes from Bes himself, not from the spreadsheet.
 //
-// `tentative` marks a date she has not fixed yet — the last round is written
-// "21 of 28 November" on her sheet. Do not resolve it by guessing; ask her.
+// `tentative` marks a date that has not been fixed yet. Do not resolve one
+// by guessing; ask.
 var DELIVERY_SCHEDULE_2026 = [
     { month: 'January',   delivery: '2026-01-31', cutoff: '2026-01-13' },
     { month: 'February',  delivery: '2026-02-28', cutoff: '2026-02-10' },
@@ -33,8 +33,12 @@ var DELIVERY_SCHEDULE_2026 = [
     { month: 'September', delivery: '2026-09-05', cutoff: '2026-08-11' },
     { month: 'October',   delivery: '2026-10-03', cutoff: '2026-09-15' },
     { month: 'November',  delivery: '2026-11-07', cutoff: '2026-10-13' },
-    { month: 'November (2)', delivery: '2026-11-21', cutoff: '2026-11-08',
-      tentative: true, note: 'Ansie se blad sê "21 of 28 November" — bevestig by haar' }
+    // Bes, 14 Nov 2026: his last round is Saturday 5 December, and he hands
+    // the orders to Ansie around the 17th-18th. This replaces a guessed
+    // "21 of 28 November" round that never ran for him. With it, orders
+    // placed after 14 Nov fell outside the schedule entirely and could not be
+    // matched to the invoice.
+    { month: 'December',  delivery: '2026-12-05', cutoff: '2026-11-17' }
 ];
 
 // How long after a round's cutoff Bes still takes orders for it. He gives
