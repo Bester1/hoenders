@@ -1449,12 +1449,14 @@ function routeStopsFor(orders) {
 // Bellville, Welgelegen to Bothasig, Table View, Blouberg, Duynefontein.
 // Woodbridge Island was his last stop in August, so Milnerton stays at the
 // end. The old list sorted suburbs alphabetically, which no drive follows
-// (Bes, 17 Nov: the arrows were the only way to fix it).
-const ROUTE_DRIVE_ORDER = ['kuilsrivier', 'brackenfell', 'kleinbron', 'kraaifontein', 'sonstraal',
-    'valmary park', 'durbanville', 'de goude akker', 'vergesig', 'eversdal', 'stellenberg', 'de bron',
-    'bellville', 'boston', 'welgelegen', 'parow', 'edgemead', 'bothasig', 'flamingo vlei',
-    'table view', 'tableview', 'blouberg rise', 'bloubergrant', 'blouberg', 'bloubergstrand',
-    'melkbos', 'duynefontein', 'woodbridge island', 'milnerton', 'observatory'];
+// (Bes, 17 Nov: the arrows were the only way to fix it). A list entry holds
+// every spelling of one place, so "Tableview" and "Table View" stay one group.
+const ROUTE_DRIVE_ORDER = [['kuilsrivier', 'kuils river', 'kuilsriver'], 'brackenfell', 'kleinbron',
+    'kraaifontein', 'sonstraal', 'valmary park', 'durbanville', 'de goude akker', 'vergesig', 'eversdal',
+    'stellenberg', 'de bron', 'bellville', 'boston', 'welgelegen', 'parow', 'edgemead', 'bothasig',
+    'flamingo vlei', ['table view', 'tableview'], 'blouberg rise', 'bloubergrant',
+    ['blouberg', 'bloubergstrand'], ['melkbos', 'melkbosstrand'], 'duynefontein', 'woodbridge island',
+    'milnerton', 'observatory'];
 
 /**
  * Where a free-text address sits on Bes's drive. The place the address names
@@ -1470,12 +1472,15 @@ const ROUTE_DRIVE_ORDER = ['kuilsrivier', 'brackenfell', 'kleinbron', 'kraaifont
 function routeDrivePlace(address) {
     const text = String(address || '').toLowerCase();
     let best = null;
-    ROUTE_DRIVE_ORDER.forEach((place, rank) => {
-        const at = text.indexOf(place);
-        if (at < 0) return;
-        if (!best || at < best.at || (at === best.at && place.length > best.place.length)) {
-            best = { at, place, rank };
-        }
+    ROUTE_DRIVE_ORDER.forEach((entry, rank) => {
+        const spellings = Array.isArray(entry) ? entry : [entry];
+        spellings.forEach(spelling => {
+            const at = text.indexOf(spelling);
+            if (at < 0) return;
+            if (!best || at < best.at || (at === best.at && spelling.length > best.spelling.length)) {
+                best = { at, spelling, place: spellings[0], rank };
+            }
+        });
     });
     if (best) return { rank: best.rank, place: best.place };
     return { rank: ROUTE_DRIVE_ORDER.length, place: addressSuburb(address) };
@@ -1641,7 +1646,7 @@ function renderRouteList() {
     const late = routeStops.filter(s => s.isNew).length;
     document.getElementById('routeSummary').innerHTML = routeEsc(
         `${routeStops.length} stops. Sleep 'n ry, of gebruik die pyltjies. Die volgorde word in HIERDIE blaaier gestoor `
-        + `sodra jy skuif of druk (op 'n ander toestel begin dit weer volgens voorstad).`
+        + `sodra jy skuif of druk (op 'n ander toestel begin dit weer volgens ry-volgorde).`
         + (late ? ` ${late} nuwe kliënt(e) onderaan, gemerk NUUT -- skuif hulle in plek.` : ''))
         + (routeDropped.length
             ? `<br><strong style="color:#b91c1c">${routeDropped.length} reël(s) NIE op die pakslip nie:</strong> `

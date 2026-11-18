@@ -278,6 +278,11 @@ try {
         ['vye rol 1',                   'GEVULDE HOENDER ROLLE VAKUUM VERPAK', "Tanya's dropped line"],
         // Her own names, as printed on her invoices from 7 Nov 2026.
         ['Opgesnyde hoender',           'BRAAIPAKKE',             'her name for braaipakke'],
+        // Her names from 17 Nov 2026 (export side renamed in PR #21).
+        ['Een Opgesnyde hoender',       'BRAAIPAKKE',             'her 17 Nov name'],
+        ['Een ontbeende hoender',       'ONTBEENDE HOENDER',      'her 17 Nov name'],
+        ['Boude en dye (2boude & 2dye in pak)', 'BOUDE EN DYE',   'her 17 Nov name'],
+        ['Dye Sosaties (4 in pak)',     'DYE SOSATIES (BBQ)',     'her 17 Nov name'],
         ['Ingelegde groenvye (375ml)',  'INGELEGDE GROEN VYE',    'one word on her invoice'],
         ['Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)', 'GEVULDE HOENDER ROLLE VAKUUM VERPAK', 'a roll, not a jar of figs'],
         ['Plat hoender (flatty)',       "PLAT HOENDER (FLATTY'S)", 'her name'],
@@ -716,6 +721,23 @@ try {
     check(late[late.length - 1].key === keys[0] && late[late.length - 1].isNew,
         'a customer missing from the saved route is not put at the end marked NUUT');
 
+    // Unarranged routes follow Bes's DRIVE (inland first, the coast last), not
+    // the alphabet, and an address goes by the place it names first.
+    const drive = sb.orderedRouteStops([
+        ['Coast', '2 Seal Road, Bloubergstrand'], ['Bothasig', '46A Reyger Street, Bothasig, 7441'],
+        ['DeBron', '29 Waterkloof Straat, Mooigezicht, De Bron, Bellville'], ['Kraai', '19 Hawk Road, kraaifontein'],
+        ['Akker', 'No 7 De Goude Akker, Gladstone Straat Durbanville'], ['TV', '7 Seal Road, Tableview'],
+        ['Rise', '63 Saxon Crescent, Blouberg Rise'], ['Unknown', '12 Somewhere, Goodwood'],
+    ].map(([name, address]) => ({ key: name, name, address, items: [] })), null).map(s => s.name).join(',');
+    check(drive === 'Kraai,Akker,DeBron,Bothasig,TV,Rise,Coast,Unknown',
+        'an unarranged route does not follow the drive (inland first, unknown places last): ' + drive);
+    check(sb.routeDrivePlace('1 A Rd, Kuils River').rank === 0 && sb.routeDrivePlace('1 A Rd, Kuilsriver').rank === 0,
+        'Kuils River spelt another way falls to the end of the route');
+    check(sb.routeDrivePlace('3 Hof str., Table View').place === sb.routeDrivePlace('7 Seal Road, Tableview').place,
+        'Table View and Tableview are split into two groups');
+    check(sb.routeDrivePlace('No 7 De Goude Akker, Durbanville').place === 'de goude akker',
+        'the place named FIRST in an address does not win (small to big)');
+
     // The CSV exports must use the SAME key as the slip, or the paper and the
     // files disagree about who is where.
     store['hoenders.route.r:2026-11-07'] = JSON.stringify([sb.routeStopKey(O('3', 'Chris', '1 A Street, Bellville')), sb.routeStopKey(O('1', 'Justin', '19 Hawk Road, kraaifontein'))]);
@@ -753,17 +775,18 @@ try {
     const from = src.indexOf("// The order file for Ansie's plaas-bestel sheet");
     const to = src.indexOf('// Delivery route + pakslip');
     if (from === -1 || to === -1) throw new Error('export block markers not found in script.js');
-    // Her product list as her order form served it on 1 Nov 2026 (she renamed
-    // several after 20 Oct, and the 7 Nov file lost 29 lines to it).
+    // Her product list as her order form served it on 17 Nov 2026 (she renamed
+    // four more after 1 Nov: Een Opgesnyde hoender, Een ontbeende hoender,
+    // Boude en dye (2boude & 2dye in pak), Dye Sosaties (4 in pak)).
     const HERS = [
-        'Heel hoender', 'Plat hoender (flatty)', 'Opgesnyde hoender', 'Halwe hoender',
+        'Heel hoender', 'Plat hoender (flatty)', 'Een Opgesnyde hoender', 'Halwe hoender',
         'Borsstukke met been en vel (4 in pak)', 'Borsstukke met been en vel (2 in pak)', 'Vlerkies (8 in pak)',
-        'Boude en dye', 'Guns, boud en dy aanmekaar (3 in pak)', 'Filette (sonder vel) (4 in pak)',
-        'filette (sonder vel) (2 in pak)', 'Strips', 'Ontbeende hoender',
+        'Boude en dye (2boude & 2dye in pak)', 'Guns, boud en dy aanmekaar (3 in pak)', 'Filette (sonder vel) (4 in pak)',
+        'filette (sonder vel) (2 in pak)', 'Strips', 'Een ontbeende hoender',
         'Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)',
         'Gevulde hoender rol (peppadew, mozzarella, cheddar, pynappel)', 'Hoender patties (4 in pak)',
         'Hoender kaaswors', 'Nekkies', 'Lewer', 'Magies', 'Ingelegde groenvye (375ml)', 'Suiwer heuning (500g)',
-        'Boude (6 in pak)', 'Dye Sosaties', 'Ontbeende DYE (6 in pak)', 'Kerrie ontbeende dye (6 in pak)',
+        'Boude (6 in pak)', 'Dye Sosaties (4 in pak)', 'Ontbeende DYE (6 in pak)', 'Kerrie ontbeende dye (6 in pak)',
         'Lamingtons Choclate (6 in pak)', 'Lamingtons Raspberry (6 in pak)', 'Hertzoggies (6 in pak)'];
     let csvText = '', alerted = '';
     const sb = {
@@ -786,7 +809,7 @@ try {
     const NOT_HERS = [];   // since 1 Nov she lists all of them
     const off = rate.filter(p => !NOT_HERS.includes(p) && !herKeys[sb.nieuwoudtKey(sb.nieuwoudtProductName(p, herKeys))]);
     check(off.length === 0, 'rate-card products that would not import on her side: ' + off.join(', '));
-    check(sb.nieuwoudtProductName('BRAAIPAKKE', herKeys) === 'Opgesnyde hoender', 'Braaipakke is not sent as her Opgesnyde hoender');
+    check(sb.nieuwoudtProductName('BRAAIPAKKE', herKeys) === 'Een Opgesnyde hoender', 'Braaipakke is not sent as her Een Opgesnyde hoender');
     check(sb.nieuwoudtProductName('BOUDE (6 IN PAK)', herKeys) === 'Boude (6 in pak)', 'a case-only difference is not sent in her exact spelling');
 
     // End to end: the file has her names, and the products she lacks are named with pack counts.
@@ -795,7 +818,7 @@ try {
         { name: 'Bes', products: [{ product: 'HOENDER PIE', quantity: 2 }, { product: 'SUIWER HEUNING', quantity: 0 }] },
     ];
     await sb.exportForNieuwoudt();
-    check(/"Justin","Vlerkies \(8 in pak\)",4/.test(csvText) && /"Justin","Opgesnyde hoender",2/.test(csvText),
+    check(/"Justin","Vlerkies \(8 in pak\)",4/.test(csvText) && /"Justin","Een Opgesnyde hoender",2/.test(csvText),
         'the Nieuwoudt file does not carry her product names: ' + csvText.split('\n').slice(1, 3).join(' | '));
     check(/HOENDER PIE\s+\(2 pakke\)/.test(alerted), 'a product missing from her list is not named, with its packs, after the download');
     check(!/SUIWER/.test(csvText), 'a zero-quantity line went into her import file');
