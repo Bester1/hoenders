@@ -1229,7 +1229,11 @@ function updateOrdersStatusUI() {
 // that is still not on it, with the pack count, so Bes can ask her to add it
 // BEFORE she imports.
 const NIEUWOUDT_NAMES = {
-    'BRAAIPAKKE': 'Opgesnyde hoender',                     // 1 heel hoender opgesny, ± 2kg, R65/kg both sides
+    // She renamed these four on Pryse by 17 Nov; packs checked against Bes's
+    // products table (Boude en dye = 2 boude + 2 dye, sosaties = 4 in pak).
+    'BRAAIPAKKE': 'Een Opgesnyde hoender',                  // 1 heel hoender opgesny, ± 2kg, R65/kg both sides
+    'ONTBEENDE HOENDER': 'Een ontbeende hoender',
+    'BOUDE EN DYE': 'Boude en dye (2boude & 2dye in pak)',
     'HEEL HALWE HOENDERS': 'Halwe hoender',
     "PLAT HOENDER (FLATTY'S)": 'Plat hoender (flatty)',
     // She renamed these on Pryse after 20 Oct; the 7 Nov file lost 29 lines (1 Nov).
@@ -1238,7 +1242,7 @@ const NIEUWOUDT_NAMES = {
     'VLERKIES': 'Vlerkies (8 in pak)',
     'GUNS BOUD EN DY AANMEKAAR': 'Guns, boud en dy aanmekaar (3 in pak)',
     'FILETTE (SONDER VEL)': 'Filette (sonder vel) (4 in pak)',  // Bes's are 4 per pak
-    'DYE SOSATIES (BBQ)': 'Dye Sosaties',
+    'DYE SOSATIES (BBQ)': 'Dye Sosaties (4 in pak)',
     'ONTBEENDE DYE': 'Ontbeende DYE (6 in pak)',
     'ONTBEENDE DYE (KERRIE)': 'Kerrie ontbeende dye (6 in pak)',
     'GEVULDE HOENDER ROLLE OPSIE 1': 'Gevulde hoender rol (groenvye, feta, cheddar, sweet chilli)',
@@ -1440,25 +1444,57 @@ function routeStopsFor(orders) {
     return { stops: list, dropped };
 }
 
-// Suburbs Bes delivers to, so "14 Rust En Vrede street Ridgeworth Bellville"
-// sorts under Bellville rather than under whatever came last. Order matters:
-// the first one found wins, so the more specific names go first.
-const ROUTE_SUBURBS = ['flamingo vlei', 'table view', 'blouberg', 'duynefontein', 'melkbos',
-    'bothasig', 'welgelegen', 'parow', 'bellville', 'kraaifontein', 'brackenfell', 'kleinbron',
-    'eversdal', 'sonstraal', 'vergesig', 'durbanville', 'observatory'];
+// The places Bes delivers to, IN THE ORDER HE DRIVES THEM (his Aug, Sep and
+// 7 Nov 2026 lists): Brackenfell/Kraaifontein, Durbanville, Eversdal and
+// Bellville, Welgelegen to Bothasig, Table View, Blouberg, Duynefontein.
+// Woodbridge Island was his last stop in August, so Milnerton stays at the
+// end. The old list sorted suburbs alphabetically, which no drive follows
+// (Bes, 17 Nov: the arrows were the only way to fix it). A list entry holds
+// every spelling of one place, so "Tableview" and "Table View" stay one group.
+const ROUTE_DRIVE_ORDER = [['kuilsrivier', 'kuils river', 'kuilsriver'], 'brackenfell', 'kleinbron',
+    'kraaifontein', 'sonstraal', 'valmary park', 'durbanville', 'de goude akker', 'vergesig', 'eversdal',
+    'stellenberg', 'de bron', 'bellville', 'boston', 'welgelegen', 'parow', 'edgemead', 'bothasig',
+    'flamingo vlei', ['table view', 'tableview'], 'blouberg rise', 'bloubergrant',
+    ['blouberg', 'bloubergstrand'], ['melkbos', 'melkbosstrand'], 'duynefontein', 'woodbridge island',
+    'milnerton', 'observatory'];
 
 /**
- * Best guess at the suburb in a free-text address: a known suburb if one is
- * named, else the last part that is not a postcode or filler. Only used for the
- * first, unarranged order of a route.
+ * Where a free-text address sits on Bes's drive. The place the address names
+ * FIRST wins, because people write small to big: "Vergesig, Durbanville" is
+ * Vergesig, "De Bron, Bellville" is De Bron, "No 7 De Goude Akker, ...
+ * Durbanville" is De Goude Akker. Two names starting at the same spot
+ * ("Blouberg Rise" / "Blouberg") take the longer one. An address naming none
+ * of them goes after every known place, under its last part.
+ * @function routeDrivePlace
+ * @param {string} address - Address as the customer typed it
+ * @returns {{rank: number, place: string}} Position on the drive, and the place
+ */
+function routeDrivePlace(address) {
+    const text = String(address || '').toLowerCase();
+    let best = null;
+    ROUTE_DRIVE_ORDER.forEach((entry, rank) => {
+        const spellings = Array.isArray(entry) ? entry : [entry];
+        spellings.forEach(spelling => {
+            const at = text.indexOf(spelling);
+            if (at < 0) return;
+            if (!best || at < best.at || (at === best.at && spelling.length > best.spelling.length)) {
+                best = { at, spelling, place: spellings[0], rank };
+            }
+        });
+    });
+    if (best) return { rank: best.rank, place: best.place };
+    return { rank: ROUTE_DRIVE_ORDER.length, place: addressSuburb(address) };
+}
+
+/**
+ * Last-resort suburb guess for an address that names no place on the drive:
+ * the last part that is not a postcode or filler.
  * @function addressSuburb
  * @param {string} address - Address as the customer typed it
  * @returns {string} Lower-case suburb guess, '' when none
  */
 function addressSuburb(address) {
     const text = String(address || '').toLowerCase();
-    const known = ROUTE_SUBURBS.find(s => text.includes(s));
-    if (known) return known;
     const parts = text.split(/[\n,]+/)
         .map(p => p.trim().replace(/[.\s]*\d{4}$/, '').trim())
         .filter(p => p && !/^\d+$/.test(p) && !/^(house|huis|kaapstad|cape town|south africa)$/.test(p));
@@ -1475,10 +1511,14 @@ function addressSuburb(address) {
  */
 function orderedRouteStops(stops, saved) {
     // No address sorts LAST: those are the stops Bes has to chase.
-    const bySuburb = (a, b) => (!a.address.trim() - !b.address.trim())
-        || addressSuburb(a.address).localeCompare(addressSuburb(b.address))
-        || a.address.toLowerCase().localeCompare(b.address.toLowerCase())
-        || a.name.localeCompare(b.name);
+    const bySuburb = (a, b) => {
+        const pa = routeDrivePlace(a.address), pb = routeDrivePlace(b.address);
+        return (!a.address.trim() - !b.address.trim())
+            || pa.rank - pb.rank
+            || pa.place.localeCompare(pb.place)
+            || a.address.toLowerCase().localeCompare(b.address.toLowerCase())
+            || a.name.localeCompare(b.name);
+    };
     if (!saved || !saved.length) return stops.slice().sort(bySuburb).map(s => ({ ...s, isNew: false }));
     const pos = {};
     saved.forEach((k, i) => { pos[k] = i; });
@@ -1606,7 +1646,7 @@ function renderRouteList() {
     const late = routeStops.filter(s => s.isNew).length;
     document.getElementById('routeSummary').innerHTML = routeEsc(
         `${routeStops.length} stops. Sleep 'n ry, of gebruik die pyltjies. Die volgorde word in HIERDIE blaaier gestoor `
-        + `sodra jy skuif of druk (op 'n ander toestel begin dit weer volgens voorstad).`
+        + `sodra jy skuif of druk (op 'n ander toestel begin dit weer volgens ry-volgorde).`
         + (late ? ` ${late} nuwe kliënt(e) onderaan, gemerk NUUT -- skuif hulle in plek.` : ''))
         + (routeDropped.length
             ? `<br><strong style="color:#b91c1c">${routeDropped.length} reël(s) NIE op die pakslip nie:</strong> `
